@@ -58,7 +58,12 @@ public enum ObservationBuilder {
             unifiedElement(from: $0, appLabel: appLabel, windowTitle: windowTitle, source: .ax, confidence: 0.95)
         }
 
-        let elements = axElements // Simplified fusion for now
+        let cdpElements = cdpUnifiedElements(
+            appLabel: appLabel,
+            windowTitle: windowTitle,
+            maxElements: maxElements
+        )
+        let elements = ObservationFusion.fuse(ax: axElements, cdp: cdpElements, vision: [])
 
         return Observation(
             app: appLabel,
@@ -87,12 +92,11 @@ public enum ObservationBuilder {
         maxDepth: Int,
         maxElements: Int
     ) {
-        var localResults = results
         collectInteractiveElementsInternal(
             from: element,
             appLabel: appLabel,
             windowTitle: windowTitle,
-            results: &localResults,
+            results: &results,
             depth: depth,
             maxDepth: maxDepth,
             maxElements: maxElements
@@ -186,6 +190,83 @@ public enum ObservationBuilder {
             }
         }
 
+        return nil
+    }
+
+    private static func cdpUnifiedElements(
+        appLabel: String,
+        windowTitle: String?,
+        maxElements: Int
+    ) -> [UnifiedElement] {
+        guard supportsCDP(for: appLabel),
+              let elements = CDPBridge.listInteractiveElements()
+        else {
+            return []
+        }
+
+        return elements.prefix(maxElements).compactMap { candidate in
+            let x = candidate["x"] as? Double ?? Double(candidate["x"] as? Int ?? 0)
+            let y = candidate["y"] as? Double ?? Double(candidate["y"] as? Int ?? 0)
+            let width = candidate["width"] as? Double ?? Double(candidate["width"] as? Int ?? 0)
+            let height = candidate["height"] as? Double ?? Double(candidate["height"] as? Int ?? 0)
+            let frame = CGRect(x: x, y: y, width: width, height: height)
+
+            let role = firstNonEmptyString(
+                candidate["role"] as? String,
+                candidate["tag"] as? String
+            )
+            let value = firstNonEmptyString(
+                candidate["value"] as? String,
+                candidate["text"] as? String
+            )
+            let label = firstNonEmptyString(
+                candidate["ariaLabel"] as? String,
+                candidate["text"] as? String,
+                candidate["placeholder"] as? String,
+                candidate["title"] as? String,
+                candidate["id"] as? String
+            )
+            let domID = firstNonEmptyString(candidate["id"] as? String)
+
+            let id = stableElementID(
+                source: .cdp,
+                appLabel: appLabel,
+                windowTitle: windowTitle,
+                role: role,
+                label: label,
+                domID: domID,
+                identifier: nil,
+                frame: frame
+            )
+
+            return UnifiedElement(
+                id: id,
+                source: .cdp,
+                role: role,
+                label: label,
+                value: value,
+                frame: frame,
+                enabled: candidate["enabled"] as? Bool ?? true,
+                visible: candidate["visible"] as? Bool ?? true,
+                focused: candidate["focused"] as? Bool ?? false,
+                confidence: 0.75
+            )
+        }
+    }
+
+    private static func supportsCDP(for appLabel: String) -> Bool {
+        let normalized = appLabel.lowercased()
+        return normalized.contains("chrome")
+    }
+
+    private static func firstNonEmptyString(_ values: String?...) -> String? {
+        for value in values {
+            guard let value else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
         return nil
     }
 

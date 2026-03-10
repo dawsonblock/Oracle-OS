@@ -41,4 +41,35 @@ public struct UnifiedElement: Sendable, Codable, Identifiable {
         self.focused = focused
         self.confidence = confidence
     }
+
+    public func toDict() -> [String: Any] {
+        var result: [String: Any] = [
+            "id": id,
+            "source": source.rawValue,
+            "enabled": enabled,
+            "visible": visible,
+            "focused": focused,
+            "confidence": confidence,
+        ]
+
+        if let role {
+            result["role"] = role
+        }
+        if let label {
+            result["label"] = label
+        }
+        if let value {
+            result["value"] = value
+        }
+        if let frame {
+            result["frame"] = [
+                "x": frame.origin.x,
+                "y": frame.origin.y,
+                "width": frame.width,
+                "height": frame.height,
+            ]
+        }
+
+        return result
+    }
 }

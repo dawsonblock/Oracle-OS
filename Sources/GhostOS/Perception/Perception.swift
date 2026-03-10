@@ -484,11 +484,15 @@ public enum Perception {
 
     private static func buildContext(for app: NSRunningApplication) -> ToolResult {
         let pid = app.processIdentifier
+        let appLabel = app.localizedName ?? "Unknown"
+        let observation = ObservationBuilder.capture(appName: appLabel)
+
         guard let appElement = Element.application(for: pid) else {
             return ToolResult(
                 success: true,
                 data: [
-                    "app": app.localizedName ?? "Unknown",
+                    "app": appLabel,
+                    "observation": observation.toDict(),
                     "note": "Could not read accessibility tree. App may need focus for native apps.",
                 ],
                 suggestion: "Try ghost_focus to bring the app to front first"
@@ -501,50 +505,46 @@ public enum Perception {
         defer { resetElementTimeout(appElement) }
 
         var data: [String: Any] = [
-            "app": app.localizedName ?? "Unknown",
+            "app": appLabel,
             "bundle_id": app.bundleIdentifier ?? "unknown",
             "pid": pid,
+            "observation": observation.toDict(),
         ]
 
-        // Window title
-        if let window = appElement.focusedWindow() {
-            if let title = window.title() {
-                data["window"] = title
-            }
-            // URL for browsers
-            if let webArea = findWebArea(in: window) {
-                if let url = readURL(from: webArea) {
-                    data["url"] = url
-                }
-            }
+        if let title = observation.windowTitle {
+            data["window"] = title
         }
-
-        // Focused element
-        if let focused = appElement.focusedUIElement() {
-            var focusedInfo: [String: Any] = [:]
-            if let role = focused.role() { focusedInfo["role"] = role }
-            if let title = focused.title() { focusedInfo["title"] = title }
-            if let name = focused.computedName() { focusedInfo["name"] = name }
-            focusedInfo["editable"] = focused.isEditable()
-            if !focusedInfo.isEmpty {
-                data["focused_element"] = focusedInfo
-            }
+        if let url = observation.url {
+            data["url"] = url
         }
-
-        // Interactive elements (buttons, links, fields - just names and roles, not full tree)
-        if let window = appElement.focusedWindow() {
-            let interactiveRoles: Set<String> = [
-                "AXButton", "AXLink", "AXTextField", "AXTextArea",
-                "AXCheckBox", "AXRadioButton", "AXPopUpButton",
-                "AXComboBox", "AXMenuButton", "AXTab",
+        if let focused = observation.focusedElement {
+            var focusedInfo: [String: Any] = [
+                "id": focused.id,
+                "source": focused.source.rawValue,
+                "enabled": focused.enabled,
+                "visible": focused.visible,
+                "focused": focused.focused,
+                "confidence": focused.confidence,
             ]
-            var interactives: [[String: String]] = []
-            collectInteractiveElements(
-                from: window, roles: interactiveRoles,
-                results: &interactives, depth: 0, maxDepth: 8
-            )
-            if !interactives.isEmpty {
-                data["interactive_elements"] = Array(interactives.prefix(30))
+            if let role = focused.role { focusedInfo["role"] = role }
+            if let label = focused.label { focusedInfo["name"] = label }
+            if let value = focused.value { focusedInfo["value"] = value }
+            data["focused_element"] = focusedInfo
+        }
+        if !observation.elements.isEmpty {
+            data["interactive_elements"] = Array(observation.elements.prefix(30)).map { element in
+                var summary: [String: Any] = [
+                    "id": element.id,
+                    "source": element.source.rawValue,
+                    "enabled": element.enabled,
+                    "visible": element.visible,
+                    "focused": element.focused,
+                    "confidence": element.confidence,
+                ]
+                if let role = element.role { summary["role"] = role }
+                if let label = element.label { summary["name"] = label }
+                if let value = element.value { summary["value"] = value }
+                return summary
             }
         }
 

@@ -195,6 +195,80 @@ public enum CDPBridge {
         return evaluateJS(js, wsURL: wsURL)
     }
 
+    /// List interactive elements in the target tab for observation fusion.
+    /// This is intentionally broad and lightweight: it snapshots actionable
+    /// DOM candidates so Ghost can merge them with AX observations.
+    public static func listInteractiveElements(tabIndex: Int = 0) -> [[String: Any]]? {
+        guard let targets = getDebugTargets() else {
+            return nil
+        }
+
+        let pages = targets.filter { ($0["type"] as? String) == "page" }
+        guard tabIndex < pages.count,
+              let wsURL = pages[tabIndex]["webSocketDebuggerUrl"] as? String
+        else {
+            return nil
+        }
+
+        let js = """
+        (function() {
+            const selectors = [
+                'button',
+                'a[href]',
+                'input',
+                'textarea',
+                'select',
+                '[role="button"]',
+                '[role="link"]',
+                '[role="textbox"]',
+                '[contenteditable="true"]',
+                '[tabindex]'
+            ];
+            const seen = new Set();
+            const results = [];
+
+            for (const el of document.querySelectorAll(selectors.join(','))) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+
+                const key = `${Math.round(rect.x)}:${Math.round(rect.y)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                const text = (el.innerText || el.textContent || '').trim().substring(0, 120);
+                const ariaLabel = (el.getAttribute('aria-label') || '').trim();
+                const placeholder = (el.getAttribute('placeholder') || '').trim();
+                const title = (el.getAttribute('title') || '').trim();
+                const value = typeof el.value === 'string' ? el.value.substring(0, 120) : '';
+
+                results.push({
+                    tag: el.tagName.toLowerCase(),
+                    role: el.getAttribute('role') || '',
+                    text: text,
+                    ariaLabel: ariaLabel,
+                    placeholder: placeholder,
+                    title: title,
+                    value: value,
+                    id: el.id || '',
+                    className: (el.className || '').toString().substring(0, 120),
+                    x: Math.round(rect.x),
+                    y: Math.round(rect.y),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    focused: document.activeElement === el,
+                    enabled: !el.disabled,
+                    visible: true
+                });
+            }
+
+            return results.slice(0, 75);
+        })();
+        """
+
+        return evaluateJS(js, wsURL: wsURL)
+    }
+
     // MARK: - JavaScript Evaluation
 
     /// Evaluate JavaScript in the Chrome tab and return the result.
