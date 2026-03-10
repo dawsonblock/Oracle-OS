@@ -84,4 +84,34 @@ public struct ActionIntent: Sendable, Codable {
             postconditions: postconditions
         )
     }
+
+    public static func focus(
+        app: String,
+        windowTitle: String? = nil,
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            app: app,
+            name: "focus \(app)",
+            action: "focus",
+            query: windowTitle ?? app,
+            postconditions: postconditions
+        )
+    }
+
+    public static func press(
+        app: String?,
+        key: String,
+        modifiers: [String]? = nil,
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            app: app ?? "unknown",
+            name: "press \(modifiers.map { $0.joined(separator: "+") + "+" } ?? "")\(key)",
+            action: "press",
+            query: key,
+            role: modifiers?.joined(separator: "+"),
+            postconditions: postconditions
+        )
+    }
 }

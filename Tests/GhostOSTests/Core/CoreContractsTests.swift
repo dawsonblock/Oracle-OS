@@ -75,6 +75,65 @@ struct CoreContractsTests {
         #expect(summary.checks.allSatisfy { $0.passed })
     }
 
+    @Test("Action verifier matches query-based focus, app, window, and URL")
+    func actionVerifierChecksContextConditions() {
+        let field = UnifiedElement(
+            id: "subject-id",
+            source: .ax,
+            role: "AXTextField",
+            label: "Subject",
+            value: "Quarterly report",
+            focused: true
+        )
+        let observation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Compose - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+            focusedElementID: "subject-id",
+            elements: [field]
+        )
+
+        let summary = ActionVerifier.verify(
+            post: observation,
+            conditions: [
+                .elementFocused("Subject"),
+                .appFrontmost("Chrome"),
+                .windowTitleContains("Compose"),
+                .urlContains("mail.google.com")
+            ]
+        )
+
+        #expect(summary.status == .passed)
+        #expect(summary.checks.allSatisfy { $0.passed })
+    }
+
+    @Test("Observation fusion prefers stronger sources and preserves confidence")
+    func observationFusionPrefersStrongerSources() {
+        let ax = UnifiedElement(
+            id: "ax-send",
+            source: .ax,
+            role: "AXButton",
+            label: "Send",
+            frame: CGRect(x: 20, y: 30, width: 80, height: 24),
+            confidence: 0.92
+        )
+        let cdp = UnifiedElement(
+            id: "cdp-send",
+            source: .cdp,
+            role: "AXButton",
+            label: "Send",
+            frame: CGRect(x: 22, y: 31, width: 80, height: 24),
+            confidence: 0.74
+        )
+
+        let fused = ObservationFusion.fuse(ax: [ax], cdp: [cdp], vision: [])
+
+        #expect(fused.count == 1)
+        #expect(fused[0].source == .fused)
+        #expect(fused[0].label == "Send")
+        #expect(fused[0].confidence == 0.92)
+    }
+
     @Test("Trace event codable round trip")
     func traceEventRoundTrip() throws {
         let intent = ActionIntent(

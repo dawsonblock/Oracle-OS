@@ -19,7 +19,9 @@ public struct VerificationCheck: Codable, Sendable {
 public enum ActionVerifier {
 
     public static func matchesElement(_ element: UnifiedElement, query: String) -> Bool {
-        element.id == query || element.label?.localizedCaseInsensitiveContains(query) == true
+        element.id == query
+            || element.label?.localizedCaseInsensitiveContains(query) == true
+            || element.value?.localizedCaseInsensitiveContains(query) == true
     }
 
     public static func verify(
@@ -51,20 +53,30 @@ public enum ActionVerifier {
         post: Observation,
         condition: Postcondition
     ) -> Bool {
-
         switch condition {
-
         case .elementFocused(let id):
-            return post.focusedElementID == id
+            guard let focused = post.focusedElement else {
+                return false
+            }
+            return matchesElement(focused, query: id)
 
         case .elementAppeared(let id):
-            return post.elements.contains { $0.id == id }
+            return post.elements.contains { matchesElement($0, query: id) }
 
         case .elementDisappeared(let id):
-            return !post.elements.contains { $0.id == id }
+            return !post.elements.contains { matchesElement($0, query: id) }
 
         case .elementValueEquals(let id, let value):
-            return post.elements.first(where: { $0.id == id })?.value == value
+            return post.elements.first(where: { matchesElement($0, query: id) })?.value == value
+
+        case .appFrontmost(let app):
+            return post.app?.localizedCaseInsensitiveContains(app) == true
+
+        case .windowTitleContains(let value):
+            return post.windowTitle?.localizedCaseInsensitiveContains(value) == true
+
+        case .urlContains(let value):
+            return post.url?.localizedCaseInsensitiveContains(value) == true
         }
     }
 }

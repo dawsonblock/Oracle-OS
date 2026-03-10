@@ -3,6 +3,7 @@ public enum WaitCondition {
     case elementExists(String)
     case elementGone(String)
     case elementFocused(String)
+    case appFrontmost(String)
     case urlContains(String)
     case titleContains(String)
     case urlChanged(String?)
@@ -13,7 +14,9 @@ public enum WaitCondition {
 
     public static func parse(condition: String, value: String?, baseline: String? = nil) -> WaitCondition? {
         switch condition {
+        case "appFrontmost": return value.map { .appFrontmost($0) }
         case "urlContains": return value.map { .urlContains($0) }
+        case "windowTitleContains": return value.map { .titleContains($0) }
         case "titleContains": return value.map { .titleContains($0) }
         case "elementExists": return value.map { .elementExists($0) }
         case "elementGone": return value.map { .elementGone($0) }

@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 public enum VerifiedActionExecutor {
+    private static let verificationTimeout: TimeInterval = 1.5
+
     public static func run(
         intent: ActionIntent,
         execute: () -> ToolResult
@@ -9,9 +11,11 @@ public enum VerifiedActionExecutor {
         let preObservation = ObservationBuilder.capture(appName: intent.app)
         let start = Date()
         let raw = execute()
-        let postObservation = ObservationBuilder.capture(appName: intent.app)
-        let verification = ActionVerifier.verify(post: postObservation, conditions: intent.postconditions)
-        let failureClass = classifyFailure(raw: raw, verification: verification)
+        let (postObservation, verification, timedOut) = captureVerifiedPostObservation(
+            appName: intent.app,
+            conditions: intent.postconditions
+        )
+        let failureClass = classifyFailure(raw: raw, verification: verification, timedOut: timedOut)
         let finalSuccess = raw.success && verification.status != .failed
         let artifacts = failureClass != nil
             ? FailureArtifactWriter.capture(
@@ -68,7 +72,8 @@ public enum VerifiedActionExecutor {
 
         let finalError: String?
         if raw.success, verification.status == .failed {
-            let detail = verification.checks.first(where: { !$0.passed })?.detail ?? "Postcondition verification failed"
+            let detail = verification.checks.first(where: { !$0.passed })?.detail
+                ?? (timedOut ? "Postcondition verification timed out" : "Postcondition verification failed")
             finalError = detail
         } else {
             finalError = raw.error
@@ -85,7 +90,8 @@ public enum VerifiedActionExecutor {
 
     private static func classifyFailure(
         raw: ToolResult,
-        verification: VerificationSummary
+        verification: VerificationSummary,
+        timedOut: Bool
     ) -> FailureClass? {
         if !raw.success {
             let error = raw.error?.lowercased() ?? ""
@@ -99,12 +105,47 @@ public enum VerifiedActionExecutor {
         }
 
         if verification.status == .failed {
-            if verification.checks.contains(where: { $0.condition.kind == .elementFocused }) {
+            if verification.checks.contains(where: {
+                $0.condition.kind == .elementFocused || $0.condition.kind == .appFrontmost
+            }) {
                 return .wrongFocus
+            }
+            if verification.checks.contains(where: {
+                $0.condition.kind == .windowTitleContains || $0.condition.kind == .urlContains
+            }) {
+                return .navigationFailed
+            }
+            if timedOut {
+                return .staleObservation
             }
             return .verificationFailed
         }
 
         return nil
+    }
+
+    private static func captureVerifiedPostObservation(
+        appName: String,
+        conditions: [Postcondition]
+    ) -> (Observation, VerificationSummary, Bool) {
+        var latestObservation = ObservationBuilder.capture(appName: appName)
+        var latestVerification = ActionVerifier.verify(post: latestObservation, conditions: conditions)
+
+        guard !conditions.isEmpty, latestVerification.status == .failed else {
+            return (latestObservation, latestVerification, false)
+        }
+
+        let satisfied = WaitEngine.wait(timeout: verificationTimeout) {
+            latestObservation = ObservationBuilder.capture(appName: appName)
+            latestVerification = ActionVerifier.verify(post: latestObservation, conditions: conditions)
+            return latestVerification.status != .failed
+        }
+
+        if !satisfied {
+            latestObservation = ObservationBuilder.capture(appName: appName)
+            latestVerification = ActionVerifier.verify(post: latestObservation, conditions: conditions)
+        }
+
+        return (latestObservation, latestVerification, !satisfied)
     }
 }

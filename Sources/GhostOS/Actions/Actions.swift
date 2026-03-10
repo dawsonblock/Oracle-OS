@@ -489,6 +489,27 @@ public enum Actions {
         modifiers: [String]?,
         appName: String?
     ) -> ToolResult {
+        let intent = ActionIntent.press(
+            app: appName,
+            key: key,
+            modifiers: modifiers,
+            postconditions: inferredPressPostconditions(appName: appName)
+        )
+
+        return VerifiedActionExecutor.run(intent: intent) {
+            performPressKey(
+                key: key,
+                modifiers: modifiers,
+                appName: appName
+            )
+        }
+    }
+
+    private static func performPressKey(
+        key: String,
+        modifiers: [String]?,
+        appName: String?
+    ) -> ToolResult {
         if let appName {
             _ = FocusManager.focus(appName: appName)
             Thread.sleep(forTimeInterval: 0.2)
@@ -514,6 +535,22 @@ public enum Actions {
             return ToolResult(success: true, data: ["key": key])
         } catch {
             return ToolResult(success: false, error: "Key press failed: \(error)")
+        }
+    }
+
+    public static func focusApp(
+        appName: String,
+        windowTitle: String? = nil
+    ) -> ToolResult {
+        let postconditions = inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
+        let intent = ActionIntent.focus(
+            app: appName,
+            windowTitle: windowTitle,
+            postconditions: postconditions
+        )
+
+        return VerifiedActionExecutor.run(intent: intent) {
+            FocusManager.focus(appName: appName, windowTitle: windowTitle)
         }
     }
 
@@ -955,6 +992,22 @@ public enum Actions {
             .elementFocused(target),
             .elementValueEquals(target, text),
         ]
+    }
+
+    private static func inferredPressPostconditions(appName: String?) -> [Postcondition] {
+        guard let appName else { return [] }
+        return [.appFrontmost(appName)]
+    }
+
+    private static func inferredFocusPostconditions(
+        appName: String,
+        windowTitle: String?
+    ) -> [Postcondition] {
+        var conditions: [Postcondition] = [.appFrontmost(appName)]
+        if let windowTitle {
+            conditions.append(.windowTitleContains(windowTitle))
+        }
+        return conditions
     }
 
     // MARK: - DOM ID Search

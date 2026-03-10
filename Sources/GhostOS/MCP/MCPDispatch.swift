@@ -201,7 +201,7 @@ public enum MCPDispatch {
             guard let app = str(args, "app") else {
                 return ToolResult(success: false, error: "Missing required parameter: app")
             }
-            return FocusManager.focus(appName: app, windowTitle: str(args, "window"))
+            return Actions.focusApp(appName: app, windowTitle: str(args, "window"))
 
         case "ghost_window":
             guard let action = str(args, "action"),

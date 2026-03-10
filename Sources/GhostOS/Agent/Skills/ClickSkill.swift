@@ -10,6 +10,6 @@ public struct ClickSkill: Skill {
             return ActionResult(success: false, message: "No element")
         }
 
-        return ActionResult(success: true, message: "Clicked \\(element.id)")
+        return ActionResult(success: true, message: "Clicked \(element.id)")
     }
 }
