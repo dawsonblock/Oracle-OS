@@ -146,6 +146,38 @@ public enum VisionBridge {
         )
     }
 
+    // MARK: - Element Detection
+
+    /// Detect all interactive elements on screen using YOLO.
+    public static func detect(
+        imageBase64: String,
+        screenWidth: Double = 1728,
+        screenHeight: Double = 1117
+    ) -> [String: Any]? {
+        let payload: [String: Any] = [
+            "image": imageBase64,
+            "screen_w": screenWidth,
+            "screen_h": screenHeight,
+        ]
+        return httpPost(path: "/detect", body: payload, timeout: groundTimeout)
+    }
+
+    // MARK: - Screen Parsing
+
+    /// Parse screen into a structured element map.
+    public static func parse(
+        imageBase64: String,
+        screenWidth: Double = 1728,
+        screenHeight: Double = 1117
+    ) -> [String: Any]? {
+        let payload: [String: Any] = [
+            "image": imageBase64,
+            "screen_w": screenWidth,
+            "screen_h": screenHeight,
+        ]
+        return httpPost(path: "/parse", body: payload, timeout: groundTimeout)
+    }
+
     // MARK: - Sidecar Lifecycle
 
     /// Attempt to start the vision sidecar process.

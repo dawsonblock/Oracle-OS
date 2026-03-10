@@ -3,10 +3,10 @@
 // Maps to MCP tools: ghost_parse_screen, ghost_ground
 //
 // These tools use the Python vision sidecar (localhost:9876) for ML inference.
-// The sidecar handles ShowUI-2B (VLM grounding) and future YOLO detection.
+// The sidecar handles grounding and experimental full-screen parsing/detection.
 //
 // Architecture:
-//   ghost_parse_screen → experimental placeholder until /detect is implemented
+//   ghost_parse_screen → screenshot → sidecar /parse → experimental structured output
 //   ghost_ground       → screenshot → sidecar /ground → (x, y) coordinates
 //
 // Both tools take a screenshot automatically using the existing ScreenCapture
@@ -21,8 +21,9 @@ public enum VisionPerception {
 
     // MARK: - ghost_parse_screen
 
-    /// Experimental placeholder for full-screen vision parsing.
-    /// Keeps the public tool visible while /detect and /parse remain unfinished.
+    /// Experimental full-screen vision parsing.
+    /// The sidecar can return structured output, but the runtime still treats
+    /// this as a partial/experimental surface.
     public static func parseScreen(
         appName: String?,
         fullResolution: Bool
@@ -41,20 +42,28 @@ public enum VisionPerception {
             )
         }
 
-        // Keep the tool visible, but do not imply a working detector until /detect exists.
-        let health = VisionBridge.healthCheck()
+        // Get main display dimensions for mapping
+        let mainScreen = NSScreen.main ?? NSScreen.screens.first
+        let displayWidth = Double(mainScreen?.frame.width ?? 1728)
+        let displayHeight = Double(mainScreen?.frame.height ?? 1117)
+
+        // Call VLM parsing
+        guard let result = VisionBridge.parse(
+            imageBase64: screenshot.base64PNG,
+            screenWidth: displayWidth,
+            screenHeight: displayHeight
+        ) else {
+            return ToolResult(
+                success: false,
+                error: "Vision parsing failed",
+                suggestion: "The vision sidecar may have crashed. Check its logs."
+            )
+        }
+
         return ToolResult(
-            success: false,
-            data: [
-                "status": "experimental",
-                "note": "ghost_parse_screen is experimental and not yet implemented.",
-                "sidecar_status": health?["status"] as? String ?? "unknown",
-                "models_loaded": health?["models_loaded"] as? [String] ?? [],
-                "screenshot_width": screenshot.width,
-                "screenshot_height": screenshot.height,
-            ],
-            error: "ghost_parse_screen is experimental and not yet implemented",
-            suggestion: "Use ghost_find for AX-based element search, or ghost_ground to visually locate a specific element by description."
+            success: true,
+            data: result,
+            suggestion: "Screen parsed successfully via vision sidecar."
         )
     }
 

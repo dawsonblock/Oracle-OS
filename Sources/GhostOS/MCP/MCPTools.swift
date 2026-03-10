@@ -9,16 +9,18 @@ import Foundation
 public enum MCPTools {
 
     /// All tool definitions as MCP-compatible dictionaries.
+    @MainActor
     public static func definitions() -> [[String: Any]] {
         perception + actions + wait + recipes + vision
     }
 
     // MARK: - Perception Tools (7)
 
+    @MainActor
     private static let perception: [[String: Any]] = [
         tool(
             name: "ghost_context",
-            description: "Get orientation: focused app, window title, URL (browsers), focused element, and interactive elements. Call this before acting on any app.",
+            description: "Get orientation for an app. Returns summary fields plus a canonical fused observation snapshot with element source and confidence metadata. Call this before acting on any app.",
             properties: [
                 "app": prop("string", "App name to get context for. If omitted, returns focused app."),
             ]
@@ -84,6 +86,7 @@ public enum MCPTools {
 
     // MARK: - Action Tools (7)
 
+    @MainActor
     private static let actions: [[String: Any]] = [
         tool(
             name: "ghost_click",
@@ -113,7 +116,7 @@ public enum MCPTools {
         ),
         tool(
             name: "ghost_press",
-            description: "Press a single key. Always include app parameter to ensure correct target.",
+            description: "Press a single key. When app is provided, Ghost verifies the target app is frontmost after dispatch.",
             properties: [
                 "key": prop("string", "Key name: return, tab, escape, space, delete, up, down, left, right, f1-f12."),
                 "modifiers": propArray("string", "Modifier keys: cmd, shift, option, control."),
@@ -144,7 +147,7 @@ public enum MCPTools {
         ),
         tool(
             name: "ghost_focus",
-            description: "Bring an app or window to the front.",
+            description: "Bring an app or window to the front. Returns verified success when the requested app becomes frontmost.",
             properties: [
                 "app": prop("string", "App name to focus."),
                 "window": prop("string", "Window title substring to focus specific window."),
@@ -169,12 +172,13 @@ public enum MCPTools {
 
     // MARK: - Wait Tool (1)
 
+    @MainActor
     private static let wait: [[String: Any]] = [
         tool(
             name: "ghost_wait",
             description: "Wait for a condition instead of using fixed delays. Polls until condition is met or timeout.",
             properties: [
-                "condition": prop("string", "urlContains, titleContains, elementExists, elementGone, urlChanged, titleChanged, focusEquals, valueEquals."),
+                "condition": prop("string", "appFrontmost, urlContains, windowTitleContains, titleContains, elementExists, elementGone, urlChanged, titleChanged, focusEquals, valueEquals."),
                 "value": prop("string", "Match value. For focusEquals, this is the focused element label/query. For valueEquals, this is the focused element value."),
                 "timeout": prop("number", "Max seconds to wait (default: 10)."),
                 "interval": prop("number", "Poll interval in seconds (default: 0.5)."),
@@ -186,6 +190,7 @@ public enum MCPTools {
 
     // MARK: - Recipe Tools (5)
 
+    @MainActor
     private static let recipes: [[String: Any]] = [
         tool(
             name: "ghost_recipes",
@@ -229,10 +234,11 @@ public enum MCPTools {
 
     // MARK: - Vision Tools (2)
 
+    @MainActor
     private static let vision: [[String: Any]] = [
         tool(
             name: "ghost_parse_screen",
-            description: "Experimental placeholder for full-screen vision parsing. ghost_parse_screen stays listed for API stability, but real /detect and /parse are not implemented yet. Use ghost_find or ghost_ground instead.",
+            description: "Experimental full-screen vision parsing via the sidecar. The tool is available, but its schema and reliability are still being hardened. Prefer ghost_find for stable AX queries and ghost_ground for precise visual grounding.",
             properties: [
                 "app": prop("string", "Screenshot specific app window."),
                 "full_resolution": prop("boolean", "Native resolution instead of 1280px resize (default: false)."),
