@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Swift
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+*.o
+*.dylib
+
+# Python
+vision-sidecar/.venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+.env
+
+# PyInstaller (if used)
+vision-sidecar/build/
+vision-sidecar/dist/
+*.spec
+
+# Artifacts
+build.log
+test.log
+ghost-os-*.tar.gz
+local/
+

@@ -1,0 +1,51 @@
+// swift-tools-version: 5.9
+
+import PackageDescription
+
+let concurrencySettings: [SwiftSetting] = [
+    .enableExperimentalFeature("StrictConcurrency"),
+    .enableUpcomingFeature("ExistentialAny")
+]
+
+let package = Package(
+    name: "GhostOS",
+    platforms: [
+        .macOS(.v14),
+    ],
+    products: [
+        .library(name: "GhostOS", targets: ["GhostOS"]),
+        .executable(name: "ghost", targets: ["ghost"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/steipete/AXorcist.git", from: "0.1.0"),
+    ],
+    targets: [
+        .target(
+            name: "GhostOS",
+            dependencies: [
+                .product(name: "AXorcist", package: "AXorcist"),
+            ],
+            path: "Sources/GhostOS",
+            swiftSettings: concurrencySettings,
+            linkerSettings: [.linkedFramework("ScreenCaptureKit")]
+        ),
+        .executableTarget(
+            name: "ghost",
+            dependencies: ["GhostOS"],
+            path: "Sources/ghost",
+            swiftSettings: concurrencySettings
+        ),
+        .testTarget(
+            name: "GhostOSTests",
+            dependencies: ["GhostOS"],
+            path: "Tests/GhostOSTests",
+            swiftSettings: concurrencySettings
+        ),
+        .testTarget(
+            name: "GhostOSEvals",
+            dependencies: ["GhostOS"],
+            path: "Tests/GhostOSEvals",
+            swiftSettings: concurrencySettings
+        ),
+    ]
+)
