@@ -15,43 +15,110 @@ import Foundation
 /// Executes recipes step by step with verification.
 @MainActor
 public enum RecipeEngine {
+    private struct PausedRecipeRun {
+        let recipe: Recipe
+        let params: [String: String]
+        let stepIndex: Int
+        let stepResults: [RecipeStepResult]
+        let startedAt: Date
+        let taskID: String?
+    }
+
+    private static var pausedRuns: [String: PausedRecipeRun] = [:]
 
     /// Run a recipe with parameter substitution.
     public static func run(
         recipe: Recipe,
         params: [String: String],
         executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
         taskID: String? = nil
     ) -> ToolResult {
-        let startTime = Date()
+        runInternal(
+            recipe: recipe,
+            params: params,
+            executor: executor,
+            runtime: runtime,
+            taskID: taskID,
+            startTime: Date(),
+            startStepIndex: 0,
+            priorStepResults: [],
+            approvalRequestID: nil,
+            resumeToken: nil,
+            validateInputs: true
+        )
+    }
 
-        // 1. Validate parameters
-        if let paramDefs = recipe.params {
-            for (name, def) in paramDefs {
-                if def.required == true && params[name] == nil {
-                    return ToolResult(
-                        success: false,
-                        error: "Missing required parameter: '\(name)' (\(def.description))",
-                        suggestion: "Provide all required parameters. Use ghost_recipe_show to see parameter details."
-                    )
+    public static func resume(
+        resumeToken: String,
+        approvalRequestID: String?,
+        executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
+        taskID: String? = nil
+    ) -> ToolResult {
+        guard let paused = pausedRuns[resumeToken] else {
+            return ToolResult(
+                success: false,
+                error: "Paused recipe run '\(resumeToken)' not found",
+                suggestion: "Start the recipe again or request a new approval."
+            )
+        }
+
+        pausedRuns.removeValue(forKey: resumeToken)
+
+        return runInternal(
+            recipe: paused.recipe,
+            params: paused.params,
+            executor: executor,
+            runtime: runtime,
+            taskID: taskID ?? paused.taskID,
+            startTime: paused.startedAt,
+            startStepIndex: paused.stepIndex,
+            priorStepResults: paused.stepResults,
+            approvalRequestID: approvalRequestID,
+            resumeToken: resumeToken,
+            validateInputs: false
+        )
+    }
+
+    private static func runInternal(
+        recipe: Recipe,
+        params: [String: String],
+        executor: VerifiedActionExecutor?,
+        runtime: OracleRuntime?,
+        taskID: String?,
+        startTime: Date,
+        startStepIndex: Int,
+        priorStepResults: [RecipeStepResult],
+        approvalRequestID: String?,
+        resumeToken: String?,
+        validateInputs: Bool
+    ) -> ToolResult {
+        if validateInputs {
+            if let paramDefs = recipe.params {
+                for (name, def) in paramDefs {
+                    if def.required == true && params[name] == nil {
+                        return ToolResult(
+                            success: false,
+                            error: "Missing required parameter: '\(name)' (\(def.description))",
+                            suggestion: "Provide all required parameters. Use ghost_recipe_show to see parameter details."
+                        )
+                    }
+                }
+            }
+
+            if let preconditions = recipe.preconditions {
+                let precheck = checkPreconditions(preconditions, recipeName: recipe.name)
+                if !precheck.success {
+                    return precheck
                 }
             }
         }
 
-        // 2. Check preconditions with smart diagnostics
-        if let preconditions = recipe.preconditions {
-            let precheck = checkPreconditions(preconditions, recipeName: recipe.name)
-            if !precheck.success {
-                return precheck
-            }
-        }
-
-        // 3. Save focus state (restore when recipe completes or fails)
         let savedApp = FocusManager.saveFrontmostApp()
         defer { FocusManager.restoreFocus(to: savedApp) }
 
-        // 4. Focus the recipe's app if specified
-        if let app = recipe.app {
+        if startStepIndex == 0, let app = recipe.app {
             let focusResult = FocusManager.focus(appName: app)
             if !focusResult.success {
                 return ToolResult(
@@ -63,24 +130,53 @@ public enum RecipeEngine {
             Thread.sleep(forTimeInterval: 0.3)
         }
 
-        // 5. Execute steps
-        var stepResults: [RecipeStepResult] = []
+        var stepResults = priorStepResults
         let globalFailurePolicy = recipe.onFailure ?? "stop"
 
-        for step in recipe.steps {
+        for index in startStepIndex..<recipe.steps.count {
+            let step = recipe.steps[index]
             let stepStart = Date()
-
-            // Substitute parameters in step params
             let resolvedParams = substituteParams(step.params, with: params)
+            let currentApprovalRequestID = index == startStepIndex ? approvalRequestID : nil
 
-            // Execute the step
             let result = executeStep(
                 step: step,
                 resolvedParams: resolvedParams,
                 appName: recipe.app,
                 executor: executor,
-                taskID: taskID
+                runtime: runtime,
+                taskID: taskID,
+                approvalRequestID: currentApprovalRequestID
             )
+
+            if isPendingApproval(result) {
+                let token = resumeToken ?? UUID().uuidString
+                pausedRuns[token] = PausedRecipeRun(
+                    recipe: recipe,
+                    params: params,
+                    stepIndex: index,
+                    stepResults: stepResults,
+                    startedAt: startTime,
+                    taskID: taskID
+                )
+
+                let totalDuration = Int(Date().timeIntervalSince(startTime) * 1000)
+                var data = result.data ?? [:]
+                data["recipe"] = recipe.name
+                data["steps_completed"] = stepResults.count
+                data["total_steps"] = recipe.steps.count
+                data["duration_ms"] = totalDuration
+                data["step_results"] = stepResults.map { stepResultDict($0) }
+                data["pending_approval"] = true
+                data["resume_token"] = token
+
+                return ToolResult(
+                    success: false,
+                    data: data,
+                    error: result.error ?? "Recipe paused pending approval",
+                    suggestion: "Approve the pending action in Oracle Controller, then resume this recipe with the provided resume token and approval request id."
+                )
+            }
 
             let durationMs = Int(Date().timeIntervalSince(stepStart) * 1000)
             let stepResult = RecipeStepResult(
@@ -95,28 +191,23 @@ public enum RecipeEngine {
 
             if !result.success {
                 let failurePolicy = step.onFailure ?? globalFailurePolicy
-
                 if failurePolicy == "skip" {
                     Log.info("Recipe '\(recipe.name)' step \(step.id) failed (skipping): \(result.error ?? "")")
                     continue
                 }
 
-                // Stop: return failure with diagnostics
                 let totalDuration = Int(Date().timeIntervalSince(startTime) * 1000)
-
-                // Capture failure context
                 var failureData: [String: Any] = [
                     "recipe": recipe.name,
                     "failed_step": step.id,
                     "failed_action": step.action,
                     "error": result.error ?? "Unknown error",
-                    "steps_completed": stepResults.count - 1,
+                    "steps_completed": max(0, stepResults.count - 1),
                     "total_steps": recipe.steps.count,
                     "duration_ms": totalDuration,
                     "step_results": stepResults.map { stepResultDict($0) },
                 ]
 
-                // Get current context for debugging
                 if let app = recipe.app {
                     let context = Perception.getContext(appName: app)
                     if let contextData = context.data {
@@ -136,13 +227,11 @@ public enum RecipeEngine {
                 )
             }
 
-            // Handle wait_after condition (substitute {{params}} in value)
             if let waitAfter = step.waitAfter {
                 let resolvedWaitAfter = substituteWaitAfter(waitAfter, with: params)
                 let waitResult = handleWaitAfter(resolvedWaitAfter, appName: recipe.app)
                 if !waitResult.success {
                     let totalDuration = Int(Date().timeIntervalSince(startTime) * 1000)
-
                     return ToolResult(
                         success: false,
                         data: [
@@ -163,7 +252,6 @@ public enum RecipeEngine {
             Log.info("Recipe '\(recipe.name)' step \(step.id) OK: \(step.note ?? step.action)")
         }
 
-        // 6. All steps completed
         let totalDuration = Int(Date().timeIntervalSince(startTime) * 1000)
 
         return ToolResult(
@@ -262,7 +350,9 @@ public enum RecipeEngine {
         resolvedParams: [String: String]?,
         appName: String?,
         executor: VerifiedActionExecutor?,
-        taskID: String?
+        runtime: OracleRuntime?,
+        taskID: String?,
+        approvalRequestID: String?
     ) -> ToolResult {
         let params = resolvedParams ?? [:]
         let stepApp = params["app"] ?? appName
@@ -282,6 +372,9 @@ public enum RecipeEngine {
                 button: params["button"],
                 count: params["count"].flatMap(Int.init),
                 executor: executor,
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
                 taskID: taskID,
                 toolName: "ghost_click"
             )
@@ -298,6 +391,9 @@ public enum RecipeEngine {
                 text: text, into: into, domId: domId,
                 appName: stepApp, clear: clear,
                 executor: executor,
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
                 taskID: taskID,
                 toolName: "ghost_type"
             )
@@ -312,6 +408,9 @@ public enum RecipeEngine {
                 modifiers: modifiers,
                 appName: stepApp,
                 executor: executor,
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
                 taskID: taskID,
                 toolName: "ghost_press"
             )
@@ -321,7 +420,15 @@ public enum RecipeEngine {
                 return ToolResult(success: false, error: "Step \(step.id): 'hotkey' action requires 'keys' param")
             }
             let keys = keysStr.split(separator: ",").map { String($0.trimmingCharacters(in: .whitespaces)) }
-            return Actions.hotkey(keys: keys, appName: stepApp)
+            return Actions.hotkey(
+                keys: keys,
+                appName: stepApp,
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
+                taskID: taskID,
+                toolName: "ghost_hotkey"
+            )
 
         case "focus":
             let app = params["app"] ?? stepApp ?? ""
@@ -329,6 +436,9 @@ public enum RecipeEngine {
                 appName: app,
                 windowTitle: params["window"],
                 executor: executor,
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
                 taskID: taskID,
                 toolName: "ghost_focus"
             )
@@ -340,7 +450,12 @@ public enum RecipeEngine {
                 amount: params["amount"].flatMap(Int.init),
                 appName: stepApp,
                 x: params["x"].flatMap(Double.init),
-                y: params["y"].flatMap(Double.init)
+                y: params["y"].flatMap(Double.init),
+                runtime: runtime,
+                surface: .recipe,
+                approvalRequestID: approvalRequestID,
+                taskID: taskID,
+                toolName: "ghost_scroll"
             )
 
         case "wait":
@@ -402,5 +517,10 @@ public enum RecipeEngine {
         if let error = result.error { dict["error"] = error }
         if let note = result.note { dict["note"] = note }
         return dict
+    }
+
+    private static func isPendingApproval(_ result: ToolResult) -> Bool {
+        (result.data?["approval_status"] as? String) == ApprovalStatus.pending.rawValue
+            || (result.data?["pending_approval"] as? Bool) == true
     }
 }

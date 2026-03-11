@@ -165,6 +165,7 @@ public struct ActionRequest: Codable, Sendable, Equatable, Identifiable {
     public let waitValue: String?
     public let timeout: Double?
     public let interval: Double?
+    public let approvalRequestID: String?
 
     public init(
         id: UUID = UUID(),
@@ -187,7 +188,8 @@ public struct ActionRequest: Codable, Sendable, Equatable, Identifiable {
         waitCondition: String? = nil,
         waitValue: String? = nil,
         timeout: Double? = nil,
-        interval: Double? = nil
+        interval: Double? = nil,
+        approvalRequestID: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -210,6 +212,7 @@ public struct ActionRequest: Codable, Sendable, Equatable, Identifiable {
         self.waitValue = waitValue
         self.timeout = timeout
         self.interval = interval
+        self.approvalRequestID = approvalRequestID
     }
 
     public var displayTitle: String {
@@ -261,6 +264,12 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
     public let traceSessionID: String?
     public let traceStepID: Int?
     public let resultingObservation: ObservationSnapshot?
+    public let approvalRequestID: String?
+    public let approvalStatus: String?
+    public let protectedOperation: String?
+    public let appProtectionProfile: String?
+    public let blockedByPolicy: Bool
+    public let policyMode: String?
 
     public init(
         id: UUID = UUID(),
@@ -273,7 +282,13 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
         elapsedMs: Double,
         traceSessionID: String? = nil,
         traceStepID: Int? = nil,
-        resultingObservation: ObservationSnapshot? = nil
+        resultingObservation: ObservationSnapshot? = nil,
+        approvalRequestID: String? = nil,
+        approvalStatus: String? = nil,
+        protectedOperation: String? = nil,
+        appProtectionProfile: String? = nil,
+        blockedByPolicy: Bool = false,
+        policyMode: String? = nil
     ) {
         self.id = id
         self.request = request
@@ -286,6 +301,52 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
         self.traceSessionID = traceSessionID
         self.traceStepID = traceStepID
         self.resultingObservation = resultingObservation
+        self.approvalRequestID = approvalRequestID
+        self.approvalStatus = approvalStatus
+        self.protectedOperation = protectedOperation
+        self.appProtectionProfile = appProtectionProfile
+        self.blockedByPolicy = blockedByPolicy
+        self.policyMode = policyMode
+    }
+}
+
+public struct ApprovalRequestDocument: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let createdAt: Date
+    public let surface: String
+    public let toolName: String?
+    public let appName: String?
+    public let displayTitle: String
+    public let reason: String
+    public let riskLevel: String
+    public let protectedOperation: String
+    public let status: String
+    public let appProtectionProfile: String
+
+    public init(
+        id: String,
+        createdAt: Date,
+        surface: String,
+        toolName: String? = nil,
+        appName: String? = nil,
+        displayTitle: String,
+        reason: String,
+        riskLevel: String,
+        protectedOperation: String,
+        status: String,
+        appProtectionProfile: String
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.surface = surface
+        self.toolName = toolName
+        self.appName = appName
+        self.displayTitle = displayTitle
+        self.reason = reason
+        self.riskLevel = riskLevel
+        self.protectedOperation = protectedOperation
+        self.status = status
+        self.appProtectionProfile = appProtectionProfile
     }
 }
 
@@ -314,6 +375,9 @@ public struct HealthStatus: Codable, Sendable, Equatable {
     public let recipeDirectoryPath: String
     public let recipeCount: Int
     public let traceDirectoryPath: String
+    public let approvalBrokerActive: Bool
+    public let controllerConnected: Bool
+    public let policyMode: String
 
     public init(
         updatedAt: Date = Date(),
@@ -325,7 +389,10 @@ public struct HealthStatus: Codable, Sendable, Equatable {
         visionModelPath: String? = nil,
         recipeDirectoryPath: String,
         recipeCount: Int,
-        traceDirectoryPath: String
+        traceDirectoryPath: String,
+        approvalBrokerActive: Bool,
+        controllerConnected: Bool,
+        policyMode: String
     ) {
         self.updatedAt = updatedAt
         self.runtimeVersion = runtimeVersion
@@ -337,6 +404,9 @@ public struct HealthStatus: Codable, Sendable, Equatable {
         self.recipeDirectoryPath = recipeDirectoryPath
         self.recipeCount = recipeCount
         self.traceDirectoryPath = traceDirectoryPath
+        self.approvalBrokerActive = approvalBrokerActive
+        self.controllerConnected = controllerConnected
+        self.policyMode = policyMode
     }
 }
 
@@ -370,6 +440,13 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
     public let verified: Bool
     public let success: Bool
     public let failureClass: String?
+    public let surface: String?
+    public let policyMode: String?
+    public let protectedOperation: String?
+    public let approvalRequestID: String?
+    public let approvalOutcome: String?
+    public let blockedByPolicy: Bool
+    public let appProfile: String?
     public let elapsedMs: Double
     public let screenshotPath: String?
     public let artifactPaths: [String]
@@ -395,6 +472,13 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
         verified: Bool,
         success: Bool,
         failureClass: String?,
+        surface: String? = nil,
+        policyMode: String? = nil,
+        protectedOperation: String? = nil,
+        approvalRequestID: String? = nil,
+        approvalOutcome: String? = nil,
+        blockedByPolicy: Bool = false,
+        appProfile: String? = nil,
         elapsedMs: Double,
         screenshotPath: String?,
         artifactPaths: [String],
@@ -417,6 +501,13 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
         self.verified = verified
         self.success = success
         self.failureClass = failureClass
+        self.surface = surface
+        self.policyMode = policyMode
+        self.protectedOperation = protectedOperation
+        self.approvalRequestID = approvalRequestID
+        self.approvalOutcome = approvalOutcome
+        self.blockedByPolicy = blockedByPolicy
+        self.appProfile = appProfile
         self.elapsedMs = elapsedMs
         self.screenshotPath = screenshotPath
         self.artifactPaths = artifactPaths
@@ -460,6 +551,9 @@ public struct RecipeRunResultDocument: Codable, Sendable, Equatable {
     public let error: String?
     public let traceSessionID: String?
     public let stepResults: [RecipeRunStepResult]
+    public let paused: Bool
+    public let pendingApprovalRequestID: String?
+    public let resumeToken: String?
 
     public init(
         recipeName: String,
@@ -468,7 +562,10 @@ public struct RecipeRunResultDocument: Codable, Sendable, Equatable {
         totalSteps: Int,
         error: String? = nil,
         traceSessionID: String? = nil,
-        stepResults: [RecipeRunStepResult]
+        stepResults: [RecipeRunStepResult],
+        paused: Bool = false,
+        pendingApprovalRequestID: String? = nil,
+        resumeToken: String? = nil
     ) {
         self.recipeName = recipeName
         self.success = success
@@ -477,6 +574,9 @@ public struct RecipeRunResultDocument: Codable, Sendable, Equatable {
         self.error = error
         self.traceSessionID = traceSessionID
         self.stepResults = stepResults
+        self.paused = paused
+        self.pendingApprovalRequestID = pendingApprovalRequestID
+        self.resumeToken = resumeToken
     }
 }
 
@@ -486,18 +586,21 @@ public struct DashboardBootstrap: Codable, Sendable, Equatable {
     public let health: HealthStatus
     public let recipes: [RecipeDocument]
     public let traceSessions: [TraceSessionSummary]
+    public let approvals: [ApprovalRequestDocument]
 
     public init(
         session: ControllerSession,
         snapshot: ControlSnapshot?,
         health: HealthStatus,
         recipes: [RecipeDocument],
-        traceSessions: [TraceSessionSummary]
+        traceSessions: [TraceSessionSummary],
+        approvals: [ApprovalRequestDocument]
     ) {
         self.session = session
         self.snapshot = snapshot
         self.health = health
         self.recipes = recipes
         self.traceSessions = traceSessions
+        self.approvals = approvals
     }
 }

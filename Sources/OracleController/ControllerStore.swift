@@ -126,6 +126,7 @@ final class ControllerStore {
     var recipes: [RecipeDocument] = []
     var traceSessions: [TraceSessionSummary] = []
     var traceDetail: TraceSessionDetail?
+    var approvalQueue: [ApprovalRequestDocument] = []
     var currentActionResult: ActionRunResult?
     var recentActions: [ActionRunResult] = []
     var latestRecipeRun: RecipeRunResultDocument?
@@ -152,7 +153,6 @@ final class ControllerStore {
 
     var errorMessage: String?
     var inlineMessage: String?
-    var pendingConfirmationAction: ActionRequest?
 
     var recipeSearchText = ""
     var traceSearchText = ""
@@ -265,22 +265,56 @@ final class ControllerStore {
 
     func submitAction() async {
         let request = actionComposer.makeRequest()
-        if request.requiresConfirmation {
-            pendingConfirmationAction = request
-            return
+        await performAction(request)
+    }
+
+    func loadApprovalRequests() async {
+        do {
+            let response = try await send(.init(command: .listApprovalRequests))
+            if let approvals = response.approvals {
+                approvalQueue = approvals
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
-
-        await performAction(request)
     }
 
-    func confirmPendingAction() async {
-        guard let request = pendingConfirmationAction else { return }
-        pendingConfirmationAction = nil
-        await performAction(request)
+    func approveApprovalRequest(_ approval: ApprovalRequestDocument) async {
+        do {
+            let response = try await send(.init(command: .approveApprovalRequest, approvalRequestID: approval.id))
+            if let approvals = response.approvals {
+                approvalQueue = approvals
+            }
+            if let pendingAction = currentActionResult,
+               pendingAction.approvalStatus == "pending",
+               pendingAction.approvalRequestID == approval.id
+            {
+                await performAction(requestForApprovedAction(from: pendingAction.request, approvalRequestID: approval.id))
+                return
+            }
+            if latestRecipeRun?.paused == true,
+               latestRecipeRun?.pendingApprovalRequestID == approval.id,
+               let resumeToken = latestRecipeRun?.resumeToken
+            {
+                await resumeRecipeRun(resumeToken: resumeToken, approvalRequestID: approval.id)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
-    func cancelPendingAction() {
-        pendingConfirmationAction = nil
+    func rejectApprovalRequest(_ approval: ApprovalRequestDocument) async {
+        do {
+            let response = try await send(.init(command: .rejectApprovalRequest, approvalRequestID: approval.id))
+            if let approvals = response.approvals {
+                approvalQueue = approvals
+            }
+            if latestRecipeRun?.pendingApprovalRequestID == approval.id {
+                inlineMessage = "Recipe approval rejected."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func loadRecipes() async {
@@ -418,7 +452,10 @@ final class ControllerStore {
             let response = try await send(.init(command: .runRecipe, recipeName: recipeName, recipeParams: params))
             if let recipeRun = response.recipeRun {
                 latestRecipeRun = recipeRun
-                inlineMessage = recipeRun.success ? "Recipe completed." : "Recipe failed."
+                inlineMessage = recipeRun.paused ? "Recipe paused pending approval." : (recipeRun.success ? "Recipe completed." : "Recipe failed.")
+                if let approvals = response.approvals {
+                    approvalQueue = approvals
+                }
                 await loadTraceSessions()
                 if let traceSessionID = recipeRun.traceSessionID {
                     await loadTraceSession(id: traceSessionID)
@@ -491,7 +528,12 @@ final class ControllerStore {
                     )
                     selectedElementID = resultingObservation.focusedElementID
                 }
-                inlineMessage = result.success ? (result.message ?? "Action completed.") : (result.message ?? "Action failed.")
+                inlineMessage = result.approvalStatus == "pending"
+                    ? (result.message ?? "Action pending approval.")
+                    : (result.success ? (result.message ?? "Action completed.") : (result.message ?? "Action failed."))
+                if let approvals = response.approvals {
+                    approvalQueue = approvals
+                }
             } else {
                 errorMessage = response.errorMessage ?? "Action failed"
             }
@@ -536,6 +578,11 @@ final class ControllerStore {
                 self.recipes = recipes
                 syncSelectionAfterRecipeRefresh()
             }
+
+        case .approvalsChanged:
+            if let approvals = event.approvals {
+                approvalQueue = approvals
+            }
         }
     }
 
@@ -546,6 +593,7 @@ final class ControllerStore {
         health = bootstrap.health
         recipes = bootstrap.recipes
         traceSessions = bootstrap.traceSessions
+        approvalQueue = bootstrap.approvals
         selectedElementID = bootstrap.snapshot?.observation.focusedElementID
         actionComposer.hydrate(from: bootstrap.snapshot)
         if monitorAppName.isEmpty {
@@ -649,6 +697,53 @@ final class ControllerStore {
 
     private var currentMonitorApp: String? {
         monitorAppName.nilIfBlank
+    }
+
+    private func requestForApprovedAction(from request: ActionRequest, approvalRequestID: String) -> ActionRequest {
+        ActionRequest(
+            kind: request.kind,
+            appName: request.appName,
+            windowTitle: request.windowTitle,
+            query: request.query,
+            role: request.role,
+            domID: request.domID,
+            text: request.text,
+            clearExisting: request.clearExisting,
+            x: request.x,
+            y: request.y,
+            button: request.button,
+            count: request.count,
+            key: request.key,
+            modifiers: request.modifiers,
+            direction: request.direction,
+            amount: request.amount,
+            waitCondition: request.waitCondition,
+            waitValue: request.waitValue,
+            timeout: request.timeout,
+            interval: request.interval,
+            approvalRequestID: approvalRequestID
+        )
+    }
+
+    private func resumeRecipeRun(resumeToken: String, approvalRequestID: String) async {
+        do {
+            let response = try await send(
+                .init(
+                    command: .resumeRecipeRun,
+                    approvalRequestID: approvalRequestID,
+                    resumeToken: resumeToken
+                )
+            )
+            if let recipeRun = response.recipeRun {
+                latestRecipeRun = recipeRun
+                inlineMessage = recipeRun.paused ? "Recipe still pending approval." : (recipeRun.success ? "Recipe completed." : "Recipe failed.")
+            }
+            if let approvals = response.approvals {
+                approvalQueue = approvals
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

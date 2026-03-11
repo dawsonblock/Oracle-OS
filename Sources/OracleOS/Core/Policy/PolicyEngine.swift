@@ -10,49 +10,110 @@ public final class PolicyEngine: @unchecked Sendable {
     }
 
     public func evaluate(intent: ActionIntent) -> PolicyDecision {
-        let risk = riskLevel(for: intent)
+        evaluate(
+            intent: intent,
+            context: PolicyEvaluationContext(surface: .mcp, toolName: nil, appName: intent.app)
+        )
+    }
+
+    public func evaluate(intent: ActionIntent, context: PolicyEvaluationContext) -> PolicyDecision {
+        let appProtectionProfile = PolicyRules.appProtectionProfile(for: context.appName ?? intent.app)
+        let protectedOperation = PolicyRules.protectedOperation(
+            for: intent,
+            context: context,
+            appProtectionProfile: appProtectionProfile
+        )
+        let riskLevel: RiskLevel = switch protectedOperation {
+        case .credentialEntry, .settingsChange, .terminalControl, .clipboardExfiltration:
+            .blocked
+        case .send, .purchase, .delete, .uploadShare:
+            .risky
+        case nil:
+            .low
+        }
+
+        let baseDecision = PolicyDecision(
+            allowed: riskLevel == .low,
+            riskLevel: riskLevel,
+            protectedOperation: protectedOperation,
+            appProtectionProfile: appProtectionProfile,
+            blockedByPolicy: riskLevel == .blocked,
+            surface: context.surface,
+            policyMode: mode,
+            requiresApproval: riskLevel == .risky,
+            reason: defaultReason(for: riskLevel, protectedOperation: protectedOperation, mode: mode)
+        )
 
         switch mode {
         case .open:
-            return PolicyDecision(allowed: true, riskLevel: risk)
+            if riskLevel == .blocked {
+                return baseDecision.withReason(baseDecision.reason ?? "Action blocked by policy")
+            }
+            return PolicyDecision(
+                allowed: true,
+                riskLevel: riskLevel,
+                protectedOperation: protectedOperation,
+                appProtectionProfile: appProtectionProfile,
+                blockedByPolicy: false,
+                surface: context.surface,
+                policyMode: mode,
+                requiresApproval: false,
+                reason: baseDecision.reason
+            )
 
         case .confirmRisky:
-            if risk == .risky {
-                return PolicyDecision(
-                    allowed: false,
-                    riskLevel: risk,
-                    requiresApproval: true,
-                    reason: "Action requires approval in confirm-risky mode"
-                )
-            }
-            if risk == .blocked {
-                return PolicyDecision(allowed: false, riskLevel: risk, reason: "Action blocked by policy")
-            }
-            return PolicyDecision(allowed: true, riskLevel: risk)
+            return baseDecision
 
         case .lockedDown:
-            if risk == .low {
-                return PolicyDecision(allowed: true, riskLevel: risk)
+            if riskLevel == .low {
+                return PolicyDecision(
+                    allowed: true,
+                    riskLevel: riskLevel,
+                    protectedOperation: protectedOperation,
+                    appProtectionProfile: appProtectionProfile,
+                    blockedByPolicy: false,
+                    surface: context.surface,
+                    policyMode: mode,
+                    requiresApproval: false,
+                    reason: nil
+                )
             }
-            return PolicyDecision(allowed: false, riskLevel: risk, reason: "Action blocked by locked-down policy")
+            return PolicyDecision(
+                allowed: false,
+                riskLevel: riskLevel,
+                protectedOperation: protectedOperation,
+                appProtectionProfile: appProtectionProfile,
+                blockedByPolicy: true,
+                surface: context.surface,
+                policyMode: mode,
+                requiresApproval: false,
+                reason: "Action blocked by locked-down policy"
+            )
         }
     }
 
-    private func riskLevel(for intent: ActionIntent) -> RiskLevel {
-        let target = [intent.targetQuery, intent.domID, intent.text].compactMap { $0?.lowercased() }.joined(separator: " ")
-        if target.contains("password") {
-            return .blocked
-        }
-        if ["send", "submit", "purchase", "delete", "trash", "remove"].contains(where: { target.contains($0) }) {
-            return .risky
-        }
-        return .low
-    }
-
-    private static func defaultMode() -> PolicyMode {
+    public static func defaultMode() -> PolicyMode {
         guard let raw = ProcessInfo.processInfo.environment["GHOST_OS_POLICY_MODE"] else {
             return .confirmRisky
         }
         return PolicyMode(rawValue: raw) ?? .confirmRisky
+    }
+
+    private func defaultReason(
+        for riskLevel: RiskLevel,
+        protectedOperation: ProtectedOperation?,
+        mode: PolicyMode
+    ) -> String? {
+        switch riskLevel {
+        case .low:
+            return nil
+        case .risky:
+            return "Action requires approval in \(mode.rawValue) mode"
+        case .blocked:
+            if let protectedOperation {
+                return "Action blocked by policy: \(protectedOperation.rawValue)"
+            }
+            return "Action blocked by policy"
+        }
     }
 }

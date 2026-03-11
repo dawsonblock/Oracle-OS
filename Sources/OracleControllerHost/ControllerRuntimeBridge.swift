@@ -12,19 +12,24 @@ final class ControllerRuntimeBridge {
     let traceRecorder: TraceRecorder
     let traceStore: TraceStore
     let artifactWriter: FailureArtifactWriter
-    let verifiedExecutor: VerifiedActionExecutor
+    let runtimeContext: RuntimeContext
+    let oracleRuntime: OracleRuntime
+    let runtimeLifecycle: RuntimeLifecycle
 
     init() {
         self.traceRecorder = TraceRecorder()
         self.traceStore = TraceStore()
         self.artifactWriter = FailureArtifactWriter()
-        self.verifiedExecutor = VerifiedActionExecutor(
+        self.runtimeContext = RuntimeContext.live(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter
         )
+        self.oracleRuntime = OracleRuntime(context: runtimeContext)
+        self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()
+        self.runtimeLifecycle.startControllerHeartbeat(sessionID: sessionID)
     }
 
     func currentSession(autoRefreshEnabled: Bool, appName: String?) -> ControllerSession {
@@ -71,7 +76,10 @@ final class ControllerRuntimeBridge {
             visionModelPath: VisionBridge.findModelPath(),
             recipeDirectoryPath: NSString(string: GhostConstants.recipesDirectory).expandingTildeInPath,
             recipeCount: RecipeStore.listRecipes().count,
-            traceDirectoryPath: TraceStore.traceRootDirectory().path
+            traceDirectoryPath: TraceStore.traceRootDirectory().path,
+            approvalBrokerActive: runtimeContext.approvalStore.isActive(),
+            controllerConnected: runtimeLifecycle.controllerConnected(),
+            policyMode: runtimeContext.config.policyMode.rawValue
         )
     }
 
@@ -81,7 +89,9 @@ final class ControllerRuntimeBridge {
             Actions.focusApp(
                 appName: request.appName ?? "",
                 windowTitle: request.windowTitle,
-                executor: verifiedExecutor,
+                runtime: oracleRuntime,
+                surface: .controller,
+                approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
                 toolName: "ghost_focus"
             )
@@ -96,7 +106,9 @@ final class ControllerRuntimeBridge {
                 y: request.y,
                 button: request.button,
                 count: request.count,
-                executor: verifiedExecutor,
+                runtime: oracleRuntime,
+                surface: .controller,
+                approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
                 toolName: "ghost_click"
             )
@@ -108,7 +120,9 @@ final class ControllerRuntimeBridge {
                 domId: request.domID,
                 appName: request.appName,
                 clear: request.clearExisting,
-                executor: verifiedExecutor,
+                runtime: oracleRuntime,
+                surface: .controller,
+                approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
                 toolName: "ghost_type"
             )
@@ -118,7 +132,9 @@ final class ControllerRuntimeBridge {
                 key: request.key ?? "",
                 modifiers: request.modifiers,
                 appName: request.appName,
-                executor: verifiedExecutor,
+                runtime: oracleRuntime,
+                surface: .controller,
+                approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
                 toolName: "ghost_press"
             )
@@ -129,7 +145,12 @@ final class ControllerRuntimeBridge {
                 amount: request.amount,
                 appName: request.appName,
                 x: request.x,
-                y: request.y
+                y: request.y,
+                runtime: oracleRuntime,
+                surface: .controller,
+                approvalRequestID: request.approvalRequestID,
+                taskID: sessionID,
+                toolName: "ghost_scroll"
             )
 
         case .wait:
@@ -187,33 +208,38 @@ final class ControllerRuntimeBridge {
         let result = RecipeEngine.run(
             recipe: recipe,
             params: params,
-            executor: verifiedExecutor,
+            runtime: oracleRuntime,
             taskID: sessionID
         )
+        return mapRecipeRunResult(recipeName: name, totalStepsFallback: recipe.steps.count, result: result)
+    }
 
-        let data = result.data ?? [:]
-        let stepsCompleted = data["steps_completed"] as? Int ?? 0
-        let totalSteps = data["total_steps"] as? Int ?? recipe.steps.count
-        let stepResults = (data["step_results"] as? [[String: Any]] ?? []).map { stepData in
-            RecipeRunStepResult(
-                id: stepData["step"] as? Int ?? 0,
-                action: stepData["action"] as? String ?? "step",
-                success: stepData["success"] as? Bool ?? false,
-                durationMs: stepData["duration_ms"] as? Int ?? 0,
-                error: stepData["error"] as? String,
-                note: stepData["note"] as? String
-            )
-        }
-
-        return RecipeRunResultDocument(
-            recipeName: name,
-            success: result.success,
-            stepsCompleted: stepsCompleted,
-            totalSteps: totalSteps,
-            error: result.error,
-            traceSessionID: sessionID,
-            stepResults: stepResults
+    func resumeRecipe(resumeToken: String, approvalRequestID: String?) -> RecipeRunResultDocument {
+        let result = RecipeEngine.resume(
+            resumeToken: resumeToken,
+            approvalRequestID: approvalRequestID,
+            runtime: oracleRuntime,
+            taskID: sessionID
         )
+        let recipeName = (result.data?["recipe"] as? String) ?? "recipe"
+        let recipe = RecipeStore.loadRecipe(named: recipeName)
+        return mapRecipeRunResult(
+            recipeName: recipeName,
+            totalStepsFallback: recipe?.steps.count ?? 0,
+            result: result
+        )
+    }
+
+    func listApprovalRequests() -> [ApprovalRequestDocument] {
+        runtimeContext.approvalStore.listPendingRequests().map(map)
+    }
+
+    func approveApprovalRequest(id: String) throws -> ApprovalReceipt {
+        try runtimeContext.approvalStore.approve(requestID: id)
+    }
+
+    func rejectApprovalRequest(id: String) throws {
+        try runtimeContext.approvalStore.reject(requestID: id)
     }
 
     func recordedSteps(since count: Int) -> [TraceStepViewModel] {
@@ -288,7 +314,42 @@ final class ControllerRuntimeBridge {
             elapsedMs: elapsedMs,
             traceSessionID: traceData?["session_id"] as? String,
             traceStepID: traceData?["step_id"] as? Int,
-            resultingObservation: map(observation)
+            resultingObservation: map(observation),
+            approvalRequestID: actionData?["approval_request_id"] as? String ?? result.data?["approval_request_id"] as? String,
+            approvalStatus: actionData?["approval_status"] as? String ?? result.data?["approval_status"] as? String,
+            protectedOperation: actionData?["protected_operation"] as? String,
+            appProtectionProfile: actionData?["app_protection_profile"] as? String,
+            blockedByPolicy: actionData?["blocked_by_policy"] as? Bool ?? false,
+            policyMode: (actionData?["policy_decision"] as? [String: Any])?["policy_mode"] as? String
+        )
+    }
+
+    private func mapRecipeRunResult(recipeName: String, totalStepsFallback: Int, result: ToolResult) -> RecipeRunResultDocument {
+        let data = result.data ?? [:]
+        let stepsCompleted = data["steps_completed"] as? Int ?? 0
+        let totalSteps = data["total_steps"] as? Int ?? totalStepsFallback
+        let stepResults = (data["step_results"] as? [[String: Any]] ?? []).map { stepData in
+            RecipeRunStepResult(
+                id: stepData["step"] as? Int ?? 0,
+                action: stepData["action"] as? String ?? "step",
+                success: stepData["success"] as? Bool ?? false,
+                durationMs: stepData["duration_ms"] as? Int ?? 0,
+                error: stepData["error"] as? String,
+                note: stepData["note"] as? String
+            )
+        }
+
+        return RecipeRunResultDocument(
+            recipeName: recipeName,
+            success: result.success,
+            stepsCompleted: stepsCompleted,
+            totalSteps: totalSteps,
+            error: result.error,
+            traceSessionID: sessionID,
+            stepResults: stepResults,
+            paused: (data["pending_approval"] as? Bool) == true,
+            pendingApprovalRequestID: data["approval_request_id"] as? String,
+            resumeToken: data["resume_token"] as? String
         )
     }
 
@@ -444,6 +505,22 @@ final class ControllerRuntimeBridge {
         )
     }
 
+    private func map(_ approval: ApprovalRequest) -> ApprovalRequestDocument {
+        ApprovalRequestDocument(
+            id: approval.id,
+            createdAt: approval.createdAt,
+            surface: approval.surface.rawValue,
+            toolName: approval.toolName,
+            appName: approval.appName,
+            displayTitle: approval.displayTitle,
+            reason: approval.reason,
+            riskLevel: approval.riskLevel.rawValue,
+            protectedOperation: approval.protectedOperation.rawValue,
+            status: approval.status.rawValue,
+            appProtectionProfile: approval.appProtectionProfile.rawValue
+        )
+    }
+
     private func recipeDictionary(from document: RecipeDocument) -> [String: Any] {
         var result: [String: Any] = [
             "schema_version": document.schemaVersion,
@@ -577,6 +654,13 @@ final class ControllerRuntimeBridge {
             verified: event.verified,
             success: event.success,
             failureClass: event.failureClass,
+            surface: event.surface,
+            policyMode: event.policyMode,
+            protectedOperation: event.protectedOperation,
+            approvalRequestID: event.approvalRequestID,
+            approvalOutcome: event.approvalOutcome,
+            blockedByPolicy: event.blockedByPolicy ?? false,
+            appProfile: event.appProfile,
             elapsedMs: event.elapsedMs,
             screenshotPath: event.screenshotPath,
             artifactPaths: artifactPaths,

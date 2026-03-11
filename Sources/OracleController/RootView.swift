@@ -68,24 +68,6 @@ struct RootView: View {
                 Text(store.errorMessage ?? "")
             }
         )
-        .confirmationDialog(
-            "Confirm Risky Action",
-            isPresented: Binding(
-                get: { store.pendingConfirmationAction != nil },
-                set: { if !$0 { store.cancelPendingAction() } }
-            ),
-            actions: {
-                Button("Run Action", role: .destructive) {
-                    Task { await store.confirmPendingAction() }
-                }
-                Button("Cancel", role: .cancel) {
-                    store.cancelPendingAction()
-                }
-            },
-            message: {
-                Text(store.pendingConfirmationAction?.displayTitle ?? "")
-            }
-        )
         .task {
             await store.start()
             await store.updateMonitoring()
@@ -247,6 +229,8 @@ private struct ControlWorkspaceView: View {
                     }
                     .frame(width: 360)
                 }
+
+                ApprovalQueueCard(store: store)
             }
             .padding(20)
         }
@@ -276,6 +260,10 @@ private struct ControlWorkspaceView: View {
                             tone: store.health?.visionSidecarRunning == true ? .good : .warning
                         )
                         StatusBadge(
+                            label: store.health?.approvalBrokerActive == true ? "Approval Broker" : "Approvals Offline",
+                            tone: store.health?.approvalBrokerActive == true ? .neutral : .warning
+                        )
+                        StatusBadge(
                             label: store.autoRefreshEnabled ? "Monitoring" : "Paused",
                             tone: store.autoRefreshEnabled ? .neutral : .warning
                         )
@@ -284,6 +272,68 @@ private struct ControlWorkspaceView: View {
                         Text(inlineMessage)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ApprovalQueueCard: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        PanelCard("Approvals", subtitle: "Per-action safety gate for risky operations") {
+            if store.approvalQueue.isEmpty {
+                EmptyStateView(
+                    systemImage: "checkmark.shield",
+                    title: "No Pending Approvals",
+                    message: "Blocked or risky actions will appear here for explicit approval."
+                )
+                .frame(height: 180)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(store.approvalQueue) { approval in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(approval.displayTitle)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(approval.reason)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                StatusBadge(label: approval.riskLevel.uppercased(), tone: .warning)
+                            }
+                            HStack {
+                                StatusBadge(label: approval.protectedOperation, tone: .danger)
+                                StatusBadge(label: approval.appProtectionProfile, tone: .neutral)
+                                if let appName = approval.appName {
+                                    StatusBadge(label: appName, tone: .neutral)
+                                }
+                            }
+                            HStack {
+                                Button("Approve") {
+                                    Task { await store.approveApprovalRequest(approval) }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(ControllerTheme.accent)
+
+                                Button("Reject", role: .destructive) {
+                                    Task { await store.rejectApprovalRequest(approval) }
+                                }
+                                .buttonStyle(.bordered)
+
+                                Spacer()
+
+                                Text(approval.surface.uppercased())
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
             }
@@ -418,10 +468,28 @@ private struct ControlInspectorView: View {
                             if let failureClass = result.failureClass {
                                 StatusBadge(label: failureClass, tone: .warning)
                             }
+                            if let approvalStatus = result.approvalStatus {
+                                StatusBadge(label: approvalStatus, tone: approvalStatus == "pending" ? .warning : .neutral)
+                            }
                         }
                         KVRow(key: "Request", value: result.request.displayTitle)
                         KVRow(key: "Message", value: result.message ?? "No message")
                         KVRow(key: "Elapsed", value: "\(Int(result.elapsedMs)) ms", monospaced: true)
+                        if let protectedOperation = result.protectedOperation {
+                            KVRow(key: "Protected Op", value: protectedOperation)
+                        }
+                        if let appProtectionProfile = result.appProtectionProfile {
+                            KVRow(key: "App Profile", value: appProtectionProfile)
+                        }
+                        if let policyMode = result.policyMode {
+                            KVRow(key: "Policy Mode", value: policyMode)
+                        }
+                        if let approvalRequestID = result.approvalRequestID {
+                            KVRow(key: "Approval", value: approvalRequestID, monospaced: true)
+                        }
+                        if result.blockedByPolicy {
+                            KVRow(key: "Policy", value: "Blocked before execution")
+                        }
                         if let traceStepID = result.traceStepID {
                             KVRow(key: "Trace Step", value: "#\(traceStepID)", monospaced: true)
                         }
@@ -722,9 +790,18 @@ private struct RecipeInspectorView: View {
                 PanelCard("Last Run", subtitle: "Structured replay results") {
                     if let latestRecipeRun = store.latestRecipeRun {
                         HStack {
-                            StatusBadge(label: latestRecipeRun.success ? "Succeeded" : "Failed", tone: latestRecipeRun.success ? .good : .danger)
+                            StatusBadge(
+                                label: latestRecipeRun.paused ? "Paused" : (latestRecipeRun.success ? "Succeeded" : "Failed"),
+                                tone: latestRecipeRun.paused ? .warning : (latestRecipeRun.success ? .good : .danger)
+                            )
                             Text("\(latestRecipeRun.stepsCompleted)/\(latestRecipeRun.totalSteps) steps")
                                 .font(.system(size: 12, design: .monospaced))
+                        }
+                        if let pendingApprovalRequestID = latestRecipeRun.pendingApprovalRequestID {
+                            KVRow(key: "Pending Approval", value: pendingApprovalRequestID, monospaced: true)
+                        }
+                        if let resumeToken = latestRecipeRun.resumeToken {
+                            KVRow(key: "Resume Token", value: resumeToken, monospaced: true)
                         }
                         if let error = latestRecipeRun.error {
                             Text(error)
@@ -849,10 +926,27 @@ private struct TraceInspectorView: View {
                             if let failureClass = step.failureClass {
                                 StatusBadge(label: failureClass, tone: .warning)
                             }
+                            if let approvalOutcome = step.approvalOutcome {
+                                StatusBadge(label: approvalOutcome, tone: approvalOutcome == "approved" ? .good : .warning)
+                            }
                         }
                         KVRow(key: "Tool", value: step.toolName ?? "Runtime")
                         KVRow(key: "Action", value: step.actionName)
                         KVRow(key: "Target", value: step.actionTarget ?? "None")
+                        KVRow(key: "Surface", value: step.surface ?? "Unknown")
+                        if let protectedOperation = step.protectedOperation {
+                            KVRow(key: "Protected Op", value: protectedOperation)
+                        }
+                        if let policyMode = step.policyMode {
+                            KVRow(key: "Policy Mode", value: policyMode)
+                        }
+                        if let appProfile = step.appProfile {
+                            KVRow(key: "App Profile", value: appProfile)
+                        }
+                        if let approvalRequestID = step.approvalRequestID {
+                            KVRow(key: "Approval", value: approvalRequestID, monospaced: true)
+                        }
+                        KVRow(key: "Policy Block", value: step.blockedByPolicy ? "Yes" : "No")
                         KVRow(key: "Postcondition", value: step.postcondition ?? "None")
                         KVRow(key: "Pre Hash", value: step.preObservationHash ?? "Unavailable", monospaced: true)
                         KVRow(key: "Post Hash", value: step.postObservationHash ?? "Unavailable", monospaced: true)
@@ -918,6 +1012,14 @@ private struct HealthWorkspaceView: View {
                                 KVRow(key: "Model", value: health.visionModelPath ?? "Unknown")
                             }
                             GridRow {
+                                KVRow(key: "Policy Mode", value: health.policyMode)
+                                KVRow(key: "Controller", value: health.controllerConnected ? "Connected" : "Offline")
+                            }
+                            GridRow {
+                                KVRow(key: "Approval Broker", value: health.approvalBrokerActive ? "Active" : "Offline")
+                                KVRow(key: "Claude MCP", value: health.claudeConfigured ? "Configured" : "Missing")
+                            }
+                            GridRow {
                                 KVRow(key: "Trace Dir", value: health.traceDirectoryPath)
                                 KVRow(key: "Recipe Dir", value: health.recipeDirectoryPath)
                             }
@@ -966,6 +1068,9 @@ private struct HealthInspectorView: View {
                 if let health = store.health {
                     KVRow(key: "Claude MCP", value: health.claudeConfigured ? "Configured" : "Missing")
                     KVRow(key: "Sidecar Version", value: health.visionSidecarVersion ?? "Unknown")
+                    KVRow(key: "Approval Broker", value: health.approvalBrokerActive ? "Active" : "Offline")
+                    KVRow(key: "Controller", value: health.controllerConnected ? "Connected" : "Offline")
+                    KVRow(key: "Policy Mode", value: health.policyMode)
                     KVRow(key: "Trace Directory", value: health.traceDirectoryPath, monospaced: true)
                     KVRow(key: "Recipe Directory", value: health.recipeDirectoryPath, monospaced: true)
                 } else {

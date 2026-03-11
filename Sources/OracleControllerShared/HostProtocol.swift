@@ -4,11 +4,15 @@ public enum ControllerHostCommand: String, Codable, Sendable {
     case bootstrap
     case refreshSnapshot
     case performAction
+    case listApprovalRequests
+    case approveApprovalRequest
+    case rejectApprovalRequest
     case listRecipes
     case loadRecipe
     case saveRecipe
     case deleteRecipe
     case runRecipe
+    case resumeRecipeRun
     case listTraceSessions
     case loadTraceSession
     case getHealth
@@ -38,6 +42,8 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
     public let recipeParams: [String: String]?
     public let traceSessionID: String?
     public let monitoring: MonitoringConfiguration?
+    public let approvalRequestID: String?
+    public let resumeToken: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -48,7 +54,9 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
         recipe: RecipeDocument? = nil,
         recipeParams: [String: String]? = nil,
         traceSessionID: String? = nil,
-        monitoring: MonitoringConfiguration? = nil
+        monitoring: MonitoringConfiguration? = nil,
+        approvalRequestID: String? = nil,
+        resumeToken: String? = nil
     ) {
         self.id = id
         self.command = command
@@ -59,6 +67,8 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
         self.recipeParams = recipeParams
         self.traceSessionID = traceSessionID
         self.monitoring = monitoring
+        self.approvalRequestID = approvalRequestID
+        self.resumeToken = resumeToken
     }
 }
 
@@ -95,6 +105,7 @@ public struct ControllerHostResponse: Codable, Sendable {
     public let recipes: [RecipeDocument]?
     public let recipe: RecipeDocument?
     public let recipeRun: RecipeRunResultDocument?
+    public let approvals: [ApprovalRequestDocument]?
     public let traceSessions: [TraceSessionSummary]?
     public let traceDetail: TraceSessionDetail?
     public let health: HealthStatus?
@@ -110,6 +121,7 @@ public struct ControllerHostResponse: Codable, Sendable {
         recipes: [RecipeDocument]? = nil,
         recipe: RecipeDocument? = nil,
         recipeRun: RecipeRunResultDocument? = nil,
+        approvals: [ApprovalRequestDocument]? = nil,
         traceSessions: [TraceSessionSummary]? = nil,
         traceDetail: TraceSessionDetail? = nil,
         health: HealthStatus? = nil,
@@ -124,6 +136,7 @@ public struct ControllerHostResponse: Codable, Sendable {
         self.recipes = recipes
         self.recipe = recipe
         self.recipeRun = recipeRun
+        self.approvals = approvals
         self.traceSessions = traceSessions
         self.traceDetail = traceDetail
         self.health = health
@@ -138,6 +151,7 @@ public enum ControllerHostEventKind: String, Codable, Sendable {
     case traceStepAppended
     case healthChanged
     case recipesChanged
+    case approvalsChanged
 }
 
 public struct ControllerHostEvent: Codable, Sendable {
@@ -148,6 +162,7 @@ public struct ControllerHostEvent: Codable, Sendable {
     public let traceStep: TraceStepViewModel?
     public let health: HealthStatus?
     public let recipes: [RecipeDocument]?
+    public let approvals: [ApprovalRequestDocument]?
     public let message: String?
 
     public init(
@@ -158,6 +173,7 @@ public struct ControllerHostEvent: Codable, Sendable {
         traceStep: TraceStepViewModel? = nil,
         health: HealthStatus? = nil,
         recipes: [RecipeDocument]? = nil,
+        approvals: [ApprovalRequestDocument]? = nil,
         message: String? = nil
     ) {
         self.kind = kind
@@ -167,6 +183,7 @@ public struct ControllerHostEvent: Codable, Sendable {
         self.traceStep = traceStep
         self.health = health
         self.recipes = recipes
+        self.approvals = approvals
         self.message = message
     }
 }

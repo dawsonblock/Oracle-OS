@@ -6,6 +6,13 @@ public struct ActionResult: Sendable, Codable {
     public let verificationStatus: VerificationStatus?
     public let failureClass: String?
     public let elapsedMs: Double
+    public let policyDecision: PolicyDecision?
+    public let protectedOperation: String?
+    public let approvalRequestID: String?
+    public let approvalStatus: String?
+    public let surface: String?
+    public let appProtectionProfile: String?
+    public let blockedByPolicy: Bool
 
     public init(
         success: Bool,
@@ -14,7 +21,14 @@ public struct ActionResult: Sendable, Codable {
         method: String? = nil,
         verificationStatus: VerificationStatus? = nil,
         failureClass: String? = nil,
-        elapsedMs: Double = 0
+        elapsedMs: Double = 0,
+        policyDecision: PolicyDecision? = nil,
+        protectedOperation: String? = nil,
+        approvalRequestID: String? = nil,
+        approvalStatus: String? = nil,
+        surface: String? = nil,
+        appProtectionProfile: String? = nil,
+        blockedByPolicy: Bool = false
     ) {
         self.success = success
         self.verified = verified ?? success
@@ -23,6 +37,13 @@ public struct ActionResult: Sendable, Codable {
         self.verificationStatus = verificationStatus
         self.failureClass = failureClass
         self.elapsedMs = elapsedMs
+        self.policyDecision = policyDecision
+        self.protectedOperation = protectedOperation
+        self.approvalRequestID = approvalRequestID
+        self.approvalStatus = approvalStatus
+        self.surface = surface
+        self.appProtectionProfile = appProtectionProfile
+        self.blockedByPolicy = blockedByPolicy
     }
 
     public func toDict() -> [String: Any] {
@@ -44,6 +65,25 @@ public struct ActionResult: Sendable, Codable {
         if let failureClass {
             result["failure_class"] = failureClass
         }
+        if let policyDecision {
+            result["policy_decision"] = policyDecision.toDict()
+        }
+        if let protectedOperation {
+            result["protected_operation"] = protectedOperation
+        }
+        if let approvalRequestID {
+            result["approval_request_id"] = approvalRequestID
+        }
+        if let approvalStatus {
+            result["approval_status"] = approvalStatus
+        }
+        if let surface {
+            result["surface"] = surface
+        }
+        if let appProtectionProfile {
+            result["app_protection_profile"] = appProtectionProfile
+        }
+        result["blocked_by_policy"] = blockedByPolicy
 
         return result
     }

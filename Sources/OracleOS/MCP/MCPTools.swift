@@ -90,7 +90,7 @@ public enum MCPTools {
     private static let actions: [[String: Any]] = [
         tool(
             name: "ghost_click",
-            description: "Click an element. Tries AX-native first, falls back to synthetic click. Returns post-click context.",
+            description: "Click an element. Tries AX-native first, falls back to synthetic click. Risky actions may return pending approval instead of executing immediately.",
             properties: [
                 "query": prop("string", "What to click (element text/name)."),
                 "role": prop("string", "AX role filter."),
@@ -100,17 +100,19 @@ public enum MCPTools {
                 "y": prop("number", "Click at Y coordinate."),
                 "button": prop("string", "left (default), right, or middle."),
                 "count": prop("integer", "Click count: 1=single, 2=double, 3=triple."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ]
         ),
         tool(
             name: "ghost_type",
-            description: "Type text into a field. If 'into' is specified, finds the field first. Returns readback verification.",
+            description: "Type text into a field. If 'into' is specified, finds the field first. Risky text entry may require approval before execution.",
             properties: [
                 "text": prop("string", "Text to type."),
                 "into": prop("string", "Target field name (finds via accessibility). If omitted, types at focus."),
                 "dom_id": prop("string", "Target field by DOM id."),
                 "app": prop("string", "Which app."),
                 "clear": prop("boolean", "Clear field before typing (default: false)."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["text"]
         ),
@@ -121,6 +123,7 @@ public enum MCPTools {
                 "key": prop("string", "Key name: return, tab, escape, space, delete, up, down, left, right, f1-f12."),
                 "modifiers": propArray("string", "Modifier keys: cmd, shift, option, control."),
                 "app": prop("string", "Auto-focus this app first (IMPORTANT for synthetic input)."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["key"]
         ),
@@ -130,6 +133,7 @@ public enum MCPTools {
             properties: [
                 "keys": propArray("string", "Key combo, e.g. [\"cmd\", \"return\"] or [\"cmd\", \"shift\", \"p\"]."),
                 "app": prop("string", "Auto-focus this app first (IMPORTANT for synthetic input)."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["keys"]
         ),
@@ -142,6 +146,7 @@ public enum MCPTools {
                 "app": prop("string", "Auto-focus this app first."),
                 "x": prop("number", "Scroll at specific X position."),
                 "y": prop("number", "Scroll at specific Y position."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["direction"]
         ),
@@ -151,6 +156,7 @@ public enum MCPTools {
             properties: [
                 "app": prop("string", "App name to focus."),
                 "window": prop("string", "Window title substring to focus specific window."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["app"]
         ),
@@ -165,6 +171,7 @@ public enum MCPTools {
                 "y": prop("number", "Y position for move."),
                 "width": prop("number", "Width for resize."),
                 "height": prop("number", "Height for resize."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a previously gated action."),
             ],
             required: ["action", "app"]
         ),
@@ -199,12 +206,14 @@ public enum MCPTools {
         ),
         tool(
             name: "ghost_run",
-            description: "Execute a recipe with parameter substitution. Returns step-by-step results.",
+            description: "Execute a recipe with parameter substitution. Risky steps pause for approval and can be resumed with resume_token plus approval_request_id.",
             properties: [
                 "recipe": prop("string", "Recipe name."),
                 "params": prop("object", "Parameter values for substitution."),
+                "resume_token": prop("string", "Resume a previously paused recipe run."),
+                "approval_request_id": prop("string", "Single-use approval token id to resume a gated recipe step."),
             ],
-            required: ["recipe"]
+            required: []
         ),
         tool(
             name: "ghost_recipe_show",
