@@ -1,0 +1,1051 @@
+import AppKit
+import Foundation
+import SwiftUI
+import OracleControllerShared
+
+struct RootView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        NavigationSplitView {
+            sidebar
+        } content: {
+            content
+        } detail: {
+            inspector
+        }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 1440, minHeight: 900)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.96, green: 0.97, blue: 0.99),
+                    Color(red: 0.92, green: 0.95, blue: 0.98),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    Task { await store.refreshNow() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .keyboardShortcut("r", modifiers: [.command])
+
+                Toggle(isOn: $store.autoRefreshEnabled) {
+                    Label("Auto Refresh", systemImage: store.autoRefreshEnabled ? "wave.3.right" : "pause.circle")
+                }
+                .toggleStyle(.button)
+                .onChange(of: store.autoRefreshEnabled) { _, _ in
+                    Task { await store.updateMonitoring() }
+                }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if store.isBusy {
+                ProgressView()
+                    .controlSize(.large)
+                    .padding()
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding()
+            }
+        }
+        .alert(
+            "Controller Error",
+            isPresented: Binding(
+                get: { store.errorMessage != nil },
+                set: { if !$0 { store.errorMessage = nil } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) {
+                    store.errorMessage = nil
+                }
+            },
+            message: {
+                Text(store.errorMessage ?? "")
+            }
+        )
+        .confirmationDialog(
+            "Confirm Risky Action",
+            isPresented: Binding(
+                get: { store.pendingConfirmationAction != nil },
+                set: { if !$0 { store.cancelPendingAction() } }
+            ),
+            actions: {
+                Button("Run Action", role: .destructive) {
+                    Task { await store.confirmPendingAction() }
+                }
+                Button("Cancel", role: .cancel) {
+                    store.cancelPendingAction()
+                }
+            },
+            message: {
+                Text(store.pendingConfirmationAction?.displayTitle ?? "")
+            }
+        )
+        .task {
+            await store.start()
+            await store.updateMonitoring()
+        }
+    }
+
+    private var sidebar: some View {
+        List(WorkspaceSection.allCases, selection: $store.selectedSection) { section in
+            Label(section.title, systemImage: section.systemImage)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .padding(.vertical, 4)
+            .tag(section)
+        }
+        .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let session = store.session {
+                    Text("Session")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Text(session.id)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                    if let activeAppName = session.activeAppName {
+                        StatusBadge(label: activeAppName, tone: .neutral)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(.ultraThinMaterial)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch store.selectedSection {
+        case .control:
+            ControlWorkspaceView(store: store)
+        case .recipes:
+            RecipesWorkspaceView(store: store)
+        case .traces:
+            TracesWorkspaceView(store: store)
+        case .health:
+            HealthWorkspaceView(store: store)
+        case .settings:
+            SettingsWorkspaceView(store: store)
+        }
+    }
+
+    @ViewBuilder
+    private var inspector: some View {
+        switch store.selectedSection {
+        case .control:
+            ControlInspectorView(store: store)
+        case .recipes:
+            RecipeInspectorView(store: store)
+        case .traces:
+            TraceInspectorView(store: store)
+        case .health:
+            HealthInspectorView(store: store)
+        case .settings:
+            SettingsInspectorView(store: store)
+        }
+    }
+}
+
+private struct ControlWorkspaceView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                controlStatusRow
+
+                HStack(alignment: .top, spacing: 18) {
+                    PanelCard("Live Monitor", subtitle: "Low-frequency screenshot stream") {
+                        ScreenshotPreview(screenshot: store.snapshot?.screenshot)
+                            .frame(maxWidth: .infinity, minHeight: 420)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    ActionComposerCard(store: store)
+                        .frame(width: 380)
+                }
+
+                HStack(alignment: .top, spacing: 18) {
+                    PanelCard("Visible Elements", subtitle: "\(store.filteredElements.count) in current observation") {
+                        TextField("Filter elements", text: $store.elementSearchText)
+                            .textFieldStyle(.roundedBorder)
+
+                        if store.filteredElements.isEmpty {
+                            EmptyStateView(
+                                systemImage: "rectangle.dashed",
+                                title: "No Elements",
+                                message: "Refresh the snapshot or choose another app to inspect visible UI elements."
+                            )
+                            .frame(height: 220)
+                        } else {
+                            List(store.filteredElements, selection: $store.selectedElementID) { element in
+                                Button {
+                                    store.selectedElementID = element.id
+                                } label: {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(element.label ?? element.role ?? element.id)
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text(element.role ?? element.source)
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        StatusBadge(
+                                            label: element.focused ? "Focused" : element.source.uppercased(),
+                                            tone: element.focused ? .good : .neutral
+                                        )
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .tag(element.id)
+                            }
+                            .frame(minHeight: 280)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    PanelCard("Action Timeline", subtitle: "Recent verified actions") {
+                        if store.recentActions.isEmpty {
+                            EmptyStateView(
+                                systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                                title: "No Recent Actions",
+                                message: "Run a manual action or recipe to start building an execution timeline."
+                            )
+                            .frame(height: 220)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(store.recentActions) { action in
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(action.request.displayTitle)
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text(action.message ?? "Completed")
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 6) {
+                                            StatusBadge(label: action.success ? "Verified" : "Failed", tone: action.success ? .good : .danger)
+                                            Text("\(Int(action.elapsedMs)) ms")
+                                                .font(.system(size: 11, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                }
+                            }
+                        }
+                    }
+                    .frame(width: 360)
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private var controlStatusRow: some View {
+        PanelCard("Operator Console", subtitle: "Supervised local runtime control") {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(store.snapshot?.observation.appName ?? "No app selected")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                    Text(store.snapshot?.observation.windowTitle ?? "No active window")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                    if let url = store.snapshot?.observation.url {
+                        Text(url)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(ControllerTheme.accent)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 10) {
+                    HStack(spacing: 8) {
+                        StatusBadge(
+                            label: store.health?.visionSidecarRunning == true ? "Sidecar Ready" : "Sidecar Down",
+                            tone: store.health?.visionSidecarRunning == true ? .good : .warning
+                        )
+                        StatusBadge(
+                            label: store.autoRefreshEnabled ? "Monitoring" : "Paused",
+                            tone: store.autoRefreshEnabled ? .neutral : .warning
+                        )
+                    }
+                    if let inlineMessage = store.inlineMessage, !inlineMessage.isEmpty {
+                        Text(inlineMessage)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ActionComposerCard: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        PanelCard("Manual Action", subtitle: "All high-signal controls route through the verified executor") {
+            Picker("Action", selection: $store.actionComposer.kind) {
+                ForEach(ActionKind.allCases) { kind in
+                    Text(kind.rawValue.capitalized).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Group {
+                TextField("Target app", text: $store.actionComposer.appName)
+                TextField("Window title (optional)", text: $store.actionComposer.windowTitle)
+            }
+            .textFieldStyle(.roundedBorder)
+
+            switch store.actionComposer.kind {
+            case .focus:
+                EmptyView()
+
+            case .click:
+                TextField("Query / label", text: $store.actionComposer.query)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Role (optional)", text: $store.actionComposer.role)
+                    .textFieldStyle(.roundedBorder)
+                TextField("DOM ID (optional)", text: $store.actionComposer.domID)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("X", text: $store.actionComposer.x)
+                    TextField("Y", text: $store.actionComposer.y)
+                }
+                .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("Button", text: $store.actionComposer.button)
+                    TextField("Count", text: $store.actionComposer.count)
+                }
+                .textFieldStyle(.roundedBorder)
+
+            case .type:
+                TextField("Target field", text: $store.actionComposer.query)
+                    .textFieldStyle(.roundedBorder)
+                TextField("DOM ID (optional)", text: $store.actionComposer.domID)
+                    .textFieldStyle(.roundedBorder)
+                TextEditor(text: $store.actionComposer.text)
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(minHeight: 120)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(ControllerTheme.border, lineWidth: 1)
+                    )
+                Toggle("Clear current value before typing", isOn: $store.actionComposer.clearExisting)
+
+            case .press:
+                TextField("Key", text: $store.actionComposer.key)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Modifiers (comma-separated)", text: $store.actionComposer.modifiers)
+                    .textFieldStyle(.roundedBorder)
+
+            case .scroll:
+                TextField("Direction", text: $store.actionComposer.direction)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Amount", text: $store.actionComposer.amount)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("X (optional)", text: $store.actionComposer.x)
+                    TextField("Y (optional)", text: $store.actionComposer.y)
+                }
+                .textFieldStyle(.roundedBorder)
+
+            case .wait:
+                TextField("Condition", text: $store.actionComposer.waitCondition)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Value", text: $store.actionComposer.waitValue)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("Timeout (s)", text: $store.actionComposer.timeout)
+                    TextField("Interval (s)", text: $store.actionComposer.interval)
+                }
+                .textFieldStyle(.roundedBorder)
+            }
+
+            Button {
+                Task { await store.submitAction() }
+            } label: {
+                Label(store.actionComposer.kind == .wait ? "Evaluate Condition" : "Run Action", systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(ControllerTheme.accent)
+        }
+    }
+}
+
+private struct ControlInspectorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PanelCard("Selected Element", subtitle: "Inspection details for the highlighted control") {
+                    if let element = store.selectedElement {
+                        KVRow(key: "ID", value: element.id, monospaced: true)
+                        KVRow(key: "Label", value: element.label ?? "None")
+                        KVRow(key: "Role", value: element.role ?? "None")
+                        KVRow(key: "Value", value: element.value ?? "None")
+                        KVRow(key: "Source", value: element.source)
+                        KVRow(key: "Confidence", value: String(format: "%.2f", element.confidence))
+                        KVRow(key: "Frame", value: element.frame.map { "\(Int($0.x)), \(Int($0.y)) - \(Int($0.width))x\(Int($0.height))" } ?? "Unavailable", monospaced: true)
+                    } else {
+                        EmptyStateView(
+                            systemImage: "cursorarrow.motionlines",
+                            title: "No Element Selected",
+                            message: "Choose a visible element to inspect its identity, source, and confidence."
+                        )
+                        .frame(height: 240)
+                    }
+                }
+
+                PanelCard("Verification", subtitle: "Latest action status") {
+                    if let result = store.currentActionResult {
+                        HStack {
+                            StatusBadge(label: result.success ? "Verified" : "Failed", tone: result.success ? .good : .danger)
+                            if let failureClass = result.failureClass {
+                                StatusBadge(label: failureClass, tone: .warning)
+                            }
+                        }
+                        KVRow(key: "Request", value: result.request.displayTitle)
+                        KVRow(key: "Message", value: result.message ?? "No message")
+                        KVRow(key: "Elapsed", value: "\(Int(result.elapsedMs)) ms", monospaced: true)
+                        if let traceStepID = result.traceStepID {
+                            KVRow(key: "Trace Step", value: "#\(traceStepID)", monospaced: true)
+                        }
+                    } else {
+                        EmptyStateView(
+                            systemImage: "checkmark.shield",
+                            title: "No Verification Yet",
+                            message: "Manual actions and recipe runs will surface verification results here."
+                        )
+                        .frame(height: 220)
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private struct RecipesWorkspaceView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 18) {
+            PanelCard("Recipe Library", subtitle: "Existing replayable workflows") {
+                TextField("Search recipes", text: $store.recipeSearchText)
+                    .textFieldStyle(.roundedBorder)
+
+                List(store.filteredRecipes, selection: $store.selectedRecipeName) { recipe in
+                    Button {
+                        Task { await store.selectRecipe(named: recipe.name) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(recipe.name)
+                                .font(.system(size: 13, weight: .semibold))
+                            Text(recipe.description)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .tag(recipe.name)
+                }
+                .frame(minHeight: 420)
+
+                HStack {
+                    Button("New") {
+                        store.createRecipe()
+                    }
+                    Button("Duplicate") {
+                        store.duplicateSelectedRecipe()
+                    }
+                    .disabled(store.selectedRecipeName == nil)
+                    Button("Delete", role: .destructive) {
+                        Task { await store.deleteSelectedRecipe() }
+                    }
+                    .disabled(store.selectedRecipeName == nil)
+                }
+            }
+            .frame(width: 320)
+
+            RecipeEditorView(store: store)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+    }
+}
+
+private struct RecipeEditorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        PanelCard("Recipe Editor", subtitle: "Form editing over the current JSON schema") {
+            HStack {
+                Picker("Mode", selection: $store.recipeEditorMode) {
+                    ForEach(RecipeEditorMode.allCases) { mode in
+                        Text(mode.rawValue.capitalized).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Spacer()
+
+                Button {
+                    Task { await store.saveDraftRecipe() }
+                } label: {
+                    Label("Save", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(ControllerTheme.accent)
+            }
+
+            if store.recipeEditorMode == .raw {
+                TextEditor(text: $store.rawRecipeText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(minHeight: 520)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(ControllerTheme.border, lineWidth: 1)
+                    )
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TextField("Recipe name", text: $store.draftRecipe.name)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Description", text: $store.draftRecipe.description)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("App", text: stringBinding($store.draftRecipe.app))
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Global failure policy", text: stringBinding($store.draftRecipe.onFailure))
+                            .textFieldStyle(.roundedBorder)
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Parameters")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Spacer()
+                                Button("Add Param") {
+                                    store.addRecipeParam()
+                                }
+                            }
+
+                            if let paramKeys = store.draftRecipe.params?.keys.sorted(), !paramKeys.isEmpty {
+                                ForEach(paramKeys, id: \.self) { key in
+                                    RecipeParameterRow(store: store, paramKey: key)
+                                }
+                            } else {
+                                Text("No parameters defined.")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Steps")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Spacer()
+                                Button("Add Step") {
+                                    store.addRecipeStep()
+                                }
+                            }
+
+                            ForEach(Array(store.draftRecipe.steps.enumerated()), id: \.element.id) { index, step in
+                                RecipeStepCard(store: store, stepIndex: index, step: step)
+                            }
+                        }
+                    }
+                    .padding(.trailing, 4)
+                }
+                .frame(minHeight: 520)
+            }
+        }
+    }
+}
+
+private struct RecipeParameterRow: View {
+    @Bindable var store: ControllerStore
+    let paramKey: String
+
+    var body: some View {
+        let paramBinding = Binding<RecipeParamDocument>(
+            get: { store.draftRecipe.params?[paramKey] ?? RecipeParamDocument(id: paramKey, type: "string", description: "", required: true) },
+            set: { updated in
+                var params = store.draftRecipe.params ?? [:]
+                params[paramKey] = updated
+                store.draftRecipe.params = params
+            }
+        )
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(paramKey)
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Remove", role: .destructive) {
+                    store.removeRecipeParam(id: paramKey)
+                }
+            }
+            TextField("Type", text: paramBinding.type)
+                .textFieldStyle(.roundedBorder)
+            TextField("Description", text: paramBinding.description)
+                .textFieldStyle(.roundedBorder)
+            Toggle("Required", isOn: paramBinding.required)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct RecipeStepCard: View {
+    @Bindable var store: ControllerStore
+    let stepIndex: Int
+    let step: RecipeStepDocument
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Step \(step.id)")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Remove", role: .destructive) {
+                    store.removeRecipeStep(id: step.id)
+                }
+            }
+
+            TextField("Action", text: binding(\.action))
+                .textFieldStyle(.roundedBorder)
+            TextField("Note", text: stringBinding(binding(\.note)))
+                .textFieldStyle(.roundedBorder)
+            TextField("Failure policy", text: stringBinding(binding(\.onFailure)))
+                .textFieldStyle(.roundedBorder)
+            TextField(
+                "Target contains (advanced locators remain available in raw mode)",
+                text: Binding(
+                    get: { store.draftRecipe.steps[stepIndex].target?.computedNameContains ?? "" },
+                    set: { newValue in
+                        var target = store.draftRecipe.steps[stepIndex].target ?? LocatorDocument()
+                        target.computedNameContains = newValue.isEmpty ? nil : newValue
+                        store.draftRecipe.steps[stepIndex].target = target
+                    }
+                )
+            )
+            .textFieldStyle(.roundedBorder)
+            TextField(
+                "Wait after condition",
+                text: Binding(
+                    get: { store.draftRecipe.steps[stepIndex].waitAfter?.condition ?? "" },
+                    set: { newValue in
+                        var waitAfter = store.draftRecipe.steps[stepIndex].waitAfter ?? RecipeWaitConditionDocument(condition: newValue)
+                        waitAfter.condition = newValue
+                        store.draftRecipe.steps[stepIndex].waitAfter = newValue.isEmpty ? nil : waitAfter
+                    }
+                )
+            )
+            .textFieldStyle(.roundedBorder)
+            TextField(
+                "Wait after value",
+                text: Binding(
+                    get: { store.draftRecipe.steps[stepIndex].waitAfter?.value ?? "" },
+                    set: { newValue in
+                        var waitAfter = store.draftRecipe.steps[stepIndex].waitAfter ?? RecipeWaitConditionDocument(condition: "elementExists")
+                        waitAfter.value = newValue.isEmpty ? nil : newValue
+                        store.draftRecipe.steps[stepIndex].waitAfter = waitAfter
+                    }
+                )
+            )
+            .textFieldStyle(.roundedBorder)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<RecipeStepDocument, Value>) -> Binding<Value> {
+        Binding(
+            get: { store.draftRecipe.steps[stepIndex][keyPath: keyPath] },
+            set: { store.draftRecipe.steps[stepIndex][keyPath: keyPath] = $0 }
+        )
+    }
+}
+
+private struct RecipeInspectorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PanelCard("Run Recipe", subtitle: "Execute the selected workflow with explicit parameters") {
+                    if let params = store.draftRecipe.params, !params.isEmpty {
+                        ForEach(params.keys.sorted(), id: \.self) { key in
+                            TextField(
+                                key,
+                                text: Binding(
+                                    get: { store.recipeRunParameters[key] ?? "" },
+                                    set: { store.recipeRunParameters[key] = $0 }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                        }
+                    } else {
+                        Text("This recipe does not declare any runtime parameters.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        Task { await store.runSelectedRecipe() }
+                    } label: {
+                        Label("Run Selected Recipe", systemImage: "play.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(ControllerTheme.accent)
+                }
+
+                PanelCard("Last Run", subtitle: "Structured replay results") {
+                    if let latestRecipeRun = store.latestRecipeRun {
+                        HStack {
+                            StatusBadge(label: latestRecipeRun.success ? "Succeeded" : "Failed", tone: latestRecipeRun.success ? .good : .danger)
+                            Text("\(latestRecipeRun.stepsCompleted)/\(latestRecipeRun.totalSteps) steps")
+                                .font(.system(size: 12, design: .monospaced))
+                        }
+                        if let error = latestRecipeRun.error {
+                            Text(error)
+                                .foregroundStyle(ControllerTheme.danger)
+                        }
+                        ForEach(latestRecipeRun.stepResults) { step in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(step.action)
+                                        .font(.system(size: 12, weight: .semibold))
+                                    if let note = step.note {
+                                        Text(note)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Text("\(step.durationMs) ms")
+                                    .font(.system(size: 11, design: .monospaced))
+                            }
+                        }
+                    } else {
+                        EmptyStateView(
+                            systemImage: "play.rectangle.on.rectangle",
+                            title: "No Run Yet",
+                            message: "Run a recipe to inspect structured results and linked trace output."
+                        )
+                        .frame(height: 220)
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private struct TracesWorkspaceView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 18) {
+            PanelCard("Sessions", subtitle: "Ordered JSONL traces emitted by the runtime") {
+                TextField("Search sessions", text: $store.traceSearchText)
+                    .textFieldStyle(.roundedBorder)
+
+                List(store.filteredTraceSessions, selection: $store.selectedTraceSessionID) { session in
+                    Button {
+                        Task { await store.loadTraceSession(id: session.id) }
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(session.id)
+                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                    .lineLimit(1)
+                                Text("\(session.stepCount) step\(session.stepCount == 1 ? "" : "s")")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(session.lastUpdated.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .tag(session.id)
+                }
+                .frame(minHeight: 520)
+            }
+            .frame(width: 360)
+
+            PanelCard("Steps", subtitle: store.traceDetail?.summary.id ?? "Select a session to inspect step-level evidence") {
+                if let traceDetail = store.traceDetail, !traceDetail.steps.isEmpty {
+                    List(traceDetail.steps, selection: $store.selectedTraceStepID) { step in
+                        Button {
+                            store.selectedTraceStepID = step.id
+                        } label: {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(step.actionName.capitalized)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(step.toolName ?? "Runtime")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    StatusBadge(label: step.success ? "Success" : "Failure", tone: step.success ? .good : .danger)
+                                    Text("#\(step.stepID)")
+                                        .font(.system(size: 11, design: .monospaced))
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .tag(step.id)
+                    }
+                } else {
+                    EmptyStateView(
+                        systemImage: "doc.text.magnifyingglass",
+                        title: "No Trace Loaded",
+                        message: "Choose a recorded session to inspect verification, hashes, and failure artifacts."
+                    )
+                    .frame(height: 420)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+    }
+}
+
+private struct TraceInspectorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PanelCard("Trace Step", subtitle: "Action evidence and failure context") {
+                    if let step = store.selectedTraceStep {
+                        HStack {
+                            StatusBadge(label: step.success ? "Success" : "Failure", tone: step.success ? .good : .danger)
+                            if let failureClass = step.failureClass {
+                                StatusBadge(label: failureClass, tone: .warning)
+                            }
+                        }
+                        KVRow(key: "Tool", value: step.toolName ?? "Runtime")
+                        KVRow(key: "Action", value: step.actionName)
+                        KVRow(key: "Target", value: step.actionTarget ?? "None")
+                        KVRow(key: "Postcondition", value: step.postcondition ?? "None")
+                        KVRow(key: "Pre Hash", value: step.preObservationHash ?? "Unavailable", monospaced: true)
+                        KVRow(key: "Post Hash", value: step.postObservationHash ?? "Unavailable", monospaced: true)
+                        KVRow(key: "Elapsed", value: "\(Int(step.elapsedMs)) ms", monospaced: true)
+                        if let notes = step.notes, !notes.isEmpty {
+                            Divider()
+                            Text(notes)
+                                .font(.system(size: 12, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    } else {
+                        EmptyStateView(
+                            systemImage: "waveform.path.ecg.text",
+                            title: "No Step Selected",
+                            message: "Select a trace step to inspect verification hashes, notes, and artifacts."
+                        )
+                        .frame(height: 280)
+                    }
+                }
+
+                PanelCard("Artifacts", subtitle: "Failure notes, observations, and screenshots") {
+                    if let step = store.selectedTraceStep, !step.artifactPaths.isEmpty {
+                        ForEach(step.artifactPaths, id: \.self) { path in
+                            HStack {
+                                Text(path)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .lineLimit(2)
+                                Spacer()
+                                Button("Open") {
+                                    store.openArtifact(path)
+                                }
+                                Button("Reveal") {
+                                    store.revealArtifact(path)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No artifact paths were recorded for this step.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private struct HealthWorkspaceView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PanelCard("Runtime Health", subtitle: "Permissions, sidecar state, and local configuration") {
+                    if let health = store.health {
+                        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
+                            GridRow {
+                                KVRow(key: "Runtime", value: health.runtimeVersion)
+                                KVRow(key: "Recipes", value: "\(health.recipeCount)")
+                            }
+                            GridRow {
+                                KVRow(key: "Sidecar", value: health.visionSidecarRunning ? "Running" : "Unavailable")
+                                KVRow(key: "Model", value: health.visionModelPath ?? "Unknown")
+                            }
+                            GridRow {
+                                KVRow(key: "Trace Dir", value: health.traceDirectoryPath)
+                                KVRow(key: "Recipe Dir", value: health.recipeDirectoryPath)
+                            }
+                        }
+                    } else {
+                        EmptyStateView(
+                            systemImage: "cross.case.fill",
+                            title: "No Health Snapshot",
+                            message: "Refresh health to inspect permissions, sidecar availability, and runtime directories."
+                        )
+                        .frame(height: 220)
+                    }
+                }
+
+                PanelCard("Permissions", subtitle: "System access required for production-grade control") {
+                    if let permissions = store.health?.permissions, !permissions.isEmpty {
+                        ForEach(permissions) { permission in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(permission.title)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(permission.detail ?? "")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                StatusBadge(label: permission.granted ? "Granted" : "Required", tone: permission.granted ? .good : .warning)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private struct HealthInspectorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            PanelCard("System Summary", subtitle: "What still blocks a frictionless operator loop") {
+                if let health = store.health {
+                    KVRow(key: "Claude MCP", value: health.claudeConfigured ? "Configured" : "Missing")
+                    KVRow(key: "Sidecar Version", value: health.visionSidecarVersion ?? "Unknown")
+                    KVRow(key: "Trace Directory", value: health.traceDirectoryPath, monospaced: true)
+                    KVRow(key: "Recipe Directory", value: health.recipeDirectoryPath, monospaced: true)
+                } else {
+                    EmptyStateView(
+                        systemImage: "stethoscope",
+                        title: "No Health Data",
+                        message: "Refresh the dashboard to populate controller diagnostics."
+                    )
+                    .frame(height: 260)
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+struct SettingsWorkspaceView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PanelCard("Session Settings", subtitle: "Controller-local behavior, not runtime policy") {
+                    Toggle("Auto refresh monitoring", isOn: $store.autoRefreshEnabled)
+                        .onChange(of: store.autoRefreshEnabled) { _, _ in
+                            Task { await store.updateMonitoring() }
+                        }
+                    TextField("Monitored app", text: $store.monitorAppName)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Apply Monitor Settings") {
+                        Task { await store.updateMonitoring() }
+                    }
+                }
+
+                PanelCard("Operations", subtitle: "Open runtime storage used by the controller") {
+                    Button("Open Trace Directory") {
+                        if let path = store.health?.traceDirectoryPath {
+                            store.openArtifact(path)
+                        }
+                    }
+                    Button("Open Recipe Directory") {
+                        if let path = store.health?.recipeDirectoryPath {
+                            store.openArtifact(path)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private struct SettingsInspectorView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ScrollView {
+            PanelCard("Controller Session", subtitle: "Host process and active monitor details") {
+                if let session = store.session {
+                    KVRow(key: "Session ID", value: session.id, monospaced: true)
+                    KVRow(key: "Host PID", value: "\(session.hostProcessID)", monospaced: true)
+                    KVRow(key: "Active App", value: session.activeAppName ?? "Unknown")
+                    KVRow(key: "Started", value: session.startedAt.formatted(date: .abbreviated, time: .standard))
+                } else {
+                    EmptyStateView(
+                        systemImage: "switch.2",
+                        title: "No Session Yet",
+                        message: "The host session will appear here after the controller bootstraps."
+                    )
+                    .frame(height: 240)
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+private func stringBinding(_ source: Binding<String?>, defaultValue: String = "") -> Binding<String> {
+    Binding<String>(
+        get: { source.wrappedValue ?? defaultValue },
+        set: { source.wrappedValue = $0.isEmpty ? nil : $0 }
+    )
+}

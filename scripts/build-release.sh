@@ -1,5 +1,5 @@
 #!/bin/bash
-# build-release.sh — Build Ghost OS v2 release tarball
+# build-release.sh — Build Oracle OS v2 release tarball
 #
 # Produces: ghost-os-{VERSION}-macos-arm64.tar.gz
 # Contents:
@@ -15,7 +15,7 @@
 #   ./scripts/build-release.sh --debug       # Build debug tarball (faster)
 #
 # The Homebrew formula downloads this tarball and installs:
-#   /opt/homebrew/bin/ghost
+#   /opt/homebrew/bin/oracle
 #   /opt/homebrew/bin/ghost-vision
 #   /opt/homebrew/share/ghost-os/GHOST-MCP.md
 #   /opt/homebrew/share/ghost-os/recipes/*.json
@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Read version from Types.swift
-VERSION=$(grep -o 'version = "[^"]*"' "$PROJECT_ROOT/Sources/GhostOS/Common/Types.swift" | head -1 | cut -d'"' -f2)
+VERSION=$(grep -o 'version = "[^"]*"' "$PROJECT_ROOT/Sources/OracleOS/Common/Types.swift" | head -1 | cut -d'"' -f2)
 if [[ -z "$VERSION" ]]; then
     echo "ERROR: Could not read version from Types.swift" >&2
     exit 1
@@ -53,7 +53,7 @@ fi
 TARBALL_NAME="ghost-os-${VERSION}-macos-arm64.tar.gz"
 STAGE_DIR="$PROJECT_ROOT/.build/${CONFIG}-stage"
 
-echo "Building Ghost OS v${VERSION} ($CONFIG)"
+echo "Building Oracle OS v${VERSION} ($CONFIG)"
 echo "========================================"
 
 # Step 1: Build Swift binary
@@ -62,7 +62,7 @@ echo "Step 1: Building Swift binary..."
 cd "$PROJECT_ROOT"
 swift build -c "$CONFIG" 2>&1
 
-BINARY="$PROJECT_ROOT/.build/$CONFIG/ghost"
+BINARY="$PROJECT_ROOT/.build/$CONFIG/oracle"
 if [[ ! -f "$BINARY" ]]; then
     echo "ERROR: Binary not found at $BINARY" >&2
     exit 1
@@ -80,7 +80,7 @@ mkdir -p "$STAGE_DIR/recipes"
 mkdir -p "$STAGE_DIR/vision-sidecar"
 
 # Binary
-cp "$BINARY" "$STAGE_DIR/ghost"
+cp "$BINARY" "$STAGE_DIR/oracle"
 
 # ghost-vision launcher
 cp "$PROJECT_ROOT/vision-sidecar/ghost-vision" "$STAGE_DIR/ghost-vision"
@@ -122,13 +122,13 @@ echo "  sha256 \"$SHA256\""
 # Step 5: Summary
 echo ""
 echo "========================================"
-echo "Release: Ghost OS v${VERSION}"
+echo "Release: Oracle OS v${VERSION}"
 echo "Tarball: $TARBALL_NAME"
 echo "SHA256:  $SHA256"
 echo ""
 echo "To install locally:"
 echo "  tar xzf $TARBALL_NAME -C /tmp/ghost-os-install"
-echo "  cp /tmp/ghost-os-install/ghost /opt/homebrew/bin/"
+echo "  cp /tmp/ghost-os-install/oracle /opt/homebrew/bin/"
 echo "  cp /tmp/ghost-os-install/ghost-vision /opt/homebrew/bin/"
 echo ""
 echo "To update Homebrew formula:"
@@ -136,7 +136,7 @@ echo "  url \"https://github.com/ghostwright/ghost-os/releases/download/v${VERSI
 echo "  sha256 \"${SHA256}\""
 echo ""
 echo "To create GitHub release:"
-echo "  gh release create v${VERSION} $TARBALL_NAME --title \"Ghost OS v${VERSION}\""
+echo "  gh release create v${VERSION} $TARBALL_NAME --title \"Oracle OS v${VERSION}\""
 echo "========================================"
 
 # Cleanup

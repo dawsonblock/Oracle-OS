@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ghost OS Vision Sidecar — HTTP server for VLM grounding and element detection.
+Oracle OS Vision Sidecar — HTTP server for VLM grounding and element detection.
 
-Runs on localhost:9876. Ghost OS v2 (Swift) calls this when the AX tree
+Runs on localhost:9876. Oracle OS v2 (Swift) calls this when the AX tree
 can't find what the agent needs (web apps, dynamic content, etc.).
 
 Architecture:
@@ -367,7 +367,7 @@ class VisionHandler(BaseHTTPRequestHandler):
                 crop_h = y2 - y1
 
                 # Calculate pixel coordinates for cropping
-                # The image from Ghost OS is already at 1280px width (logical-ish)
+                # The image from Oracle OS is already at 1280px width (logical-ish)
                 # We need to scale crop_box from logical points to image pixels
                 img_w, img_h = img.size
                 scale_x = img_w / screen_w
@@ -526,7 +526,7 @@ def _signal_handler(signum, frame):
 def parse_args():
     parser = argparse.ArgumentParser(
         prog="ghost-vision",
-        description="Ghost OS Vision Sidecar — VLM grounding server for UI element detection",
+        description="Oracle OS Vision Sidecar — VLM grounding server for UI element detection",
     )
     parser.add_argument(
         "--version", action="version", version=f"ghost-vision {__version__}",
@@ -588,7 +588,7 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    log(f"Ghost OS Vision Sidecar v{__version__} starting on {HOST}:{PORT}")
+    log(f"Oracle OS Vision Sidecar v{__version__} starting on {HOST}:{PORT}")
     log(f"ShowUI-2B model path: {MODEL_PATH}")
     log(f"Model exists: {os.path.isdir(MODEL_PATH)}")
     if IDLE_TIMEOUT > 0:

@@ -1,99 +1,93 @@
-<p align="center">
-  <img src=".github/assets/oracle_os_logo.png" width="240" alt="Oracle OS">
-</p>
+# Oracle OS
 
-<h1 align="center">Oracle OS</h1>
-<p align="center"><em>The Reliable AI-First Operating Layer for macOS.</em></p>
+Oracle OS is a macOS computer-use runtime for MCP agents. It exposes a stable 22-tool surface for perception, action, screenshots, recipes, and setup workflows, while the operator-runtime work continues underneath that surface.
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%2014%2B-black.svg" alt="macOS 14+">
-  <img src="https://img.shields.io/badge/swift-6.1.2-orange.svg" alt="Swift 6.1.2">
-  <img src="https://img.shields.io/badge/concurrency-Swift%206-green.svg" alt="Swift 6 Concurrency">
-  <img src="https://img.shields.io/badge/MCP-compatible-brightgreen.svg" alt="MCP Compatible">
-</p>
+## Current Status
 
----
+- 22 MCP tools are exposed by the Swift server.
+- AX-first perception is working for `ghost_context`, `ghost_state`, `ghost_find`, `ghost_read`, `ghost_inspect`, `ghost_element_at`, and `ghost_screenshot`.
+- Verified execution is wired for `ghost_click`, `ghost_type`, `ghost_press`, and `ghost_focus` with pre/post observations, postcondition checks, and JSONL trace output.
+- Recipes are replayable JSON workflows. They are not self-learning yet.
+- `ghost_ground` works through the vision sidecar.
+- `ghost_parse_screen` is wired to the vision sidecar, but it should still be treated as experimental until the output contract and reliability are hardened.
 
-Oracle OS turns any AI agent into a **reliable computer operator**. By combining the structured macOS accessibility tree with local vision grounding and verified action execution, Oracle gives agents eyes, hands, and a deterministic memory for macOS workflows.
+See [STATUS.md](/Users/dawsonblock/Downloads/ghost-os-main/STATUS.md) and [ARCHITECTURE_STATUS.md](/Users/dawsonblock/Downloads/ghost-os-main/ARCHITECTURE_STATUS.md) for the current implementation boundary.
 
-> [!IMPORTANT]
-> **Oracle OS is currently in V2.** This version introduces production-grade schemas, Swift 6 Strict Concurrency safety, and trace-driven workflow learning.
-
-## 🔮 The Vision
-
-To move beyond "pixel guessing," Oracle OS implements a multi-layered perception and execution engine:
-
-1.  **Direct Perception**: Reads the macOS Accessibility Tree (AX) for structured, semantic data.
-2.  **Visual Grounding**: Uses local vision models (ShowUI-2B) when the AX tree is sparse.
-3.  **Verified Execution**: Every action is strictly validated against postconditions (e.g., "did the window actually open?").
-4.  **Workflow Learning**: Captures high-fidelity traces to induce robust, replayable recipes.
-
-## 🚀 Key Features
-
-- **Swift 6 Core**: Built on the modern concurrency model for absolute stability and safety.
-- **Verified Action Engine**: Uses `ActionVerifier` and `Postconditions` to prevent "hallucinated" clicks.
-- **High-Fidelity Tracing**: The `TraceRecorder` logs every state transition, enabling session-based learning.
-- **MCP Native**: Plugs directly into Claude Code, Cursor, VS Code, or any MCP client via a clean stdio protocol.
-- **Local-First**: Your data and vision models run entirely on your machine.
-
-## 🛠️ Components
-
-| | | |
-|:---:|---|---|
-| 👀 | **Perception** | Hybrid AX-tree + Vision (ShowUI-2B) for perfect screen understanding. |
-| ✅ | **Execution** | Production-grade V2 schema for intents, results, and verifications. |
-| 📜 | **Traces** | JSONL session logging for workflow analysis and recipe induction. |
-| 📦 | **Recipes** | Replayable, parameterized workflows that skip reasoning for speed. |
-
-## 🕹️ Getting Started
-
-### 1. Install
-```bash
-git clone https://github.com/dawsonblock/Oracle-OS.git
-cd Oracle-OS
-swift build
-```
-
-### 2. Setup
-Run the interactive setup wizard to configure permissions and download the vision sidecar:
-```bash
-./.build/debug/ghost setup
-```
-
-### 3. Verify
-Check your system health and permissions:
-```bash
-./.build/debug/ghost doctor
-./.build/debug/ghost status
-```
-
-## 🏗️ Architecture
+## What Exists Today
 
 ```mermaid
 graph TD
-    User["Agent (Claude/Cursor)"] -->|MCP| Server["Oracle MCP Server (Swift 6)"]
-    Server --> Perception["Perception (AX Tree + Vision)"]
-    Server --> Execution["Verified Execution (Action Engine)"]
-    Server --> Traces["Trace Recorder (Session History)"]
-    Execution -->|Verify| Perception
-    Traces -->|Induce| Learning["Workflow Learning"]
+    Agent["MCP Client / Agent"] --> Server["Oracle OS MCP Server"]
+    Server --> Perception["Perception: AX-first, CDP-assisted context"]
+    Server --> Actions["Actions: click, type, focus, press, scroll, window"]
+    Server --> Recipes["Recipes: replay and CRUD"]
+    Server --> Trace["Trace: JSONL action history"]
+    Server --> Vision["Vision: grounding available, parse_screen experimental"]
 ```
 
-## 📚 Tools (22)
+This repository is moving toward a more complete operator runtime with fused observation, verified execution, recovery, and learning. That broader architecture is scaffolded, not finished.
 
-Oracle exposes a rich set of tools for agents to navigate macOS:
+## Install
 
-- `ghost_context`: Full screen/app semantic state.
-- `ghost_click`: Verified element interaction.
-- `ghost_ground`: Visual coordinate discovery.
-- `ghost_recipes`: Manage and run replayable workflows.
-- *...and 18 more specialized tools.*
+```bash
+git clone https://github.com/dawsonblock/ghost-os.git
+cd ghost-os
+swift build
+```
 
-## 📜 License
+## Setup
 
-MIT - See [LICENSE](LICENSE) for details.
+```bash
+./.build/debug/oracle setup
+./.build/debug/oracle doctor
+./.build/debug/oracle status
+./.build/debug/oracle version
+```
 
----
+The runtime version and sidecar version are currently aligned at `2.0.6`.
 
-*Oracle OS: Built for the age of agentic compute.*
+## Local Controller
+
+Oracle OS now includes a native local controller:
+
+- `OracleController`: SwiftUI operator console
+- `OracleControllerHost`: bundled local host process that owns runtime execution
+- `OracleController.xcworkspace`: Xcode workspace entry point for the controller
+
+Build from the package or open the workspace in Xcode:
+
+```bash
+swift build
+open OracleController.xcworkspace
+```
+
+The controller stays local-only and supervised. It uses the existing OracleOS library, recipe schema, `.traces/` session logs, and stable `ghost_*` MCP tool surface. See [docs/oracle-controller.md](/Users/dawsonblock/Downloads/ghost-os-main/docs/oracle-controller.md) for usage details.
+
+## Tool Surface
+
+Oracle OS exposes 22 tools:
+
+- Perception: `ghost_context`, `ghost_state`, `ghost_find`, `ghost_read`, `ghost_inspect`, `ghost_element_at`, `ghost_screenshot`
+- Actions: `ghost_click`, `ghost_type`, `ghost_press`, `ghost_hotkey`, `ghost_scroll`, `ghost_focus`, `ghost_window`
+- Vision: `ghost_ground`, `ghost_parse_screen`
+- Wait/setup/doctor: `ghost_wait`, `ghost_permissions`, `ghost_doctor`
+- Recipes: `ghost_recipes`, `ghost_run`, `ghost_recipe_show`, `ghost_recipe_save`, `ghost_recipe_delete`
+
+The public tool names are stable even where implementation depth is not.
+
+## Truth Pass Notes
+
+- Package identity is `OracleOS` with the `oracle` executable.
+- Recipe messaging is intentionally limited to replay and manual or agent-authored saves.
+- Full-screen `/detect` and `/parse` support in the vision sidecar exists, but it is still treated as experimental or partial at the Oracle runtime layer.
+- New `Core/` and `Agent/` modules are being added incrementally alongside the existing package structure.
+
+## Development Direction
+
+The next bounded milestone is the substrate:
+
+1. Canonical fused observation
+2. Verified action execution for core tools
+3. Trace-driven diagnostics
+
+Recovery, planning, policy, operational memory, and recipe induction are scaffolded for later milestones, not complete today.

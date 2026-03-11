@@ -1,6 +1,6 @@
-# Ghost OS v2 - MCP Agent Instructions
+# Oracle OS v2 - MCP Agent Instructions
 
-You have Ghost OS, a tool that lets you see and operate any macOS application
+You have Oracle OS, a tool that lets you see and operate any macOS application
 through the accessibility tree AND visual perception. Every button, text field,
 link, and label is available -- either through the AX tree (native apps) or
 vision-based grounding (web apps where Chrome exposes everything as AXGroup).
@@ -17,7 +17,8 @@ and parameters. Recipes are tested, reliable, and faster than manual steps.
 Before interacting with any app, call `ghost_context` with the app name.
 
 This tells you: which app/window is active, the current URL (for browsers),
-what element is focused, and what interactive elements are visible.
+what element is focused, what interactive elements are visible, and the
+canonical fused observation snapshot Oracle is using internally.
 
 **If you skip this, you will click the wrong thing.**
 
@@ -49,7 +50,8 @@ error -- you cannot capture what does not exist.
 **Press, hotkey, scroll need focus** - always pass the `app` parameter:
 - ghost_press, ghost_hotkey, ghost_scroll
 
-Focus is automatically saved and restored after action tools.
+Focus is restored for click/type wrappers. Press, hotkey, and scroll target the
+frontmost app directly and should be treated as live input.
 
 ## Rule 5: Key Patterns
 
@@ -79,7 +81,7 @@ ghost_wait condition:"elementGone" value:"Loading" app:"Chrome"
 ## Rule 6: Vision Fallback for Web Apps
 
 When `ghost_find` or `ghost_click` can't locate an element (common in web apps
-like Gmail, Slack, etc. where Chrome exposes everything as AXGroup), Ghost OS
+like Gmail, Slack, etc. where Chrome exposes everything as AXGroup), Oracle OS
 automatically falls back to VLM-based vision grounding if the vision sidecar
 is running.
 
@@ -103,14 +105,14 @@ Then click at the returned coordinates:
 ghost_click x:86 y:223 app:"Chrome"
 ```
 
-### ghost_parse_screen - Experimental full-screen parser placeholder
+### ghost_parse_screen - Experimental full-screen parser
 ```
 ghost_parse_screen app:"Chrome"
--> Returns an explicit experimental/not-implemented response
+-> Returns experimental full-screen parse output from the vision sidecar
 ```
-Note: `ghost_parse_screen` stays public for API compatibility, but real
-screen parsing is not implemented yet. Use `ghost_find` for AX-based
-element search, and `ghost_ground` for visual element finding.
+Note: `ghost_parse_screen` is sidecar-backed, but its output is still
+experimental. Use `ghost_find` for AX-based element search when you need the
+most stable runtime behavior, and `ghost_ground` for visual disambiguation.
 
 ## Rule 7: Handle Failures
 
@@ -125,7 +127,7 @@ AX-native, synthetic, AND VLM vision grounding. The element might not exist,
 might be hidden, or might be blocked by a modal.
 
 If `ghost_screenshot` fails for a background app, the window may be minimized
-or in another Space. Ghost OS will attempt to capture it off-screen first. If
+or in another Space. Oracle OS will attempt to capture it off-screen first. If
 that fails, it will briefly activate the app to bring it on-screen. If the app
 has no open windows at all, screenshot will return a specific error telling you.
 
@@ -224,5 +226,5 @@ Common wait conditions:
 | ghost_recipe_show | View recipe details | No |
 | ghost_recipe_save | Save new recipe | No |
 | ghost_recipe_delete | Delete recipe | No |
-| ghost_parse_screen | Experimental placeholder for full-screen parsing | No |
+| ghost_parse_screen | Experimental full-screen parsing via the vision sidecar | No |
 | ghost_ground | Find element coordinates via VLM | No |

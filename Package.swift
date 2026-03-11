@@ -8,43 +8,74 @@ let concurrencySettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "GhostOS",
+    name: "OracleOS",
     platforms: [
         .macOS(.v14),
     ],
     products: [
-        .library(name: "GhostOS", targets: ["GhostOS"]),
-        .executable(name: "ghost", targets: ["ghost"]),
+        .library(name: "OracleOS", targets: ["OracleOS"]),
+        .library(name: "OracleControllerShared", targets: ["OracleControllerShared"]),
+        .executable(name: "oracle", targets: ["oracle"]),
+        .executable(name: "OracleControllerHost", targets: ["OracleControllerHost"]),
+        .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
         .package(url: "https://github.com/steipete/AXorcist.git", from: "0.1.0"),
     ],
     targets: [
         .target(
-            name: "GhostOS",
+            name: "OracleOS",
             dependencies: [
                 .product(name: "AXorcist", package: "AXorcist"),
             ],
-            path: "Sources/GhostOS",
+            path: "Sources/OracleOS",
             swiftSettings: concurrencySettings,
             linkerSettings: [.linkedFramework("ScreenCaptureKit")]
         ),
+        .target(
+            name: "OracleControllerShared",
+            path: "Sources/OracleControllerShared",
+            swiftSettings: concurrencySettings
+        ),
         .executableTarget(
-            name: "ghost",
-            dependencies: ["GhostOS"],
-            path: "Sources/ghost",
+            name: "oracle",
+            dependencies: ["OracleOS"],
+            path: "Sources/oracle",
+            swiftSettings: concurrencySettings
+        ),
+        .executableTarget(
+            name: "OracleControllerHost",
+            dependencies: ["OracleOS", "OracleControllerShared"],
+            path: "Sources/OracleControllerHost",
+            swiftSettings: concurrencySettings,
+            linkerSettings: [.linkedFramework("AppKit")]
+        ),
+        .executableTarget(
+            name: "OracleController",
+            dependencies: ["OracleControllerShared"],
+            path: "Sources/OracleController",
+            swiftSettings: concurrencySettings,
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("SwiftUI"),
+            ]
+        ),
+        .testTarget(
+            name: "OracleOSTests",
+            dependencies: ["OracleOS"],
+            path: "Tests/OracleOSTests",
             swiftSettings: concurrencySettings
         ),
         .testTarget(
-            name: "GhostOSTests",
-            dependencies: ["GhostOS"],
-            path: "Tests/GhostOSTests",
+            name: "OracleOSEvals",
+            dependencies: ["OracleOS"],
+            path: "Tests/OracleOSEvals",
             swiftSettings: concurrencySettings
         ),
         .testTarget(
-            name: "GhostOSEvals",
-            dependencies: ["GhostOS"],
-            path: "Tests/GhostOSEvals",
+            name: "OracleControllerTests",
+            dependencies: ["OracleControllerShared", "OracleOS"],
+            path: "Tests/OracleControllerTests",
             swiftSettings: concurrencySettings
         ),
     ]
