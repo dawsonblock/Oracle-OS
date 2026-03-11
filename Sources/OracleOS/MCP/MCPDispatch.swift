@@ -13,6 +13,14 @@ public enum MCPDispatch {
     /// can take 10-20s for Chrome. 60s is the absolute ceiling — if a tool takes
     /// longer than this, the MCP server was effectively stuck.
     private static let toolTimeoutSeconds: TimeInterval = 60
+    private static let traceRecorder = TraceRecorder()
+    private static let traceStore = TraceStore()
+    private static let failureArtifactWriter = FailureArtifactWriter()
+    private static let verifiedActionExecutor = VerifiedActionExecutor(
+        traceRecorder: traceRecorder,
+        traceStore: traceStore,
+        artifactWriter: failureArtifactWriter
+    )
 
     /// Handle a tools/call request. Returns MCP-formatted result.
     /// Wraps every tool call in a timeout so no single tool can block
@@ -148,7 +156,9 @@ public enum MCPDispatch {
                     x: double(args, "x"),
                     y: double(args, "y"),
                     button: str(args, "button"),
-                    count: int(args, "count")
+                    count: int(args, "count"),
+                    executor: verifiedActionExecutor,
+                    toolName: tool
                 )
             }
 
@@ -162,7 +172,9 @@ public enum MCPDispatch {
                     into: str(args, "into"),
                     domId: str(args, "dom_id"),
                     appName: str(args, "app"),
-                    clear: bool(args, "clear") ?? false
+                    clear: bool(args, "clear") ?? false,
+                    executor: verifiedActionExecutor,
+                    toolName: tool
                 )
             }
 
@@ -177,7 +189,13 @@ public enum MCPDispatch {
                 return ToolResult(success: false, error: "Missing required parameter: key")
             }
             let modifiers = (args["modifiers"] as? [String])
-            return Actions.pressKey(key: key, modifiers: modifiers, appName: str(args, "app"))
+            return Actions.pressKey(
+                key: key,
+                modifiers: modifiers,
+                appName: str(args, "app"),
+                executor: verifiedActionExecutor,
+                toolName: tool
+            )
 
         case "ghost_hotkey":
             guard let keys = args["keys"] as? [String] else {
@@ -201,7 +219,12 @@ public enum MCPDispatch {
             guard let app = str(args, "app") else {
                 return ToolResult(success: false, error: "Missing required parameter: app")
             }
-            return Actions.focusApp(appName: app, windowTitle: str(args, "window"))
+            return Actions.focusApp(
+                appName: app,
+                windowTitle: str(args, "window"),
+                executor: verifiedActionExecutor,
+                toolName: tool
+            )
 
         case "ghost_window":
             guard let action = str(args, "action"),

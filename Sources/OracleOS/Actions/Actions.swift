@@ -32,7 +32,10 @@ public enum Actions {
         x: Double?,
         y: Double?,
         button: String?,
-        count: Int?
+        count: Int?,
+        executor: VerifiedActionExecutor? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_click"
     ) -> ToolResult {
         let intent = ActionIntent.click(
             app: appName,
@@ -46,7 +49,8 @@ public enum Actions {
             postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
         )
 
-        return VerifiedActionExecutor.run(intent: intent) {
+        let actionExecutor = executor ?? VerifiedActionExecutor()
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
             performClick(
                 query: query,
                 role: role,
@@ -294,7 +298,10 @@ public enum Actions {
         into: String?,
         domId: String?,
         appName: String?,
-        clear: Bool
+        clear: Bool,
+        executor: VerifiedActionExecutor? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_type"
     ) -> ToolResult {
         let intent = ActionIntent.type(
             app: appName,
@@ -305,7 +312,8 @@ public enum Actions {
             postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
         )
 
-        return VerifiedActionExecutor.run(intent: intent) {
+        let actionExecutor = executor ?? VerifiedActionExecutor()
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
             performTypeText(
                 text: text,
                 into: into,
@@ -487,7 +495,10 @@ public enum Actions {
     public static func pressKey(
         key: String,
         modifiers: [String]?,
-        appName: String?
+        appName: String?,
+        executor: VerifiedActionExecutor? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_press"
     ) -> ToolResult {
         let intent = ActionIntent.press(
             app: appName,
@@ -496,7 +507,8 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
-        return VerifiedActionExecutor.run(intent: intent) {
+        let actionExecutor = executor ?? VerifiedActionExecutor()
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
             performPressKey(
                 key: key,
                 modifiers: modifiers,
@@ -540,7 +552,10 @@ public enum Actions {
 
     public static func focusApp(
         appName: String,
-        windowTitle: String? = nil
+        windowTitle: String? = nil,
+        executor: VerifiedActionExecutor? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_focus"
     ) -> ToolResult {
         let postconditions = inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
         let intent = ActionIntent.focus(
@@ -549,7 +564,8 @@ public enum Actions {
             postconditions: postconditions
         )
 
-        return VerifiedActionExecutor.run(intent: intent) {
+        let actionExecutor = executor ?? VerifiedActionExecutor()
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
             FocusManager.focus(appName: appName, windowTitle: windowTitle)
         }
     }
