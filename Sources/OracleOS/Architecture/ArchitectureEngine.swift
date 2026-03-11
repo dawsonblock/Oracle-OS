@@ -33,16 +33,20 @@ public final class ArchitectureEngine: @unchecked Sendable {
                 affectedModules: affectedModules,
                 findings: [],
                 refactorProposal: nil,
-                riskScore: 0
+                riskScore: 0,
+                governanceReport: .empty
             )
         }
 
         let dependencyFindings = dependencyAnalyzer.findings(in: moduleGraph)
-        let invariantFindings = invariantChecker.findings(
+        let governanceReport = invariantChecker.report(
             goalDescription: goalDescription,
-            affectedModules: affectedModules
+            affectedModules: affectedModules,
+            candidatePaths: candidatePaths,
+            snapshot: snapshot
         )
-        let findings = (dependencyFindings + invariantFindings)
+        let governanceFindings = governanceReport.violations.map { $0.asArchitectureFinding() }
+        let findings = (dependencyFindings + governanceFindings)
             .sorted { lhs, rhs in lhs.riskScore > rhs.riskScore }
         let proposal = refactorPlanner.proposal(from: findings)
         let riskScore = findings.map(\.riskScore).max() ?? 0.25
@@ -52,7 +56,8 @@ public final class ArchitectureEngine: @unchecked Sendable {
             affectedModules: affectedModules,
             findings: findings,
             refactorProposal: proposal,
-            riskScore: riskScore
+            riskScore: riskScore,
+            governanceReport: governanceReport
         )
     }
 }

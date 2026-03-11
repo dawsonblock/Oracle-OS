@@ -22,6 +22,7 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
         CREATE TABLE IF NOT EXISTS project_memory_records (
             id TEXT PRIMARY KEY,
             kind TEXT NOT NULL,
+            knowledge_class TEXT NOT NULL,
             status TEXT NOT NULL,
             title TEXT NOT NULL,
             summary TEXT NOT NULL,
@@ -34,6 +35,7 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
             updated_at REAL NOT NULL
         );
         """)
+        try? execute("ALTER TABLE project_memory_records ADD COLUMN knowledge_class TEXT NOT NULL DEFAULT 'reusable';")
     }
 
     deinit {
@@ -63,11 +65,12 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
     public func upsert(_ record: ProjectMemoryRecord) {
         let sql = """
         INSERT INTO project_memory_records (
-            id, kind, status, title, summary, affected_modules, evidence_refs,
+            id, kind, knowledge_class, status, title, summary, affected_modules, evidence_refs,
             source_trace_ids, path, body, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             kind = excluded.kind,
+            knowledge_class = excluded.knowledge_class,
             status = excluded.status,
             title = excluded.title,
             summary = excluded.summary,
@@ -83,16 +86,17 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
         withStatement(sql) { statement in
             bind(record.id, to: 1, in: statement)
             bind(record.kind.rawValue, to: 2, in: statement)
-            bind(record.status.rawValue, to: 3, in: statement)
-            bind(record.title, to: 4, in: statement)
-            bind(record.summary, to: 5, in: statement)
-            bind(record.affectedModules.joined(separator: ","), to: 6, in: statement)
-            bind(record.evidenceRefs.joined(separator: ","), to: 7, in: statement)
-            bind(record.sourceTraceIDs.joined(separator: ","), to: 8, in: statement)
-            bind(record.path, to: 9, in: statement)
-            bind(record.body, to: 10, in: statement)
-            sqlite3_bind_double(statement, 11, record.createdAt.timeIntervalSince1970)
-            sqlite3_bind_double(statement, 12, record.updatedAt.timeIntervalSince1970)
+            bind(record.knowledgeClass.rawValue, to: 3, in: statement)
+            bind(record.status.rawValue, to: 4, in: statement)
+            bind(record.title, to: 5, in: statement)
+            bind(record.summary, to: 6, in: statement)
+            bind(record.affectedModules.joined(separator: ","), to: 7, in: statement)
+            bind(record.evidenceRefs.joined(separator: ","), to: 8, in: statement)
+            bind(record.sourceTraceIDs.joined(separator: ","), to: 9, in: statement)
+            bind(record.path, to: 10, in: statement)
+            bind(record.body, to: 11, in: statement)
+            sqlite3_bind_double(statement, 12, record.createdAt.timeIntervalSince1970)
+            sqlite3_bind_double(statement, 13, record.updatedAt.timeIntervalSince1970)
         }
     }
 
@@ -115,7 +119,7 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
 
         let whereClause = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
         let sql = """
-        SELECT id, kind, status, title, summary, path, affected_modules, evidence_refs, source_trace_ids
+        SELECT id, kind, knowledge_class, status, title, summary, path, affected_modules, evidence_refs, source_trace_ids
         FROM project_memory_records
         \(whereClause)
         ORDER BY updated_at DESC
@@ -150,17 +154,19 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
 
         while sqlite3_step(statement) == SQLITE_ROW {
             let kind = ProjectMemoryKind(rawValue: columnText(statement, index: 1) ?? "open-problem") ?? .openProblem
-            let status = ProjectMemoryStatus(rawValue: columnText(statement, index: 2) ?? "draft") ?? .draft
+            let knowledgeClass = KnowledgeClass(rawValue: columnText(statement, index: 2) ?? "reusable") ?? .reusable
+            let status = ProjectMemoryStatus(rawValue: columnText(statement, index: 3) ?? "draft") ?? .draft
             let ref = ProjectMemoryRef(
                 id: columnText(statement, index: 0) ?? UUID().uuidString,
                 kind: kind,
+                knowledgeClass: knowledgeClass,
                 status: status,
-                title: columnText(statement, index: 3) ?? "Untitled",
-                summary: columnText(statement, index: 4) ?? "",
-                path: columnText(statement, index: 5) ?? "",
-                affectedModules: split(columnText(statement, index: 6)),
-                evidenceRefs: split(columnText(statement, index: 7)),
-                sourceTraceIDs: split(columnText(statement, index: 8))
+                title: columnText(statement, index: 4) ?? "Untitled",
+                summary: columnText(statement, index: 5) ?? "",
+                path: columnText(statement, index: 6) ?? "",
+                affectedModules: split(columnText(statement, index: 7)),
+                evidenceRefs: split(columnText(statement, index: 8)),
+                sourceTraceIDs: split(columnText(statement, index: 9))
             )
             records.append(ref)
         }
@@ -195,6 +201,7 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
         }
 
         let kind = ProjectMemoryKind(rawValue: metadata["kind"] ?? "open-problem") ?? .openProblem
+        let knowledgeClass = KnowledgeClass(rawValue: metadata["knowledge_class"] ?? "reusable") ?? .reusable
         let status = ProjectMemoryStatus(rawValue: metadata["status"] ?? "draft") ?? .draft
         let id = metadata["id"] ?? fileURL.deletingPathExtension().lastPathComponent
         let createdAt = ISO8601DateFormatter().date(from: metadata["created_at"] ?? "") ?? Date()
@@ -203,6 +210,7 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
         return ProjectMemoryRecord(
             id: id,
             kind: kind,
+            knowledgeClass: knowledgeClass,
             status: status,
             title: firstHeading.replacingOccurrences(of: "# ", with: "").trimmingCharacters(in: .whitespaces),
             summary: metadata["summary"] ?? "",

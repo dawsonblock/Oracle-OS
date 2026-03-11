@@ -1,5 +1,7 @@
 # Oracle OS Architecture Status
 
+The descriptive architecture map is in [ARCHITECTURE.md](ARCHITECTURE.md). The normative architectural contract is in [GOVERNANCE.md](GOVERNANCE.md).
+
 ## Stable
 
 - `OracleOS` Swift package and `oracle` executable naming
@@ -7,6 +9,9 @@
 - AX-first perception and core action tools
 - Recipe replay and CRUD for JSON recipes
 - `ghost_ground` vision grounding
+- One runtime-managed execution truth path for policy, verified execution, trace, and outcome handling
+- Graph trust tiers and promotion guards for experiment/recovery evidence
+- Canonical project memory plus episode-residue separation
 
 ## Partial
 
@@ -14,23 +19,22 @@
 - Verified execution is active for `ghost_click`, `ghost_type`, `ghost_press`, and `ghost_focus`
 - JSONL tracing exists for verified actions
 - `ghost_parse_screen` is sidecar-backed, but the runtime still treats it as experimental
+- Architecture review emits governance reports, but remains advisory-first
+- Eval coverage is present but still fixture-heavy
 
 ## Scaffold Only
 
-- `Core/Policy`
-- `Core/World`
-- `Agent/Planning`
-- `Agent/Skills`
-- `Agent/Recovery`
-- `Agent/Loop`
-- `Learning/Memory`
-- `Learning/Recipes`
+- Workflow synthesis and reusable workflow promotion
+- Belief-state reasoning
+- Neural policy layers
+- Distributed execution
 
 ## Not Started
 
-- Bounded planner-driven operator loop in production use
-- Integrated recipe induction, replay validation, and repair
-- Benchmark harness and release-gating eval suite
+- Distributed multi-agent execution
+- Neural transition policies
+- OpenFst planning
+- Full long-horizon autonomous project execution
 
 ## Known Failure Modes
 

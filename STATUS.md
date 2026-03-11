@@ -1,4 +1,6 @@
-# Ghost OS Status
+# Oracle OS Status
+
+This status file is subordinate to [GOVERNANCE.md](GOVERNANCE.md). New subsystem work is expected to satisfy the governance contract before it is considered mature.
 
 ## Working
 - MCP server and CLI entrypoints (`ghost mcp`, `setup`, `doctor`, `status`, `version`)
@@ -8,19 +10,25 @@
 - Recipe replay and CRUD for JSON recipes
 - `ghost_ground` vision grounding through the sidecar
 - Verified execution slice for `ghost_click`, `ghost_type`, `ghost_press`, and `ghost_focus`: pre/post observations, postcondition checks, JSONL trace output
+- Runtime-managed post-execution graph and memory updates
+- SQLite-backed graph persistence with trust-tier enforcement
+- Project-memory drafts with canonical repo-local storage and episode-residue isolation
+- Governance rule checking in the architecture layer
+- Build-and-test CI workflow
 
 ## Partial
 - `ghost_parse_screen` is wired to the vision sidecar, but its output contract is still experimental
 - CDP fallback improves some Chrome flows, but it still depends on Chrome remote debugging being enabled
 - Observation fusion now merges AX and Chrome CDP candidates conservatively, but full ranking and richer provenance are not in place yet
-- Policy, world state, planning, loop, and recovery types now exist as runtime scaffolding but are not driving autonomous execution yet
+- Architecture review is advisory-first and not an autonomous blocker
+- Project-memory promotion still requires explicit review; only draft writes are automated
 - Recipes are replayable and agent-authored/manual-save only; trace-to-recipe induction does not exist yet
 
 ## Missing
 - Promotion of sidecar `/detect` and `/parse` into fully supported Ghost runtime features
-- Autonomous executor loop, planner-driven skills, and recovery orchestration
+- Full workflow synthesis and promotion from reusable trace knowledge
 - Trace-to-recipe induction, recipe validation, and recipe repair
-- Benchmark harness and reliability reporting suite
+- Full benchmark-driven release gating beyond `swift build` and `swift test`
 
 ## Known Failure Modes
 - Deep AX tree walks in Chrome and Electron apps can still be slow or incomplete

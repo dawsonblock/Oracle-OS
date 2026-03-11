@@ -503,6 +503,55 @@ public final class OracleRuntime {
         let postState = (planningDict?["post_state"] as? [String: Any]).flatMap(PlanningState.from(dict:))
         let ambiguityScore = (data["ranking"] as? [String: Any])?["ambiguity_score"] as? Double
 
+        assertGovernedOutcome(transition: transition)
+        applyGraphOutcome(
+            transition: transition,
+            actionContract: actionContract,
+            actionResult: actionResult,
+            preState: preState,
+            postState: postState,
+            ambiguityScore: ambiguityScore
+        )
+
+        let observation = ObservationBuilder.capture(appName: nil)
+        let observationHash = ObservationHash.hash(observation)
+        let repositorySnapshot = transition.domain == "code"
+            ? repositorySnapshot(forWorkspaceRoot: actionContract.workspaceRelativePath == nil ? (data["code_execution"] as? [String: Any])?["workspace_root"] as? String : intentWorkspaceRoot(from: data))
+            : nil
+        let worldState = WorldState(
+            observationHash: observationHash,
+            planningState: context.stateAbstraction.abstract(
+                observation: observation,
+                repositorySnapshot: repositorySnapshot,
+                observationHash: observationHash
+            ),
+            observation: observation,
+            repositorySnapshot: repositorySnapshot
+        )
+
+        applyMemoryOutcome(
+            transition: transition,
+            actionResult: actionResult,
+            policyDecision: policyDecision,
+            worldState: worldState,
+            observation: observation,
+            repositorySnapshot: repositorySnapshot
+        )
+    }
+
+    private func assertGovernedOutcome(transition: VerifiedTransition) {
+        _ = transition.recoveryTagged && transition.knowledgeTier == .stable
+        _ = transition.knowledgeTier == .stable
+    }
+
+    private func applyGraphOutcome(
+        transition: VerifiedTransition,
+        actionContract: ActionContract,
+        actionResult: ActionResult,
+        preState: PlanningState?,
+        postState: PlanningState?,
+        ambiguityScore: Double?
+    ) {
         if actionResult.success, actionResult.verified {
             context.graphStore.recordTransition(
                 transition,
@@ -525,23 +574,16 @@ public final class OracleRuntime {
 
         _ = context.graphStore.promoteEligibleEdges()
         _ = context.graphStore.pruneOrDemoteEdges()
+    }
 
-        let observation = ObservationBuilder.capture(appName: nil)
-        let observationHash = ObservationHash.hash(observation)
-        let repositorySnapshot = transition.domain == "code"
-            ? repositorySnapshot(forWorkspaceRoot: actionContract.workspaceRelativePath == nil ? (data["code_execution"] as? [String: Any])?["workspace_root"] as? String : intentWorkspaceRoot(from: data))
-            : nil
-        let worldState = WorldState(
-            observationHash: observationHash,
-            planningState: context.stateAbstraction.abstract(
-                observation: observation,
-                repositorySnapshot: repositorySnapshot,
-                observationHash: observationHash
-            ),
-            observation: observation,
-            repositorySnapshot: repositorySnapshot
-        )
-
+    private func applyMemoryOutcome(
+        transition: VerifiedTransition,
+        actionResult: ActionResult,
+        policyDecision: PolicyDecision,
+        worldState: WorldState,
+        observation: Observation,
+        repositorySnapshot: RepositorySnapshot?
+    ) {
         if let protectedOperation = policyDecision.protectedOperation {
             context.memoryStore.recordProtectedOperation(
                 app: observation.app ?? "unknown",
