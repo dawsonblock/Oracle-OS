@@ -1,8 +1,8 @@
-# Architecture Status
+# Oracle OS Architecture Status
 
 ## Stable
 
-- `GhostOS` Swift package and `ghost` executable naming
+- `OracleOS` Swift package and `oracle` executable naming
 - 22-tool MCP surface
 - AX-first perception and core action tools
 - Recipe replay and CRUD for JSON recipes

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ghost-vision — Launcher for Ghost OS Vision Sidecar
+# ghost-vision — Launcher for Oracle OS Vision Sidecar
 #
 # Finds the best Python environment (venv > system) and runs server.py.
 # Installed to /opt/homebrew/bin/ghost-vision by the Homebrew formula.
@@ -38,7 +38,7 @@ find_server_script() {
 
 # Find the best Python with mlx_vlm
 find_python() {
-    # Priority 1: Ghost OS venv
+    # Priority 1: Oracle OS venv
     local venv_python="$HOME/.ghost-os/venv/bin/python3"
     if [[ -x "$venv_python" ]]; then
         # Verify mlx_vlm is available
@@ -80,7 +80,7 @@ fi
 SERVER_SCRIPT=$(find_server_script) || {
     echo "ERROR: Cannot find vision sidecar server.py" >&2
     echo "Expected at: /opt/homebrew/share/ghost-os/vision-sidecar/server.py" >&2
-    echo "Run: ghost setup" >&2
+    echo "Run: oracle setup" >&2
     exit 1
 }
 
@@ -88,7 +88,7 @@ SERVER_SCRIPT=$(find_server_script) || {
 PYTHON=$(find_python) || {
     echo "ERROR: Cannot find Python with mlx_vlm installed" >&2
     echo "" >&2
-    echo "Run 'ghost setup' to create the vision environment, or install manually:" >&2
+    echo "Run 'oracle setup' to create the vision environment, or install manually:" >&2
     echo "  python3 -m venv ~/.ghost-os/venv" >&2
     echo "  ~/.ghost-os/venv/bin/pip install mlx mlx-vlm transformers Pillow" >&2
     exit 1

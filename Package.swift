@@ -8,43 +8,43 @@ let concurrencySettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "GhostOS",
+    name: "OracleOS",
     platforms: [
         .macOS(.v14),
     ],
     products: [
-        .library(name: "GhostOS", targets: ["GhostOS"]),
-        .executable(name: "ghost", targets: ["ghost"]),
+        .library(name: "OracleOS", targets: ["OracleOS"]),
+        .executable(name: "oracle", targets: ["oracle"]),
     ],
     dependencies: [
         .package(url: "https://github.com/steipete/AXorcist.git", from: "0.1.0"),
     ],
     targets: [
         .target(
-            name: "GhostOS",
+            name: "OracleOS",
             dependencies: [
                 .product(name: "AXorcist", package: "AXorcist"),
             ],
-            path: "Sources/GhostOS",
+            path: "Sources/OracleOS",
             swiftSettings: concurrencySettings,
             linkerSettings: [.linkedFramework("ScreenCaptureKit")]
         ),
         .executableTarget(
-            name: "ghost",
-            dependencies: ["GhostOS"],
-            path: "Sources/ghost",
+            name: "oracle",
+            dependencies: ["OracleOS"],
+            path: "Sources/oracle",
             swiftSettings: concurrencySettings
         ),
         .testTarget(
-            name: "GhostOSTests",
-            dependencies: ["GhostOS"],
-            path: "Tests/GhostOSTests",
+            name: "OracleOSTests",
+            dependencies: ["OracleOS"],
+            path: "Tests/OracleOSTests",
             swiftSettings: concurrencySettings
         ),
         .testTarget(
-            name: "GhostOSEvals",
-            dependencies: ["GhostOS"],
-            path: "Tests/GhostOSEvals",
+            name: "OracleOSEvals",
+            dependencies: ["OracleOS"],
+            path: "Tests/OracleOSEvals",
             swiftSettings: concurrencySettings
         ),
     ]

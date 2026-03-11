@@ -1,6 +1,6 @@
-# Contributing to Ghost OS
+# Contributing to Oracle OS
 
-Ghost OS is open source and we welcome contributions.
+Oracle OS is open source and we welcome contributions.
 
 ## What We Need Help With
 
@@ -15,11 +15,11 @@ Good recipe candidates:
 - Any web app: login, fill forms, extract data
 
 ### Testing on Different Apps
-Ghost OS should work with every app. Test it with apps you use daily and report what works and what doesn't. File issues with:
+Oracle OS should work with every app. Test it with apps you use daily and report what works and what doesn't. File issues with:
 - Which app and version
 - What tool you called
 - What happened vs what you expected
-- The output from `ghost doctor`
+- The output from `oracle doctor`
 
 ### Bug Fixes
 Check the [issues](https://github.com/ghostwright/ghost-os/issues) page. Issues labeled `good first issue` are a great starting point.
@@ -50,15 +50,15 @@ your-workspace/
 
 ```
 Sources/
-├── GhostOS/                    # Library (the MCP server logic)
+├── OracleOS/                   # Library (the MCP server logic)
 │   ├── MCP/                    # MCPServer, MCPTools, MCPDispatch
 │   ├── Perception/             # ghost_context, ghost_find, ghost_read, etc.
 │   ├── Actions/                # ghost_click, ghost_type, ghost_hotkey, etc.
 │   ├── Recipes/                # RecipeEngine, RecipeStore, RecipeTypes
 │   ├── Screenshot/             # ScreenCaptureKit wrapper
 │   └── Common/                 # Logger, Types, LocatorBuilder
-└── ghost/                      # CLI (thin entry point)
-    ├── main.swift              # ghost mcp, setup, doctor, status
+└── oracle/                     # CLI (thin entry point)
+    ├── main.swift              # oracle mcp, setup, doctor, status
     ├── SetupWizard.swift       # Interactive first-run setup
     └── Doctor.swift            # Diagnostic tool
 ```

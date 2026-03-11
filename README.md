@@ -1,6 +1,6 @@
-# Ghost OS
+# Oracle OS
 
-Ghost OS is a macOS computer-use runtime for MCP agents. It exposes a stable 22-tool surface for perception, action, screenshots, recipes, and setup workflows, while the operator-runtime work continues underneath that surface.
+Oracle OS is a macOS computer-use runtime for MCP agents. It exposes a stable 22-tool surface for perception, action, screenshots, recipes, and setup workflows, while the operator-runtime work continues underneath that surface.
 
 ## Current Status
 
@@ -17,7 +17,7 @@ See [STATUS.md](/Users/dawsonblock/Downloads/ghost-os-main/STATUS.md) and [ARCHI
 
 ```mermaid
 graph TD
-    Agent["MCP Client / Agent"] --> Server["Ghost OS MCP Server"]
+    Agent["MCP Client / Agent"] --> Server["Oracle OS MCP Server"]
     Server --> Perception["Perception: AX-first, CDP-assisted context"]
     Server --> Actions["Actions: click, type, focus, press, scroll, window"]
     Server --> Recipes["Recipes: replay and CRUD"]
@@ -38,17 +38,17 @@ swift build
 ## Setup
 
 ```bash
-./.build/debug/ghost setup
-./.build/debug/ghost doctor
-./.build/debug/ghost status
-./.build/debug/ghost version
+./.build/debug/oracle setup
+./.build/debug/oracle doctor
+./.build/debug/oracle status
+./.build/debug/oracle version
 ```
 
 The runtime version and sidecar version are currently aligned at `2.0.6`.
 
 ## Tool Surface
 
-Ghost OS exposes 22 tools:
+Oracle OS exposes 22 tools:
 
 - Perception: `ghost_context`, `ghost_state`, `ghost_find`, `ghost_read`, `ghost_inspect`, `ghost_element_at`, `ghost_screenshot`
 - Actions: `ghost_click`, `ghost_type`, `ghost_press`, `ghost_hotkey`, `ghost_scroll`, `ghost_focus`, `ghost_window`
@@ -60,9 +60,9 @@ The public tool names are stable even where implementation depth is not.
 
 ## Truth Pass Notes
 
-- Package identity remains `GhostOS`; this repo has not been renamed.
+- Package identity is `OracleOS` with the `oracle` executable.
 - Recipe messaging is intentionally limited to replay and manual or agent-authored saves.
-- Full-screen `/detect` and `/parse` support in the vision sidecar exists, but it is still treated as experimental/partial at the Ghost runtime layer.
+- Full-screen `/detect` and `/parse` support in the vision sidecar exists, but it is still treated as experimental or partial at the Oracle runtime layer.
 - New `Core/` and `Agent/` modules are being added incrementally alongside the existing package structure.
 
 ## Development Direction

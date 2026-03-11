@@ -1,6 +1,6 @@
-# Ghost OS v2 - MCP Agent Instructions
+# Oracle OS v2 - MCP Agent Instructions
 
-You have Ghost OS, a tool that lets you see and operate any macOS application
+You have Oracle OS, a tool that lets you see and operate any macOS application
 through the accessibility tree AND visual perception. Every button, text field,
 link, and label is available -- either through the AX tree (native apps) or
 vision-based grounding (web apps where Chrome exposes everything as AXGroup).
@@ -18,7 +18,7 @@ Before interacting with any app, call `ghost_context` with the app name.
 
 This tells you: which app/window is active, the current URL (for browsers),
 what element is focused, what interactive elements are visible, and the
-canonical fused observation snapshot Ghost is using internally.
+canonical fused observation snapshot Oracle is using internally.
 
 **If you skip this, you will click the wrong thing.**
 
@@ -81,7 +81,7 @@ ghost_wait condition:"elementGone" value:"Loading" app:"Chrome"
 ## Rule 6: Vision Fallback for Web Apps
 
 When `ghost_find` or `ghost_click` can't locate an element (common in web apps
-like Gmail, Slack, etc. where Chrome exposes everything as AXGroup), Ghost OS
+like Gmail, Slack, etc. where Chrome exposes everything as AXGroup), Oracle OS
 automatically falls back to VLM-based vision grounding if the vision sidecar
 is running.
 
@@ -127,7 +127,7 @@ AX-native, synthetic, AND VLM vision grounding. The element might not exist,
 might be hidden, or might be blocked by a modal.
 
 If `ghost_screenshot` fails for a background app, the window may be minimized
-or in another Space. Ghost OS will attempt to capture it off-screen first. If
+or in another Space. Oracle OS will attempt to capture it off-screen first. If
 that fails, it will briefly activate the app to bring it on-screen. If the app
 has no open windows at all, screenshot will return a specific error telling you.
 
