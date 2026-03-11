@@ -1,5 +1,5 @@
 import Foundation
 
 public enum TraceSchemaVersion {
-    public static let current = 3
+    public static let current = 4
 }

@@ -1,9 +1,20 @@
 import Foundation
 
-public final class Planner {
+public final class Planner: @unchecked Sendable {
     private var currentGoal: Goal?
+    private let osPlanner: OSPlanner
+    private let codePlanner: CodePlanner
+    private let mixedTaskPlanner: MixedTaskPlanner
 
-    public init() {}
+    public init(
+        osPlanner: OSPlanner = OSPlanner(),
+        codePlanner: CodePlanner = CodePlanner(),
+        mixedTaskPlanner: MixedTaskPlanner = MixedTaskPlanner()
+    ) {
+        self.osPlanner = osPlanner
+        self.codePlanner = codePlanner
+        self.mixedTaskPlanner = mixedTaskPlanner
+    }
 
     public func setGoal(_ goal: Goal) {
         currentGoal = goal
@@ -36,6 +47,8 @@ public final class Planner {
             targetTaskPhase = "browse"
         } else if lowercased.contains("save") {
             targetTaskPhase = "save"
+        } else if lowercased.contains("rename") {
+            targetTaskPhase = "rename"
         } else {
             targetTaskPhase = nil
         }
@@ -50,54 +63,69 @@ public final class Planner {
 
     public func goalReached(state: PlanningState) -> Bool {
         guard let currentGoal else { return false }
+        return Self.goalMatchScore(state: state, goal: currentGoal) >= 1
+    }
 
-        if let targetApp = currentGoal.targetApp, state.appID != targetApp {
-            return false
-        }
-        if let targetDomain = currentGoal.targetDomain, state.domain != targetDomain {
-            return false
-        }
-        if let targetTaskPhase = currentGoal.targetTaskPhase, state.taskPhase != targetTaskPhase {
-            return false
-        }
+    public func nextStep(
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: AppMemoryStore = AppMemoryStore()
+    ) -> PlannerDecision? {
+        guard let currentGoal else { return nil }
+        let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
 
-        return true
+        switch taskContext.agentKind {
+        case .os:
+            return osPlanner.nextStep(goal: currentGoal, worldState: worldState, graphStore: graphStore)
+        case .code:
+            return codePlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore
+            )
+        case .mixed:
+            return mixedTaskPlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore
+            )
+        }
     }
 
     public func nextAction(
         worldState: WorldState,
         graphStore: GraphStore
     ) -> ActionContract? {
-        let candidateEdges = graphStore.outgoingEdges(from: worldState.planningState.id)
-        for edge in candidateEdges {
-            if let contract = graphStore.actionContract(for: edge.actionContractID) {
-                return contract
-            }
-        }
-
-        return fallbackAction(for: worldState)
+        nextStep(worldState: worldState, graphStore: graphStore)?.actionContract
     }
 
     public func plan(goal: String) -> Plan {
         let interpretedGoal = interpretGoal(goal)
         setGoal(interpretedGoal)
-        return Plan(goal: goal, steps: ["state-driven"])
+        return Plan(goal: goal, steps: ["graph-aware"])
     }
 
-    private func fallbackAction(for worldState: WorldState) -> ActionContract? {
-        let planningState = worldState.planningState
-        let targetLabel = planningState.controlContext ?? planningState.windowClass
+    public static func goalMatchScore(state: PlanningState, goal: Goal) -> Double {
+        var matched = 0.0
+        var possible = 0.0
 
-        return ActionContract(
-            id: [
-                planningState.appID,
-                planningState.taskPhase ?? "explore",
-                targetLabel ?? "fallback",
-            ].joined(separator: "|"),
-            skillName: "explore",
-            targetRole: planningState.focusedRole,
-            targetLabel: targetLabel,
-            locatorStrategy: "exploration"
-        )
+        if let targetApp = goal.targetApp {
+            possible += 1
+            if state.appID == targetApp { matched += 1 }
+        }
+        if let targetDomain = goal.targetDomain {
+            possible += 1
+            if state.domain == targetDomain { matched += 1 }
+        }
+        if let targetTaskPhase = goal.targetTaskPhase {
+            possible += 1
+            if state.taskPhase == targetTaskPhase { matched += 1 }
+        }
+
+        guard possible > 0 else { return 0 }
+        return matched / possible
     }
 }

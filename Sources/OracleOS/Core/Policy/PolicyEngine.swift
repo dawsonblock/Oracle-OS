@@ -12,25 +12,27 @@ public final class PolicyEngine: @unchecked Sendable {
     public func evaluate(intent: ActionIntent) -> PolicyDecision {
         evaluate(
             intent: intent,
-            context: PolicyEvaluationContext(surface: .mcp, toolName: nil, appName: intent.app)
+            context: PolicyEvaluationContext(
+                surface: .mcp,
+                toolName: nil,
+                appName: intent.app,
+                agentKind: intent.agentKind,
+                workspaceRoot: intent.workspaceRoot,
+                workspaceRelativePath: intent.workspaceRelativePath,
+                commandCategory: intent.commandCategory
+            )
         )
     }
 
     public func evaluate(intent: ActionIntent, context: PolicyEvaluationContext) -> PolicyDecision {
         let appProtectionProfile = PolicyRules.appProtectionProfile(for: context.appName ?? intent.app)
-        let protectedOperation = PolicyRules.protectedOperation(
+        let classification = PolicyRules.classification(
             for: intent,
             context: context,
             appProtectionProfile: appProtectionProfile
         )
-        let riskLevel: RiskLevel = switch protectedOperation {
-        case .credentialEntry, .settingsChange, .terminalControl, .clipboardExfiltration:
-            .blocked
-        case .send, .purchase, .delete, .uploadShare:
-            .risky
-        case nil:
-            .low
-        }
+        let protectedOperation = classification.protectedOperation
+        let riskLevel = classification.riskLevel
 
         let baseDecision = PolicyDecision(
             allowed: riskLevel == .low,
@@ -41,7 +43,7 @@ public final class PolicyEngine: @unchecked Sendable {
             surface: context.surface,
             policyMode: mode,
             requiresApproval: riskLevel == .risky,
-            reason: defaultReason(for: riskLevel, protectedOperation: protectedOperation, mode: mode)
+            reason: classification.reason ?? defaultReason(for: riskLevel, protectedOperation: protectedOperation, mode: mode)
         )
 
         switch mode {

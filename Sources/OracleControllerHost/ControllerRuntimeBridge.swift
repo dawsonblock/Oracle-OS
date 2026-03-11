@@ -299,6 +299,7 @@ final class ControllerRuntimeBridge {
     private func mapActionResult(request: ActionRequest, result: ToolResult) -> ActionRunResult {
         let actionData = result.data?["action_result"] as? [String: Any]
         let traceData = result.data?["trace"] as? [String: Any]
+        let codeData = result.data?["code_execution"] as? [String: Any]
         let method = (actionData?["method"] as? String) ?? (result.data?["method"] as? String)
         let observation = ObservationBuilder.capture(appName: request.appName)
         let elapsedMs = (actionData?["elapsed_ms"] as? Double)
@@ -320,7 +321,15 @@ final class ControllerRuntimeBridge {
             protectedOperation: actionData?["protected_operation"] as? String,
             appProtectionProfile: actionData?["app_protection_profile"] as? String,
             blockedByPolicy: actionData?["blocked_by_policy"] as? Bool ?? false,
-            policyMode: (actionData?["policy_decision"] as? [String: Any])?["policy_mode"] as? String
+            policyMode: (actionData?["policy_decision"] as? [String: Any])?["policy_mode"] as? String,
+            agentKind: traceData?["agent_kind"] as? String,
+            plannerFamily: traceData?["planner_family"] as? String,
+            commandCategory: codeData?["command_category"] as? String ?? traceData?["command_category"] as? String,
+            commandSummary: codeData?["summary"] as? String ?? traceData?["command_summary"] as? String,
+            workspaceRelativePath: codeData?["workspace_relative_path"] as? String ?? traceData?["workspace_relative_path"] as? String,
+            buildResultSummary: codeData?["build_result_summary"] as? String,
+            testResultSummary: codeData?["test_result_summary"] as? String,
+            patchID: codeData?["patch_id"] as? String
         )
     }
 
@@ -661,6 +670,25 @@ final class ControllerRuntimeBridge {
             approvalOutcome: event.approvalOutcome,
             blockedByPolicy: event.blockedByPolicy ?? false,
             appProfile: event.appProfile,
+            agentKind: event.agentKind,
+            domain: event.domain,
+            plannerFamily: event.plannerFamily,
+            workspaceRelativePath: event.workspaceRelativePath,
+            commandCategory: event.commandCategory,
+            commandSummary: event.commandSummary,
+            repositorySnapshotID: event.repositorySnapshotID,
+            buildResultSummary: event.buildResultSummary,
+            testResultSummary: event.testResultSummary,
+            patchID: event.patchID,
+            projectMemoryRefs: event.projectMemoryRefs ?? [],
+            experimentID: event.experimentID,
+            candidateID: event.candidateID,
+            sandboxPath: event.sandboxPath,
+            selectedCandidate: event.selectedCandidate,
+            experimentOutcome: event.experimentOutcome,
+            architectureFindings: event.architectureFindings ?? [],
+            refactorProposalID: event.refactorProposalID,
+            knowledgeTier: event.knowledgeTier,
             elapsedMs: event.elapsedMs,
             screenshotPath: event.screenshotPath,
             artifactPaths: artifactPaths,

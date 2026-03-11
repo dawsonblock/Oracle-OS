@@ -1,39 +1,189 @@
 import Foundation
 
-public final class GraphStore {
+public final class GraphStore: @unchecked Sendable {
     private let candidateGraph: CandidateGraph
     private let stableGraph: StableGraph
+    private let persistence: GraphPersistence?
+    private let maintenance: GraphMaintenance
+    private var planningStates: [PlanningStateID: PlanningState]
     private var actionContracts: [String: ActionContract]
 
-    public init(
-        candidateGraph: CandidateGraph = CandidateGraph(),
-        stableGraph: StableGraph = StableGraph(),
-        actionContracts: [String: ActionContract] = [:]
-    ) {
-        self.candidateGraph = candidateGraph
-        self.stableGraph = stableGraph
-        self.actionContracts = actionContracts
+    public init(databaseURL: URL) {
+        let persistence = try? GraphPersistence(databaseURL: databaseURL)
+        let snapshot = persistence?.loadSnapshot() ?? GraphSnapshot()
+        self.persistence = persistence
+        self.candidateGraph = snapshot.candidateGraph
+        self.stableGraph = snapshot.stableGraph
+        self.actionContracts = snapshot.actionContracts
+        self.planningStates = snapshot.planningStates
+        self.maintenance = GraphMaintenance()
+    }
+
+    public convenience init() {
+        self.init(databaseURL: GraphStore.defaultDatabaseURL())
     }
 
     public func recordTransition(
         _ transition: VerifiedTransition,
-        actionContract: ActionContract? = nil
+        actionContract: ActionContract? = nil,
+        fromState: PlanningState? = nil,
+        toState: PlanningState? = nil
     ) {
+        if let fromState {
+            planningStates[fromState.id] = fromState
+            persistence?.upsertPlanningState(fromState)
+        }
+        if let toState {
+            planningStates[toState.id] = toState
+            persistence?.upsertPlanningState(toState)
+        }
         candidateGraph.record(transition)
+        persistence?.upsertCandidateEdge(candidateGraph.edges[edgeKey(for: transition)])
         if let actionContract {
             actionContracts[actionContract.id] = actionContract
+            persistence?.upsertActionContract(actionContract)
         }
+        persistence?.persistGraphStats(globalStats())
+    }
+
+    public func recordFailure(
+        state: PlanningState,
+        actionContract: ActionContract,
+        failure: FailureClass,
+        ambiguityScore: Double? = nil,
+        recoveryTagged: Bool = false
+    ) {
+        planningStates[state.id] = state
+        actionContracts[actionContract.id] = actionContract
+        persistence?.upsertPlanningState(state)
+        persistence?.upsertActionContract(actionContract)
+
+        let transition = VerifiedTransition(
+            fromPlanningStateID: state.id,
+            toPlanningStateID: state.id,
+            actionContractID: actionContract.id,
+            agentKind: actionContract.agentKind,
+            domain: actionContract.domain,
+            workspaceRelativePath: actionContract.workspaceRelativePath,
+            commandCategory: actionContract.commandCategory,
+            plannerFamily: actionContract.plannerFamily,
+            postconditionClass: .actionFailed,
+            verified: false,
+            failureClass: failure.rawValue,
+            latencyMs: 0,
+            targetAmbiguityScore: ambiguityScore,
+            recoveryTagged: recoveryTagged,
+            approvalRequired: false,
+            approvalOutcome: nil,
+            knowledgeTier: recoveryTagged ? .recovery : .candidate
+        )
+
+        candidateGraph.record(transition)
+        let edgeID = edgeKey(for: transition)
+        if let edge = candidateGraph.edges[edgeID] {
+            persistence?.upsertCandidateEdge(edge)
+            persistence?.recordFailure(
+                edgeID: edge.edgeID,
+                stateID: state.id.rawValue,
+                actionContractID: actionContract.id,
+                failureClass: failure.rawValue,
+                timestamp: transition.timestamp,
+                ambiguityScore: ambiguityScore,
+                recoveryTagged: recoveryTagged
+            )
+        }
+        persistence?.persistGraphStats(globalStats())
+    }
+
+    @discardableResult
+    public func promoteEligibleEdges(now: Date = Date()) -> [EdgeTransition] {
+        let promoted = maintenance.promoteEligibleEdges(
+            candidateGraph: candidateGraph,
+            stableGraph: stableGraph,
+            globalVerifiedSuccessRate: globalSuccessRate(),
+            now: now
+        )
+        for edge in promoted {
+            persistence?.upsertStableEdge(edge)
+        }
+        persistence?.persistGraphStats(globalStats())
+        return promoted
+    }
+
+    @discardableResult
+    public func pruneOrDemoteEdges(now: Date = Date()) -> [String] {
+        let removed = maintenance.pruneOrDemoteEdges(
+            candidateGraph: candidateGraph,
+            stableGraph: stableGraph,
+            now: now
+        )
+        for edgeID in removed {
+            persistence?.deleteStableEdge(edgeID: edgeID)
+        }
+        persistence?.persistGraphStats(globalStats())
+        return removed
     }
 
     public func promoteStableGraph() {
-        stableGraph.promote(from: candidateGraph)
+        _ = promoteEligibleEdges()
     }
 
     public func outgoingEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
+        outgoingStableEdges(from: planningStateID)
+    }
+
+    public func outgoingStableEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
         stableGraph.outgoing(from: planningStateID)
     }
 
     public func actionContract(for id: String) -> ActionContract? {
         actionContracts[id]
+    }
+
+    public func planningState(for id: PlanningStateID) -> PlanningState? {
+        planningStates[id]
+    }
+
+    public func stableEdge(for id: String) -> EdgeTransition? {
+        stableGraph.edges[id]
+    }
+
+    public func globalSuccessRate() -> Double {
+        let stats = globalStats()
+        guard stats.attempts > 0 else { return 0 }
+        return Double(stats.successes) / Double(stats.attempts)
+    }
+
+    public func allStableEdges() -> [EdgeTransition] {
+        stableGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+    }
+
+    public func allCandidateEdges() -> [EdgeTransition] {
+        candidateGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+    }
+
+    public static func defaultDatabaseURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["GHOST_OS_GRAPH_DB"], !override.isEmpty {
+            return URL(fileURLWithPath: NSString(string: override).expandingTildeInPath)
+        }
+
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        return URL(fileURLWithPath: currentDirectory, isDirectory: true)
+            .appendingPathComponent(".oracle-graph", isDirectory: true)
+            .appendingPathComponent("oracleos.sqlite3", isDirectory: false)
+    }
+
+    private func edgeKey(for transition: VerifiedTransition) -> String {
+        [
+            transition.fromPlanningStateID.rawValue,
+            transition.actionContractID,
+            transition.postconditionClass.rawValue,
+        ].joined(separator: "|")
+    }
+
+    private func globalStats() -> GraphStats {
+        let attempts = candidateGraph.edges.values.reduce(0) { $0 + $1.attempts }
+        let successes = candidateGraph.edges.values.reduce(0) { $0 + $1.successes }
+        return GraphStats(attempts: attempts, successes: successes, updatedAt: Date().timeIntervalSince1970)
     }
 }

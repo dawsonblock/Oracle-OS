@@ -270,6 +270,14 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
     public let appProtectionProfile: String?
     public let blockedByPolicy: Bool
     public let policyMode: String?
+    public let agentKind: String?
+    public let plannerFamily: String?
+    public let commandCategory: String?
+    public let commandSummary: String?
+    public let workspaceRelativePath: String?
+    public let buildResultSummary: String?
+    public let testResultSummary: String?
+    public let patchID: String?
 
     public init(
         id: UUID = UUID(),
@@ -288,7 +296,15 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
         protectedOperation: String? = nil,
         appProtectionProfile: String? = nil,
         blockedByPolicy: Bool = false,
-        policyMode: String? = nil
+        policyMode: String? = nil,
+        agentKind: String? = nil,
+        plannerFamily: String? = nil,
+        commandCategory: String? = nil,
+        commandSummary: String? = nil,
+        workspaceRelativePath: String? = nil,
+        buildResultSummary: String? = nil,
+        testResultSummary: String? = nil,
+        patchID: String? = nil
     ) {
         self.id = id
         self.request = request
@@ -307,6 +323,14 @@ public struct ActionRunResult: Codable, Sendable, Equatable, Identifiable {
         self.appProtectionProfile = appProtectionProfile
         self.blockedByPolicy = blockedByPolicy
         self.policyMode = policyMode
+        self.agentKind = agentKind
+        self.plannerFamily = plannerFamily
+        self.commandCategory = commandCategory
+        self.commandSummary = commandSummary
+        self.workspaceRelativePath = workspaceRelativePath
+        self.buildResultSummary = buildResultSummary
+        self.testResultSummary = testResultSummary
+        self.patchID = patchID
     }
 }
 
@@ -447,6 +471,25 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
     public let approvalOutcome: String?
     public let blockedByPolicy: Bool
     public let appProfile: String?
+    public let agentKind: String?
+    public let domain: String?
+    public let plannerFamily: String?
+    public let workspaceRelativePath: String?
+    public let commandCategory: String?
+    public let commandSummary: String?
+    public let repositorySnapshotID: String?
+    public let buildResultSummary: String?
+    public let testResultSummary: String?
+    public let patchID: String?
+    public let projectMemoryRefs: [String]
+    public let experimentID: String?
+    public let candidateID: String?
+    public let sandboxPath: String?
+    public let selectedCandidate: Bool?
+    public let experimentOutcome: String?
+    public let architectureFindings: [String]
+    public let refactorProposalID: String?
+    public let knowledgeTier: String?
     public let elapsedMs: Double
     public let screenshotPath: String?
     public let artifactPaths: [String]
@@ -479,6 +522,25 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
         approvalOutcome: String? = nil,
         blockedByPolicy: Bool = false,
         appProfile: String? = nil,
+        agentKind: String? = nil,
+        domain: String? = nil,
+        plannerFamily: String? = nil,
+        workspaceRelativePath: String? = nil,
+        commandCategory: String? = nil,
+        commandSummary: String? = nil,
+        repositorySnapshotID: String? = nil,
+        buildResultSummary: String? = nil,
+        testResultSummary: String? = nil,
+        patchID: String? = nil,
+        projectMemoryRefs: [String] = [],
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String] = [],
+        refactorProposalID: String? = nil,
+        knowledgeTier: String? = nil,
         elapsedMs: Double,
         screenshotPath: String?,
         artifactPaths: [String],
@@ -508,6 +570,25 @@ public struct TraceStepViewModel: Codable, Sendable, Equatable, Identifiable {
         self.approvalOutcome = approvalOutcome
         self.blockedByPolicy = blockedByPolicy
         self.appProfile = appProfile
+        self.agentKind = agentKind
+        self.domain = domain
+        self.plannerFamily = plannerFamily
+        self.workspaceRelativePath = workspaceRelativePath
+        self.commandCategory = commandCategory
+        self.commandSummary = commandSummary
+        self.repositorySnapshotID = repositorySnapshotID
+        self.buildResultSummary = buildResultSummary
+        self.testResultSummary = testResultSummary
+        self.patchID = patchID
+        self.projectMemoryRefs = projectMemoryRefs
+        self.experimentID = experimentID
+        self.candidateID = candidateID
+        self.sandboxPath = sandboxPath
+        self.selectedCandidate = selectedCandidate
+        self.experimentOutcome = experimentOutcome
+        self.architectureFindings = architectureFindings
+        self.refactorProposalID = refactorProposalID
+        self.knowledgeTier = knowledgeTier
         self.elapsedMs = elapsedMs
         self.screenshotPath = screenshotPath
         self.artifactPaths = artifactPaths

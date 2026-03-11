@@ -32,3 +32,4 @@ build.log
 test.log
 ghost-os-*.tar.gz
 local/
+.oracle-graph/

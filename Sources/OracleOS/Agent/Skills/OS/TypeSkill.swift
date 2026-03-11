@@ -1,0 +1,22 @@
+import Foundation
+
+public final class TypeSkill: Skill {
+    public let name = "type"
+
+    public init() {}
+
+    public func resolve(
+        query: ElementQuery,
+        state: WorldState,
+        memoryStore: AppMemoryStore
+    ) throws -> SkillResolution {
+        let candidate = try state.resolve(query: query, memoryStore: memoryStore)
+        let intent = ActionIntent.type(
+            app: state.observation.app,
+            into: candidate.element.label ?? query.text,
+            domID: candidate.element.id,
+            text: query.text ?? ""
+        )
+        return SkillResolution(intent: intent, selectedCandidate: candidate, semanticQuery: query)
+    }
+}

@@ -30,10 +30,27 @@ public final class VerifiedActionExecutor {
         selectedElementLabel: String? = nil,
         candidateScore: Double? = nil,
         candidateReasons: [String] = [],
+        candidateAmbiguityScore: Double? = nil,
         surface: RuntimeSurface = .mcp,
         policyDecision: PolicyDecision? = nil,
         approvalRequestID: String? = nil,
         approvalOutcome: String? = nil,
+        plannerSource: String? = nil,
+        plannerFamily: String? = nil,
+        pathEdgeIDs: [String]? = nil,
+        currentEdgeID: String? = nil,
+        recoveryTagged: Bool = false,
+        recoveryStrategy: String? = nil,
+        recoverySource: String? = nil,
+        projectMemoryRefs: [String] = [],
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String] = [],
+        refactorProposalID: String? = nil,
+        knowledgeTier: KnowledgeTier? = nil,
         execute: () -> ToolResult
     ) -> ToolResult {
         let sessionID = traceRecorder?.sessionID ?? "no-session"
@@ -41,8 +58,10 @@ public final class VerifiedActionExecutor {
         let start = Date()
         let preObservation = ObservationBuilder.capture(appName: intent.app)
         let preHash = ObservationHash.hash(preObservation)
+        let preRepositorySnapshot = repositorySnapshot(for: intent)
         let prePlanningState = stateAbstraction.abstract(
             observation: preObservation,
+            repositorySnapshot: preRepositorySnapshot,
             observationHash: preHash
         )
 
@@ -52,18 +71,22 @@ public final class VerifiedActionExecutor {
             conditions: intent.postconditions
         )
         let postHash = ObservationHash.hash(postObservation)
+        let postRepositorySnapshot = repositorySnapshot(for: intent)
         let postPlanningState = stateAbstraction.abstract(
             observation: postObservation,
+            repositorySnapshot: postRepositorySnapshot,
             observationHash: postHash
         )
-        let failureClass = classifyFailure(raw: raw, verification: verification, timedOut: timedOut)
+        let failureClass = classifyFailure(intent: intent, raw: raw, verification: verification, timedOut: timedOut)
         let verified = raw.success && verification.status != .failed
         let elapsedMs = Date().timeIntervalSince(start) * 1000.0
         let method = raw.data?["method"] as? String
+        let effectiveKnowledgeTier = knowledgeTier ?? (recoveryTagged ? .recovery : (plannerSource == PlannerSource.exploration.rawValue ? .exploration : .candidate))
         let actionContract = ActionContract.from(
             intent: intent,
             method: method,
-            selectedElementLabel: selectedElementLabel
+            selectedElementLabel: selectedElementLabel,
+            plannerFamily: plannerFamily ?? plannerSource
         )
         let postconditionClass = classifyPostconditionClass(
             intent: intent,
@@ -75,11 +98,22 @@ public final class VerifiedActionExecutor {
             fromPlanningStateID: prePlanningState.id,
             toPlanningStateID: postPlanningState.id,
             actionContractID: actionContract.id,
+            agentKind: intent.agentKind,
+            domain: intent.domain,
+            workspaceRelativePath: intent.workspaceRelativePath,
+            commandCategory: intent.commandCategory,
+            plannerFamily: plannerFamily ?? plannerSource,
             postconditionClass: postconditionClass,
             verified: verified,
             failureClass: failureClass?.rawValue,
-            latencyMs: Int(elapsedMs.rounded())
+            latencyMs: Int(elapsedMs.rounded()),
+            targetAmbiguityScore: candidateAmbiguityScore,
+            recoveryTagged: recoveryTagged,
+            approvalRequired: policyDecision?.requiresApproval ?? false,
+            approvalOutcome: approvalOutcome,
+            knowledgeTier: effectiveKnowledgeTier
         )
+        let codeExecution = raw.data?["code_execution"] as? [String: Any]
 
         let artifactSummary = failureArtifacts(
             sessionID: sessionID,
@@ -121,6 +155,7 @@ public final class VerifiedActionExecutor {
             selectedElementLabel: selectedElementLabel,
             candidateScore: candidateScore,
             candidateReasons: candidateReasons,
+            ambiguityScore: candidateAmbiguityScore,
             preObservationHash: preHash,
             postObservationHash: postHash,
             planningStateID: prePlanningState.id.rawValue,
@@ -129,11 +164,15 @@ public final class VerifiedActionExecutor {
             postconditionClass: postconditionClass.rawValue,
             actionContractID: actionContract.id,
             executionMode: "verified-execution",
+            plannerSource: plannerSource,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
             verified: verified,
             success: verified,
             failureClass: failureClass?.rawValue,
-            recoveryStrategy: nil,
-            recoverySource: nil,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource,
+            recoveryTagged: recoveryTagged,
             surface: surface.rawValue,
             policyMode: policyDecision?.policyMode.rawValue,
             protectedOperation: policyDecision?.protectedOperation?.rawValue,
@@ -141,6 +180,25 @@ public final class VerifiedActionExecutor {
             approvalOutcome: approvalOutcome,
             blockedByPolicy: policyDecision?.blockedByPolicy,
             appProfile: policyDecision?.appProtectionProfile.rawValue,
+            agentKind: intent.agentKind.rawValue,
+            domain: intent.domain,
+            plannerFamily: plannerFamily ?? plannerSource,
+            workspaceRelativePath: intent.workspaceRelativePath,
+            commandCategory: intent.commandCategory,
+            commandSummary: intent.commandSummary,
+            repositorySnapshotID: codeExecution?["repository_snapshot_id"] as? String,
+            buildResultSummary: codeExecution?["build_result_summary"] as? String,
+            testResultSummary: codeExecution?["test_result_summary"] as? String,
+            patchID: codeExecution?["patch_id"] as? String ?? raw.data?["patch_id"] as? String,
+            projectMemoryRefs: projectMemoryRefs.isEmpty ? nil : projectMemoryRefs,
+            experimentID: experimentID,
+            candidateID: candidateID,
+            sandboxPath: sandboxPath,
+            selectedCandidate: selectedCandidate,
+            experimentOutcome: experimentOutcome,
+            architectureFindings: architectureFindings.isEmpty ? nil : architectureFindings,
+            refactorProposalID: refactorProposalID,
+            knowledgeTier: effectiveKnowledgeTier.rawValue,
             elapsedMs: elapsedMs,
             screenshotPath: artifactSummary.screenshotPath,
             notes: TraceEnricher.mergedNotes(
@@ -149,7 +207,7 @@ public final class VerifiedActionExecutor {
                 actionContractID: actionContract.id,
                 postconditionClass: postconditionClass,
                 executionMode: "verified-execution",
-                recoverySource: nil
+                recoverySource: recoverySource
             )
         )
 
@@ -185,6 +243,19 @@ public final class VerifiedActionExecutor {
         if let failureClass {
             traceData["failure_class"] = failureClass.rawValue
         }
+        if let plannerSource {
+            traceData["planner_source"] = plannerSource
+        }
+        if let pathEdgeIDs {
+            traceData["path_edge_ids"] = pathEdgeIDs
+        }
+        if let currentEdgeID {
+            traceData["current_edge_id"] = currentEdgeID
+        }
+        if let candidateAmbiguityScore {
+            traceData["ambiguity_score"] = candidateAmbiguityScore
+        }
+        traceData["recovery_tagged"] = recoveryTagged
         if let policyDecision {
             traceData["policy_mode"] = policyDecision.policyMode.rawValue
             traceData["app_profile"] = policyDecision.appProtectionProfile.rawValue
@@ -197,6 +268,29 @@ public final class VerifiedActionExecutor {
         if let approvalOutcome {
             traceData["approval_outcome"] = approvalOutcome
         }
+        traceData["agent_kind"] = intent.agentKind.rawValue
+        traceData["domain"] = intent.domain
+        traceData["planner_family"] = plannerFamily as Any
+        traceData["workspace_relative_path"] = intent.workspaceRelativePath as Any
+        traceData["command_category"] = intent.commandCategory as Any
+        traceData["command_summary"] = intent.commandSummary as Any
+        traceData["repository_snapshot_id"] = codeExecution?["repository_snapshot_id"] as Any
+        traceData["build_result_summary"] = codeExecution?["build_result_summary"] as Any
+        traceData["test_result_summary"] = codeExecution?["test_result_summary"] as Any
+        traceData["patch_id"] = codeExecution?["patch_id"] as Any
+        if !projectMemoryRefs.isEmpty {
+            traceData["project_memory_refs"] = projectMemoryRefs
+        }
+        traceData["experiment_id"] = experimentID as Any
+        traceData["candidate_id"] = candidateID as Any
+        traceData["sandbox_path"] = sandboxPath as Any
+        traceData["selected_candidate"] = selectedCandidate as Any
+        traceData["experiment_outcome"] = experimentOutcome as Any
+        if !architectureFindings.isEmpty {
+            traceData["architecture_findings"] = architectureFindings
+        }
+        traceData["refactor_proposal_id"] = refactorProposalID as Any
+        traceData["knowledge_tier"] = effectiveKnowledgeTier.rawValue
         data["trace"] = traceData
         data["observations"] = [
             "pre_hash": preHash,
@@ -205,11 +299,25 @@ public final class VerifiedActionExecutor {
         data["planning"] = [
             "pre_state_id": prePlanningState.id.rawValue,
             "post_state_id": postPlanningState.id.rawValue,
+            "pre_state": prePlanningState.toDict(),
+            "post_state": postPlanningState.toDict(),
+            "pre_repository_snapshot_id": preRepositorySnapshot?.id as Any,
+            "post_repository_snapshot_id": postRepositorySnapshot?.id as Any,
+        ]
+        data["ranking"] = [
+            "selected_element_id": selectedElementID ?? intent.elementID as Any,
+            "selected_element_label": selectedElementLabel as Any,
+            "score": candidateScore as Any,
+            "reasons": candidateReasons,
+            "ambiguity_score": candidateAmbiguityScore as Any,
         ]
         data["execution_semantics"] = ExecutionSemanticsEncoder.encode(
             actionContract: actionContract,
             transition: verifiedTransition
         )
+        if let codeExecution {
+            data["code_execution"] = codeExecution
+        }
         if let policyDecision {
             data["policy_decision"] = policyDecision.toDict()
         }
@@ -272,11 +380,28 @@ public final class VerifiedActionExecutor {
     }
 
     private func classifyFailure(
+        intent: ActionIntent,
         raw: ToolResult,
         verification: VerificationSummary,
         timedOut: Bool
     ) -> FailureClass? {
         if !raw.success {
+            if intent.agentKind == .code {
+                switch intent.commandCategory {
+                case CodeCommandCategory.build.rawValue, CodeCommandCategory.linter.rawValue:
+                    return .buildFailed
+                case CodeCommandCategory.test.rawValue, CodeCommandCategory.parseTestFailure.rawValue:
+                    return .testFailed
+                case CodeCommandCategory.editFile.rawValue, CodeCommandCategory.writeFile.rawValue, CodeCommandCategory.generatePatch.rawValue:
+                    return .patchApplyFailed
+                case CodeCommandCategory.gitPush.rawValue:
+                    return .gitPolicyBlocked
+                default:
+                    if intent.workspaceRelativePath?.hasPrefix("/") == true || intent.workspaceRelativePath?.contains("../") == true {
+                        return .workspaceScopeViolation
+                    }
+                }
+            }
             let error = raw.error?.lowercased() ?? ""
             if error.contains("not found") {
                 return .elementNotFound
@@ -360,6 +485,18 @@ public final class VerifiedActionExecutor {
         }
 
         return .unknown
+    }
+
+    private func repositorySnapshot(for intent: ActionIntent) -> RepositorySnapshot? {
+        guard intent.agentKind == .code,
+              let workspaceRoot = intent.workspaceRoot
+        else {
+            return nil
+        }
+
+        return RepositoryIndexer().index(
+            workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
+        )
     }
 
     private func failureArtifacts(

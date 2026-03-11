@@ -8,4 +8,11 @@ public enum FailureClass: String, Codable, Sendable {
     case modalBlocking
     case verificationFailed
     case staleObservation
+    case buildFailed
+    case testFailed
+    case patchApplyFailed
+    case workspaceScopeViolation
+    case gitPolicyBlocked
+    case noRelevantFiles
+    case ambiguousEditTarget
 }
