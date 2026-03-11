@@ -46,6 +46,23 @@ swift build
 
 The runtime version and sidecar version are currently aligned at `2.0.6`.
 
+## Local Controller
+
+Oracle OS now includes a native local controller:
+
+- `OracleController`: SwiftUI operator console
+- `OracleControllerHost`: bundled local host process that owns runtime execution
+- `OracleController.xcworkspace`: Xcode workspace entry point for the controller
+
+Build from the package or open the workspace in Xcode:
+
+```bash
+swift build
+open OracleController.xcworkspace
+```
+
+The controller stays local-only and supervised. It uses the existing OracleOS library, recipe schema, `.traces/` session logs, and stable `ghost_*` MCP tool surface. See [docs/oracle-controller.md](/Users/dawsonblock/Downloads/ghost-os-main/docs/oracle-controller.md) for usage details.
+
 ## Tool Surface
 
 Oracle OS exposes 22 tools:

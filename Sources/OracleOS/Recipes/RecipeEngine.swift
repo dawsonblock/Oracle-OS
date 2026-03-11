@@ -17,7 +17,12 @@ import Foundation
 public enum RecipeEngine {
 
     /// Run a recipe with parameter substitution.
-    public static func run(recipe: Recipe, params: [String: String]) -> ToolResult {
+    public static func run(
+        recipe: Recipe,
+        params: [String: String],
+        executor: VerifiedActionExecutor? = nil,
+        taskID: String? = nil
+    ) -> ToolResult {
         let startTime = Date()
 
         // 1. Validate parameters
@@ -72,7 +77,9 @@ public enum RecipeEngine {
             let result = executeStep(
                 step: step,
                 resolvedParams: resolvedParams,
-                appName: recipe.app
+                appName: recipe.app,
+                executor: executor,
+                taskID: taskID
             )
 
             let durationMs = Int(Date().timeIntervalSince(stepStart) * 1000)
@@ -253,7 +260,9 @@ public enum RecipeEngine {
     private static func executeStep(
         step: RecipeStep,
         resolvedParams: [String: String]?,
-        appName: String?
+        appName: String?,
+        executor: VerifiedActionExecutor?,
+        taskID: String?
     ) -> ToolResult {
         let params = resolvedParams ?? [:]
         let stepApp = params["app"] ?? appName
@@ -271,7 +280,10 @@ public enum RecipeEngine {
                 x: params["x"].flatMap(Double.init),
                 y: params["y"].flatMap(Double.init),
                 button: params["button"],
-                count: params["count"].flatMap(Int.init)
+                count: params["count"].flatMap(Int.init),
+                executor: executor,
+                taskID: taskID,
+                toolName: "ghost_click"
             )
 
         case "type":
@@ -284,7 +296,10 @@ public enum RecipeEngine {
 
             return Actions.typeText(
                 text: text, into: into, domId: domId,
-                appName: stepApp, clear: clear
+                appName: stepApp, clear: clear,
+                executor: executor,
+                taskID: taskID,
+                toolName: "ghost_type"
             )
 
         case "press":
@@ -292,7 +307,14 @@ public enum RecipeEngine {
                 return ToolResult(success: false, error: "Step \(step.id): 'press' action requires 'key' param")
             }
             let modifiers = params["modifiers"]?.split(separator: ",").map(String.init)
-            return Actions.pressKey(key: key, modifiers: modifiers, appName: stepApp)
+            return Actions.pressKey(
+                key: key,
+                modifiers: modifiers,
+                appName: stepApp,
+                executor: executor,
+                taskID: taskID,
+                toolName: "ghost_press"
+            )
 
         case "hotkey":
             guard let keysStr = params["keys"] else {
@@ -303,7 +325,13 @@ public enum RecipeEngine {
 
         case "focus":
             let app = params["app"] ?? stepApp ?? ""
-            return FocusManager.focus(appName: app, windowTitle: params["window"])
+            return Actions.focusApp(
+                appName: app,
+                windowTitle: params["window"],
+                executor: executor,
+                taskID: taskID,
+                toolName: "ghost_focus"
+            )
 
         case "scroll":
             let direction = params["direction"] ?? "down"

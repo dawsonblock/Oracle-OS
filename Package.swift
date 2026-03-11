@@ -14,7 +14,10 @@ let package = Package(
     ],
     products: [
         .library(name: "OracleOS", targets: ["OracleOS"]),
+        .library(name: "OracleControllerShared", targets: ["OracleControllerShared"]),
         .executable(name: "oracle", targets: ["oracle"]),
+        .executable(name: "OracleControllerHost", targets: ["OracleControllerHost"]),
+        .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
         .package(url: "https://github.com/steipete/AXorcist.git", from: "0.1.0"),
@@ -29,11 +32,33 @@ let package = Package(
             swiftSettings: concurrencySettings,
             linkerSettings: [.linkedFramework("ScreenCaptureKit")]
         ),
+        .target(
+            name: "OracleControllerShared",
+            path: "Sources/OracleControllerShared",
+            swiftSettings: concurrencySettings
+        ),
         .executableTarget(
             name: "oracle",
             dependencies: ["OracleOS"],
             path: "Sources/oracle",
             swiftSettings: concurrencySettings
+        ),
+        .executableTarget(
+            name: "OracleControllerHost",
+            dependencies: ["OracleOS", "OracleControllerShared"],
+            path: "Sources/OracleControllerHost",
+            swiftSettings: concurrencySettings,
+            linkerSettings: [.linkedFramework("AppKit")]
+        ),
+        .executableTarget(
+            name: "OracleController",
+            dependencies: ["OracleControllerShared"],
+            path: "Sources/OracleController",
+            swiftSettings: concurrencySettings,
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("SwiftUI"),
+            ]
         ),
         .testTarget(
             name: "OracleOSTests",
@@ -45,6 +70,12 @@ let package = Package(
             name: "OracleOSEvals",
             dependencies: ["OracleOS"],
             path: "Tests/OracleOSEvals",
+            swiftSettings: concurrencySettings
+        ),
+        .testTarget(
+            name: "OracleControllerTests",
+            dependencies: ["OracleControllerShared", "OracleOS"],
+            path: "Tests/OracleControllerTests",
             swiftSettings: concurrencySettings
         ),
     ]

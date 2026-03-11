@@ -6,6 +6,8 @@
 .swiftpm/
 *.xcodeproj/
 *.xcworkspace/
+!OracleController.xcworkspace/
+!OracleController.xcworkspace/**
 DerivedData/
 *.o
 *.dylib
@@ -30,4 +32,3 @@ build.log
 test.log
 ghost-os-*.tar.gz
 local/
-
