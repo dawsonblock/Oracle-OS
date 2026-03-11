@@ -14,6 +14,8 @@ public struct ArchitectureFinding: Codable, Sendable, Equatable, Identifiable {
     public let affectedModules: [String]
     public let evidence: [String]
     public let riskScore: Double
+    public let governanceRuleID: GovernanceRuleID?
+    public let governanceSeverity: GovernanceSeverity?
 
     public init(
         id: String = UUID().uuidString,
@@ -22,7 +24,9 @@ public struct ArchitectureFinding: Codable, Sendable, Equatable, Identifiable {
         severity: ArchitectureFindingSeverity,
         affectedModules: [String] = [],
         evidence: [String] = [],
-        riskScore: Double
+        riskScore: Double,
+        governanceRuleID: GovernanceRuleID? = nil,
+        governanceSeverity: GovernanceSeverity? = nil
     ) {
         self.id = id
         self.title = title
@@ -31,6 +35,8 @@ public struct ArchitectureFinding: Codable, Sendable, Equatable, Identifiable {
         self.affectedModules = affectedModules
         self.evidence = evidence
         self.riskScore = riskScore
+        self.governanceRuleID = governanceRuleID
+        self.governanceSeverity = governanceSeverity
     }
 }
 
@@ -68,18 +74,21 @@ public struct ArchitectureReview: Codable, Sendable, Equatable {
     public let findings: [ArchitectureFinding]
     public let refactorProposal: RefactorProposal?
     public let riskScore: Double
+    public let governanceReport: GovernanceReport
 
     public init(
         triggered: Bool,
         affectedModules: [String],
         findings: [ArchitectureFinding],
         refactorProposal: RefactorProposal?,
-        riskScore: Double
+        riskScore: Double,
+        governanceReport: GovernanceReport = .empty
     ) {
         self.triggered = triggered
         self.affectedModules = affectedModules
         self.findings = findings
         self.refactorProposal = refactorProposal
         self.riskScore = riskScore
+        self.governanceReport = governanceReport
     }
 }

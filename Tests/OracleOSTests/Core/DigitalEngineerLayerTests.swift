@@ -13,6 +13,7 @@ struct DigitalEngineerLayerTests {
         let draftRef = try store.writeArchitectureDecisionDraft(
             title: "Use graph-backed planner",
             summary: "Prefer verified transitions over direct planner heuristics.",
+            knowledgeClass: .reusable,
             affectedModules: ["Agent/Planning", "Graph"],
             evidenceRefs: ["trace:graph-backed-loop"],
             sourceTraceIDs: ["trace-graph-1"],
@@ -82,7 +83,7 @@ struct DigitalEngineerLayerTests {
 
         #expect(review.triggered)
         #expect(review.findings.contains(where: { $0.title == "Dependency cycle detected" }))
-        #expect(review.findings.contains(where: { $0.title == "Planning/execution boundary drift" }))
+        #expect(review.governanceReport.violations.contains(where: { $0.ruleID == .hierarchicalPlanning }))
         #expect(review.refactorProposal != nil)
         let affectedModules = review.refactorProposal?.affectedModules ?? []
         #expect(affectedModules.contains("Agent/Planning"))

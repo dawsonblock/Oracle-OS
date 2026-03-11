@@ -46,6 +46,7 @@ public enum ProjectMemoryStatus: String, Codable, Sendable, CaseIterable {
 public struct ProjectMemoryRef: Codable, Sendable, Equatable, Hashable, Identifiable {
     public let id: String
     public let kind: ProjectMemoryKind
+    public let knowledgeClass: KnowledgeClass
     public let status: ProjectMemoryStatus
     public let title: String
     public let summary: String
@@ -57,6 +58,7 @@ public struct ProjectMemoryRef: Codable, Sendable, Equatable, Hashable, Identifi
     public init(
         id: String,
         kind: ProjectMemoryKind,
+        knowledgeClass: KnowledgeClass,
         status: ProjectMemoryStatus,
         title: String,
         summary: String,
@@ -67,6 +69,7 @@ public struct ProjectMemoryRef: Codable, Sendable, Equatable, Hashable, Identifi
     ) {
         self.id = id
         self.kind = kind
+        self.knowledgeClass = knowledgeClass
         self.status = status
         self.title = title
         self.summary = summary
@@ -80,6 +83,7 @@ public struct ProjectMemoryRef: Codable, Sendable, Equatable, Hashable, Identifi
 public struct ProjectMemoryRecord: Codable, Sendable, Equatable, Identifiable {
     public let id: String
     public let kind: ProjectMemoryKind
+    public let knowledgeClass: KnowledgeClass
     public let status: ProjectMemoryStatus
     public let title: String
     public let summary: String
@@ -94,6 +98,7 @@ public struct ProjectMemoryRecord: Codable, Sendable, Equatable, Identifiable {
     public init(
         id: String,
         kind: ProjectMemoryKind,
+        knowledgeClass: KnowledgeClass,
         status: ProjectMemoryStatus,
         title: String,
         summary: String,
@@ -107,6 +112,7 @@ public struct ProjectMemoryRecord: Codable, Sendable, Equatable, Identifiable {
     ) {
         self.id = id
         self.kind = kind
+        self.knowledgeClass = knowledgeClass
         self.status = status
         self.title = title
         self.summary = summary
@@ -123,6 +129,7 @@ public struct ProjectMemoryRecord: Codable, Sendable, Equatable, Identifiable {
         ProjectMemoryRef(
             id: id,
             kind: kind,
+            knowledgeClass: knowledgeClass,
             status: status,
             title: title,
             summary: summary,
@@ -136,6 +143,7 @@ public struct ProjectMemoryRecord: Codable, Sendable, Equatable, Identifiable {
 
 public struct ProjectMemoryDraft: Sendable, Equatable {
     public let kind: ProjectMemoryKind
+    public let knowledgeClass: KnowledgeClass
     public let title: String
     public let summary: String
     public let affectedModules: [String]
@@ -147,6 +155,7 @@ public struct ProjectMemoryDraft: Sendable, Equatable {
 
     public init(
         kind: ProjectMemoryKind,
+        knowledgeClass: KnowledgeClass,
         title: String,
         summary: String,
         affectedModules: [String] = [],
@@ -157,6 +166,7 @@ public struct ProjectMemoryDraft: Sendable, Equatable {
         updatedAt: Date = Date()
     ) {
         self.kind = kind
+        self.knowledgeClass = knowledgeClass
         self.title = title
         self.summary = summary
         self.affectedModules = affectedModules

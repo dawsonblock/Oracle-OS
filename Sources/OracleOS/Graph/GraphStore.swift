@@ -29,6 +29,7 @@ public final class GraphStore: @unchecked Sendable {
         fromState: PlanningState? = nil,
         toState: PlanningState? = nil
     ) {
+        let governedTransition = sanitize(transition)
         if let fromState {
             planningStates[fromState.id] = fromState
             persistence?.upsertPlanningState(fromState)
@@ -37,8 +38,8 @@ public final class GraphStore: @unchecked Sendable {
             planningStates[toState.id] = toState
             persistence?.upsertPlanningState(toState)
         }
-        candidateGraph.record(transition)
-        persistence?.upsertCandidateEdge(candidateGraph.edges[edgeKey(for: transition)])
+        candidateGraph.record(governedTransition)
+        persistence?.upsertCandidateEdge(candidateGraph.edges[edgeKey(for: governedTransition)])
         if let actionContract {
             actionContracts[actionContract.id] = actionContract
             persistence?.upsertActionContract(actionContract)
@@ -179,6 +180,41 @@ public final class GraphStore: @unchecked Sendable {
             transition.actionContractID,
             transition.postconditionClass.rawValue,
         ].joined(separator: "|")
+    }
+
+    private func sanitize(_ transition: VerifiedTransition) -> VerifiedTransition {
+        var governedTier = transition.knowledgeTier
+
+        if transition.recoveryTagged {
+            governedTier = .recovery
+        } else if transition.knowledgeTier == .stable {
+            governedTier = .candidate
+        }
+
+        guard governedTier != transition.knowledgeTier else {
+            return transition
+        }
+
+        return VerifiedTransition(
+            fromPlanningStateID: transition.fromPlanningStateID,
+            toPlanningStateID: transition.toPlanningStateID,
+            actionContractID: transition.actionContractID,
+            agentKind: transition.agentKind,
+            domain: transition.domain,
+            workspaceRelativePath: transition.workspaceRelativePath,
+            commandCategory: transition.commandCategory,
+            plannerFamily: transition.plannerFamily,
+            postconditionClass: transition.postconditionClass,
+            verified: transition.verified,
+            failureClass: transition.failureClass,
+            latencyMs: transition.latencyMs,
+            targetAmbiguityScore: transition.targetAmbiguityScore,
+            recoveryTagged: transition.recoveryTagged,
+            approvalRequired: transition.approvalRequired,
+            approvalOutcome: transition.approvalOutcome,
+            knowledgeTier: governedTier,
+            timestamp: transition.timestamp
+        )
     }
 
     private func globalStats() -> GraphStats {

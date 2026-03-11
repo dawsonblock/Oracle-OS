@@ -25,6 +25,17 @@ This repository is no longer just a tool surface for MCP clients. It now contain
 
 Oracle OS is already a serious operator substrate. It is not yet a fully autonomous long-horizon digital engineer.
 
+## Repo Contract
+
+The primary contract for future changes is now:
+
+- [GOVERNANCE.md](GOVERNANCE.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [STATUS.md](STATUS.md)
+- [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)
+
+`GOVERNANCE.md` is normative. It defines the non-negotiable rules for execution truth, trust-tiered learning, planning boundaries, recovery tagging, and eval-gated architecture growth.
+
 ## What Oracle OS Does Today
 
 ### macOS operator capabilities
@@ -130,6 +141,14 @@ graph TD
 ## Safety Model
 
 Oracle OS is intentionally conservative.
+
+It also now has an explicit governance contract:
+
+- one hard execution truth path
+- reusable knowledge separated from episode residue
+- hierarchical planning with local execution
+- recovery treated as a first-class mode
+- architecture growth gated by eval and governance coverage
 
 ### Default policy
 

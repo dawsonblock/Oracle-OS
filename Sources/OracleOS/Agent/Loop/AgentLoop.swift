@@ -589,6 +589,7 @@ public final class AgentLoop {
             _ = try store.writeOpenProblemDraft(
                 title: taskContext.goal.description,
                 summary: "Loop ended with \(outcome.reason.rawValue)",
+                knowledgeClass: .reusable,
                 affectedModules: decision?.architectureFindings.flatMap(\.affectedModules) ?? [],
                 evidenceRefs: decision?.projectMemoryRefs.map(\.path) ?? [],
                 sourceTraceIDs: [],
@@ -620,6 +621,7 @@ public final class AgentLoop {
             _ = try store.writeArchitectureDecisionDraft(
                 title: "Architecture review for \(taskContext.goal.description)",
                 summary: "High-impact change touched \(decision.architectureFindings.flatMap(\.affectedModules).count) module references",
+                knowledgeClass: .reusable,
                 affectedModules: Array(Set(decision.architectureFindings.flatMap(\.affectedModules))).sorted(),
                 evidenceRefs: decision.projectMemoryRefs.map(\.path),
                 sourceTraceIDs: [],
@@ -653,6 +655,7 @@ public final class AgentLoop {
             _ = try store.writeKnownGoodPatternDraft(
                 title: "Reliable \(commandCategory) pattern",
                 summary: "Command \(commandCategory) has repeated successful verified reuse in this workspace.",
+                knowledgeClass: .reusable,
                 affectedModules: decision.architectureFindings.flatMap(\.affectedModules),
                 evidenceRefs: decision.projectMemoryRefs.map(\.path),
                 sourceTraceIDs: [],
@@ -680,6 +683,7 @@ public final class AgentLoop {
             _ = try store.writeRejectedApproachDraft(
                 title: title,
                 summary: "Parallel experiment candidates did not produce a safe winner",
+                knowledgeClass: .reusable,
                 affectedModules: Array(Set(decision.architectureFindings.flatMap(\.affectedModules))).sorted(),
                 evidenceRefs: decision.projectMemoryRefs.map(\.path),
                 sourceTraceIDs: [],

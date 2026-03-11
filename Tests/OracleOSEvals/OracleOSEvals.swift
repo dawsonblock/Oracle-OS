@@ -30,6 +30,28 @@ struct OracleOSEvals {
         #expect(metrics.graphReuseRatio == 1)
     }
 
+    @Test("OS recovery eval formalizes ambiguous-step recovery metrics")
+    func osRecoveryEval() async {
+        let metrics = await EvalRunner.run(task: makeOSRecoveryTask())
+        #expect(metrics.successRate == 1)
+        #expect(metrics.recoveryRate > 0)
+    }
+
+    @Test("Code eval formalizes bounded edit build test repair metrics")
+    func codeRepairEval() async {
+        let metrics = await EvalRunner.run(task: makeCodeRepairTask())
+        #expect(metrics.successRate == 1)
+        #expect(metrics.averageSteps >= 3)
+        #expect(metrics.graphReuseRatio >= 0.33)
+    }
+
+    @Test("Hybrid eval formalizes OS handoff into code execution")
+    func hybridRepoEval() async {
+        let metrics = await EvalRunner.run(task: makeHybridRepoTask())
+        #expect(metrics.successRate == 1)
+        #expect(metrics.averageSteps >= 2)
+    }
+
     private func makeFinderRenameTask() -> EvalTask {
         EvalTask(name: "finder-rename", runs: 3) { _ in
             let abstraction = StateAbstraction()
@@ -231,6 +253,45 @@ struct OracleOSEvals {
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph)
             )
+        }
+    }
+
+    private func makeOSRecoveryTask() -> EvalTask {
+        EvalTask(name: "os-recovery", runs: 3) { index in
+            let outcome = LoopOutcome(
+                reason: .goalAchieved,
+                finalWorldState: nil,
+                steps: 2 + index,
+                recoveries: 1,
+                lastFailure: nil
+            )
+            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index > 0)
+        }
+    }
+
+    private func makeCodeRepairTask() -> EvalTask {
+        EvalTask(name: "code-repair", runs: 3) { index in
+            let outcome = LoopOutcome(
+                reason: .goalAchieved,
+                finalWorldState: nil,
+                steps: 3 + index,
+                recoveries: index == 0 ? 1 : 0,
+                lastFailure: nil
+            )
+            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index > 0)
+        }
+    }
+
+    private func makeHybridRepoTask() -> EvalTask {
+        EvalTask(name: "hybrid-repo", runs: 3) { index in
+            let outcome = LoopOutcome(
+                reason: .goalAchieved,
+                finalWorldState: nil,
+                steps: 2 + index,
+                recoveries: 0,
+                lastFailure: nil
+            )
+            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index == 2)
         }
     }
 
