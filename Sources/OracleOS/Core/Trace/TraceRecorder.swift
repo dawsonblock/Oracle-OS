@@ -1,26 +1,30 @@
 import Foundation
 
-@MainActor
 public final class TraceRecorder {
-
-    public static let shared = TraceRecorder()
-
     public let sessionID: String
-    public let store = TraceStore()
 
+    private var nextStepID: Int = 1
     private var events: [TraceEvent] = []
 
-    public init() {
-        self.sessionID = UUID().uuidString
+    public init(sessionID: String = UUID().uuidString) {
+        self.sessionID = sessionID
     }
 
-    @discardableResult
-    public func record(_ event: TraceEvent) -> URL? {
+    public func makeStepID() -> Int {
+        defer { nextStepID += 1 }
+        return nextStepID
+    }
+
+    public func record(_ event: TraceEvent) {
         events.append(event)
-        return try? store.append(event)
     }
 
-    public func dump() -> [TraceEvent] {
+    public func allEvents() -> [TraceEvent] {
         events
+    }
+
+    public func reset() {
+        events.removeAll()
+        nextStepID = 1
     }
 }

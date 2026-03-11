@@ -26,8 +26,7 @@ public struct Observation: Sendable, Codable {
     }
 
     public func stableHash() -> String {
-        let content = elements.map { $0.id }.joined(separator: ",")
-        return "\(app ?? "none"):\(content)".data(using: .utf8)?.base64EncodedString() ?? "hash-err"
+        ObservationHash.hash(self)
     }
 
     public var focusedElement: UnifiedElement? {

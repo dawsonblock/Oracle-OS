@@ -1,60 +1,104 @@
 import Foundation
 
-public struct TraceEvent: Codable {
-
-    public let timestamp: Date
+public struct TraceEvent: Codable, Sendable {
     public let sessionID: String
-    public let intent: ActionIntent
-    public let result: ActionResult
-    
+    public let taskID: String?
+    public let stepID: Int
+    public let timestamp: Date
+
+    public let toolName: String?
+    public let actionName: String
+    public let actionTarget: String?
+    public let actionText: String?
+
+    public let selectedElementID: String?
+    public let selectedElementLabel: String?
+    public let candidateScore: Double?
+    public let candidateReasons: [String]
+
     public let preObservationHash: String?
     public let postObservationHash: String?
-    
-    public let verification: VerificationSummary
-    public let elapsedMs: Int
+
+    public let postcondition: String?
+    public let verified: Bool
+    public let success: Bool
     public let failureClass: String?
-    public let artifacts: TraceArtifactReferences?
+    public let recoveryStrategy: String?
+
+    public let elapsedMs: Double
+    public let screenshotPath: String?
+    public let notes: String?
 
     public init(
         sessionID: String,
-        intent: ActionIntent,
-        result: ActionResult,
+        taskID: String?,
+        stepID: Int,
+        toolName: String?,
+        actionName: String,
+        actionTarget: String? = nil,
+        actionText: String? = nil,
+        selectedElementID: String? = nil,
+        selectedElementLabel: String? = nil,
+        candidateScore: Double? = nil,
+        candidateReasons: [String] = [],
         preObservationHash: String? = nil,
         postObservationHash: String? = nil,
-        verification: VerificationSummary,
-        elapsedMs: Int,
+        postcondition: String? = nil,
+        verified: Bool,
+        success: Bool,
         failureClass: String? = nil,
-        artifacts: TraceArtifactReferences? = nil
+        recoveryStrategy: String? = nil,
+        elapsedMs: Double,
+        screenshotPath: String? = nil,
+        notes: String? = nil
     ) {
-        self.timestamp = Date()
         self.sessionID = sessionID
-        self.intent = intent
-        self.result = result
+        self.taskID = taskID
+        self.stepID = stepID
+        self.timestamp = Date()
+        self.toolName = toolName
+        self.actionName = actionName
+        self.actionTarget = actionTarget
+        self.actionText = actionText
+        self.selectedElementID = selectedElementID
+        self.selectedElementLabel = selectedElementLabel
+        self.candidateScore = candidateScore
+        self.candidateReasons = candidateReasons
         self.preObservationHash = preObservationHash
         self.postObservationHash = postObservationHash
-        self.verification = verification
-        self.elapsedMs = elapsedMs
+        self.postcondition = postcondition
+        self.verified = verified
+        self.success = success
         self.failureClass = failureClass
-        self.artifacts = artifacts
+        self.recoveryStrategy = recoveryStrategy
+        self.elapsedMs = elapsedMs
+        self.screenshotPath = screenshotPath
+        self.notes = notes
     }
 
-    // Retain old init for compatibility if needed, though strictly we should just use the new one.
     public init(action: String, success: Bool, message: String? = nil) {
-        self.timestamp = Date()
-        self.sessionID = "compat"
-        self.intent = ActionIntent(app: "unknown", action: action)
-        self.result = ActionResult(success: success, message: message)
-        self.verification = VerificationSummary(status: success ? .passed : .notAttempted, checks: [])
-        self.elapsedMs = 0
-        self.failureClass = nil
-        self.artifacts = nil
-        self.preObservationHash = nil
-        self.postObservationHash = nil
+        self.init(
+            sessionID: "compat",
+            taskID: nil,
+            stepID: 0,
+            toolName: nil,
+            actionName: action,
+            actionTarget: nil,
+            actionText: nil,
+            selectedElementID: nil,
+            selectedElementLabel: nil,
+            candidateScore: nil,
+            candidateReasons: [],
+            preObservationHash: nil,
+            postObservationHash: nil,
+            postcondition: nil,
+            verified: success,
+            success: success,
+            failureClass: success ? nil : "compat_failure",
+            recoveryStrategy: nil,
+            elapsedMs: 0,
+            screenshotPath: nil,
+            notes: message
+        )
     }
-}
-
-public struct TraceArtifactReferences: Codable {
-    public let screenshotPath: String?
-    public let preObservationPath: String?
-    public let postObservationPath: String?
 }

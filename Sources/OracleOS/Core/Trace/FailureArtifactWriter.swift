@@ -1,49 +1,66 @@
 import Foundation
 
 @MainActor
-public enum FailureArtifactWriter {
-    public static func capture(
-        appName: String?,
-        actionName: String,
-        pre: Observation,
-        post: Observation,
-        recorder: TraceRecorder = .shared
-    ) -> TraceArtifactReferences? {
-        let artifactsDir = recorder.store.artifactsDirectory()
-        let stem = "\(timestampStem())-\(sanitize(actionName))"
+public final class FailureArtifactWriter {
+    private let baseURL: URL
 
-        let prePath = writeObservation(pre, to: artifactsDir.appendingPathComponent("\(stem)-pre.json"))
-        let postPath = writeObservation(post, to: artifactsDir.appendingPathComponent("\(stem)-post.json"))
-        let screenshotPath = writeScreenshot(appName: appName, to: artifactsDir.appendingPathComponent("\(stem).png"))
-
-        if prePath == nil, postPath == nil, screenshotPath == nil {
-            return nil
-        }
-
-        return TraceArtifactReferences(
-            screenshotPath: screenshotPath,
-            preObservationPath: prePath,
-            postObservationPath: postPath
+    public init(baseURL: URL) {
+        self.baseURL = baseURL
+        try? FileManager.default.createDirectory(
+            at: baseURL,
+            withIntermediateDirectories: true
         )
     }
 
-    private static func writeObservation(_ observation: Observation, to url: URL) -> String? {
+    public convenience init() {
+        self.init(baseURL: TraceStore.traceRootDirectory().appendingPathComponent("artifacts", isDirectory: true))
+    }
+
+    public func writeTextArtifact(
+        sessionID: String,
+        stepID: Int,
+        name: String,
+        contents: String
+    ) -> String? {
+        let fileURL = artifactURL(sessionID: sessionID, stepID: stepID, name: name, ext: "txt")
+        do {
+            try contents.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL.path
+        } catch {
+            Log.warn("Failed to write text artifact: \(error)")
+            return nil
+        }
+    }
+
+    public func writeObservationArtifact(
+        sessionID: String,
+        stepID: Int,
+        name: String,
+        observation: Observation
+    ) -> String? {
+        let fileURL = artifactURL(sessionID: sessionID, stepID: stepID, name: name, ext: "json")
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
 
-        guard let data = try? encoder.encode(observation) else { return nil }
         do {
-            try data.write(to: url)
-            return url.path
+            let data = try encoder.encode(observation)
+            try data.write(to: fileURL)
+            return fileURL.path
         } catch {
             Log.warn("Failed to write observation artifact: \(error)")
             return nil
         }
     }
 
-    private static func writeScreenshot(appName: String?, to url: URL) -> String? {
+    public func writeScreenshotArtifact(
+        sessionID: String,
+        stepID: Int,
+        appName: String?
+    ) -> String? {
+        let fileURL = artifactURL(sessionID: sessionID, stepID: stepID, name: "screenshot", ext: "png")
         let result = Perception.screenshot(appName: appName, fullResolution: false)
+
         guard result.success,
               let data = result.data,
               let base64 = data["image"] as? String,
@@ -53,22 +70,19 @@ public enum FailureArtifactWriter {
         }
 
         do {
-            try png.write(to: url)
-            return url.path
+            try png.write(to: fileURL)
+            return fileURL.path
         } catch {
             Log.warn("Failed to write screenshot artifact: \(error)")
             return nil
         }
     }
 
-    private static func timestampStem() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: Date())
+    private func artifactURL(sessionID: String, stepID: Int, name: String, ext: String) -> URL {
+        baseURL.appendingPathComponent("\(sessionID)-step\(stepID)-\(sanitize(name)).\(ext)")
     }
 
-    private static func sanitize(_ value: String) -> String {
+    private func sanitize(_ value: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
         return value.unicodeScalars.map { scalar in
             allowed.contains(scalar) ? Character(scalar) : "-"

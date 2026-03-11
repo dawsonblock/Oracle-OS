@@ -7,6 +7,6 @@ public struct TraceSegmenter {
     ) -> [TraceEvent] {
 
         // simple version: keep successful actions
-        return events.filter { $0.result.success }
+        return events.filter(\.success)
     }
 }

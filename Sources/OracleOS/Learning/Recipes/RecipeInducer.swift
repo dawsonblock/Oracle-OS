@@ -1,3 +1,4 @@
+import AXorcist
 import Foundation
 
 public struct RecipeInducer {
@@ -14,16 +15,20 @@ public struct RecipeInducer {
         var steps: [RecipeStep] = []
 
         for (index, event) in segments.enumerated() {
+            let target: Locator?
+            if let selectedElementID = event.selectedElementID {
+                target = LocatorBuilder.build(domId: selectedElementID)
+            } else if let actionTarget = event.actionTarget {
+                target = LocatorBuilder.build(query: actionTarget)
+            } else {
+                target = nil
+            }
 
             let step =
                 RecipeStep(
                     id: index,
-                    action: event.intent.action,
-                    target: LocatorBuilder.build(
-                        query: event.intent.query,
-                        role: event.intent.role,
-                        domId: event.intent.domID
-                    ),
+                    action: event.actionName,
+                    target: target,
                     params: nil,
                     waitAfter: nil,
                     note: nil,

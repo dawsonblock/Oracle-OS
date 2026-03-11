@@ -1,58 +1,57 @@
 import Foundation
 
 public final class TraceStore: @unchecked Sendable {
-    public let sessionID: String
-    public let baseDirectory: URL
-    public let traceFileURL: URL
+    public let directoryURL: URL
 
-    public init(sessionID: String = UUID().uuidString, baseDirectory: URL? = nil) {
-        self.sessionID = sessionID
-        self.baseDirectory = Self.resolveBaseDirectory(explicit: baseDirectory)
-        self.traceFileURL = self.baseDirectory.appendingPathComponent("\(sessionID).jsonl")
+    private let encoder: JSONEncoder
+
+    public init(directoryURL: URL) {
+        self.directoryURL = directoryURL
+        self.encoder = JSONEncoder()
+        self.encoder.dateEncodingStrategy = .iso8601
+
         try? FileManager.default.createDirectory(
-            at: self.baseDirectory,
-            withIntermediateDirectories: true,
-            attributes: nil
+            at: directoryURL,
+            withIntermediateDirectories: true
         )
+    }
+
+    public convenience init() {
+        self.init(directoryURL: Self.resolveSessionsDirectory())
     }
 
     @discardableResult
     public func append(_ event: TraceEvent) throws -> URL {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let fileURL = directoryURL.appendingPathComponent("\(event.sessionID).jsonl")
         let data = try encoder.encode(event)
         var line = data
         line.append(0x0A)
 
-        if !FileManager.default.fileExists(atPath: traceFileURL.path) {
-            FileManager.default.createFile(atPath: traceFileURL.path, contents: nil, attributes: nil)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
         }
 
-        let handle = try FileHandle(forWritingTo: traceFileURL)
+        let handle = try FileHandle(forWritingTo: fileURL)
         defer { try? handle.close() }
         try handle.seekToEnd()
         try handle.write(contentsOf: line)
-        return traceFileURL
+        return fileURL
     }
 
-    public func artifactsDirectory() -> URL {
-        let directory = baseDirectory.appendingPathComponent("artifacts").appendingPathComponent(sessionID)
-        try? FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        return directory
-    }
-
-    private static func resolveBaseDirectory(explicit: URL?) -> URL {
-        if let explicit {
-            return explicit
-        }
+    public static func traceRootDirectory() -> URL {
         if let override = ProcessInfo.processInfo.environment["GHOST_OS_TRACE_DIR"], !override.isEmpty {
-            return URL(fileURLWithPath: NSString(string: override).expandingTildeInPath, isDirectory: true)
+            return URL(
+                fileURLWithPath: NSString(string: override).expandingTildeInPath,
+                isDirectory: true
+            )
         }
-        let path = NSString(string: "~/.ghost-os/logs/traces").expandingTildeInPath
-        return URL(fileURLWithPath: path, isDirectory: true)
+
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        return URL(fileURLWithPath: currentDirectory, isDirectory: true)
+            .appendingPathComponent(".traces", isDirectory: true)
+    }
+
+    public static func resolveSessionsDirectory() -> URL {
+        traceRootDirectory().appendingPathComponent("sessions", isDirectory: true)
     }
 }

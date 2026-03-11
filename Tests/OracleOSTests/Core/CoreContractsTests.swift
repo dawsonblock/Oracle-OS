@@ -136,34 +136,37 @@ struct CoreContractsTests {
 
     @Test("Trace event codable round trip")
     func traceEventRoundTrip() throws {
-        let intent = ActionIntent(
-            app: "Chrome",
-            name: "click",
-            action: "click Send",
-            query: "Send",
-            postconditions: [.elementAppeared("Message sent")]
-        )
         let result = ActionResult(
             success: true,
+            verified: true,
             message: nil,
             method: "ax-native",
             verificationStatus: .passed,
-            failureClass: nil
-        )
-        let verification = VerificationSummary(
-            status: .passed,
-            checks: [VerificationCheck(condition: .elementAppeared("Message sent"), passed: true, detail: nil)]
+            failureClass: nil,
+            elapsedMs: 123
         )
         let event = TraceEvent(
             sessionID: "session-1",
-            intent: intent,
-            result: result,
+            taskID: nil,
+            stepID: 1,
+            toolName: "ghost_click",
+            actionName: "click",
+            actionTarget: "Send",
+            actionText: nil,
+            selectedElementID: "send-button",
+            selectedElementLabel: "Send",
+            candidateScore: 0.99,
+            candidateReasons: ["exact label match", "source trust"],
             preObservationHash: "pre",
             postObservationHash: "post",
-            verification: verification,
-            elapsedMs: 123,
+            postcondition: "element_appeared:Message sent",
+            verified: result.verified,
+            success: result.success,
             failureClass: nil,
-            artifacts: nil
+            recoveryStrategy: nil,
+            elapsedMs: result.elapsedMs,
+            screenshotPath: nil,
+            notes: nil
         )
 
         let encoder = JSONEncoder()
@@ -175,7 +178,41 @@ struct CoreContractsTests {
         let decoded = try decoder.decode(TraceEvent.self, from: encoded)
 
         #expect(decoded.sessionID == event.sessionID)
-        #expect(decoded.intent.name == "click")
-        #expect(decoded.verification.status == VerificationStatus.passed)
+        #expect(decoded.actionName == "click")
+        #expect(decoded.selectedElementID == "send-button")
+        #expect(decoded.verified)
+        #expect(decoded.elapsedMs == 123)
+    }
+
+    @Test("ActionResult encodes verification and elapsed time")
+    func actionResultRoundTrip() throws {
+        let result = ActionResult(
+            success: true,
+            verified: true,
+            message: "Verified success",
+            method: "ax-native",
+            verificationStatus: .passed,
+            failureClass: nil,
+            elapsedMs: 42
+        )
+
+        let encoded = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(ActionResult.self, from: encoded)
+
+        #expect(decoded.verified)
+        #expect(decoded.elapsedMs == 42)
+        #expect(decoded.method == "ax-native")
+    }
+
+    @Test("TraceEvent compatibility initializer still works")
+    func traceEventCompatibilityInitializer() {
+        let event = TraceEvent(action: "click _Applications_", success: true, message: "compat")
+
+        #expect(event.sessionID == "compat")
+        #expect(event.stepID == 0)
+        #expect(event.actionName == "click _Applications_")
+        #expect(event.success)
+        #expect(event.verified)
+        #expect(event.notes == "compat")
     }
 }
