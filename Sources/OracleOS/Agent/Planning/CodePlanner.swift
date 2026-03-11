@@ -6,19 +6,31 @@ public final class CodePlanner: @unchecked Sendable {
     public let maxTestAttempts: Int
     private let repositoryIndexer: RepositoryIndexer
     private let architectureEngine: ArchitectureEngine
+    private let graphPlanner: GraphPlanner
+    private let workflowIndex: WorkflowIndex
+    private let workflowRetriever: WorkflowRetriever
+    private let workflowExecutor: WorkflowExecutor
 
     public init(
         maxPatchIterations: Int = 5,
         maxBuildAttempts: Int = 5,
         maxTestAttempts: Int = 5,
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
-        architectureEngine: ArchitectureEngine = ArchitectureEngine()
+        architectureEngine: ArchitectureEngine = ArchitectureEngine(),
+        graphPlanner: GraphPlanner = GraphPlanner(),
+        workflowIndex: WorkflowIndex = WorkflowIndex(),
+        workflowRetriever: WorkflowRetriever = WorkflowRetriever(),
+        workflowExecutor: WorkflowExecutor = WorkflowExecutor()
     ) {
         self.maxPatchIterations = maxPatchIterations
         self.maxBuildAttempts = maxBuildAttempts
         self.maxTestAttempts = maxTestAttempts
         self.repositoryIndexer = repositoryIndexer
         self.architectureEngine = architectureEngine
+        self.graphPlanner = graphPlanner
+        self.workflowIndex = workflowIndex
+        self.workflowRetriever = workflowRetriever
+        self.workflowExecutor = workflowExecutor
     }
 
     public func nextStep(
@@ -37,15 +49,26 @@ public final class CodePlanner: @unchecked Sendable {
             memoryStore: memoryStore
         )
         let projectMemoryRefs = projectMemoryRefs(taskContext: taskContext, snapshot: snapshot)
+        let projectMemoryContext = ProjectMemoryPlanningContext(refs: projectMemoryRefs)
         let architectureReview = architectureEngine.review(
             goalDescription: taskContext.goal.description,
             snapshot: snapshot,
             candidatePaths: candidatePaths
         )
 
+        if let workflowDecision = workflowDecision(
+            taskContext: taskContext,
+            worldState: worldState,
+            projectMemoryRefs: projectMemoryRefs
+        ) {
+            return workflowDecision
+        }
+
         if let graphDecision = graphDecision(
+            taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
+            memoryStore: memoryStore,
             projectMemoryRefs: projectMemoryRefs,
             architectureReview: architectureReview
         ) {
@@ -55,7 +78,9 @@ public final class CodePlanner: @unchecked Sendable {
         if let experimentSpec = experimentSpec(
             taskContext: taskContext,
             snapshot: snapshot,
-            architectureReview: architectureReview
+            architectureReview: architectureReview,
+            projectMemoryContext: projectMemoryContext,
+            candidatePaths: candidatePaths
         ) {
             let primaryPath = experimentSpec.candidates.first?.workspaceRelativePath
             return decision(
@@ -69,6 +94,7 @@ public final class CodePlanner: @unchecked Sendable {
                 notes: [
                     "parallel experiment fanout requested",
                     "candidate count \(experimentSpec.candidates.count)",
+                    projectMemoryContext.experimentBiasNote,
                 ]
             )
         }
@@ -132,14 +158,17 @@ public final class CodePlanner: @unchecked Sendable {
         if description.contains("fix") || description.contains("patch") || description.contains("refactor") {
             let preferredPath = candidatePaths.first
             let note = preferredPath.map { "memory/query-biased target \($0)" } ?? "code exploration fallback"
-            let skillName = preferredPath == nil ? "search_code" : "edit_file"
+            let constrainedRefactor = description.contains("refactor")
+                && architectureReview.triggered
+                && projectMemoryContext.hasArchitectureDecisions
+            let skillName = constrainedRefactor ? "search_code" : (preferredPath == nil ? "search_code" : "edit_file")
             return decision(
                 for: skillName,
                 snapshot: snapshot,
                 workspaceRelativePath: preferredPath,
                 projectMemoryRefs: projectMemoryRefs,
                 architectureReview: architectureReview,
-                notes: [note]
+                notes: [note, projectMemoryContext.planningBiasNote]
             )
         }
 
@@ -153,21 +182,29 @@ public final class CodePlanner: @unchecked Sendable {
     }
 
     private func graphDecision(
+        taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
+        memoryStore: AppMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
         architectureReview: ArchitectureReview
     ) -> PlannerDecision? {
-        let edges = graphStore.outgoingStableEdges(from: worldState.planningState.id)
-            .filter { $0.agentKind == .code }
-            .sorted { lhs, rhs in
-                if lhs.cost == rhs.cost {
-                    return lhs.confidence > rhs.confidence
-                }
-                return lhs.cost < rhs.cost
-            }
-
-        guard let edge = edges.first,
+        let graphGoal = Goal(
+            description: taskContext.goal.description,
+            targetApp: taskContext.goal.targetApp,
+            targetDomain: taskContext.goal.targetDomain,
+            targetTaskPhase: taskContext.goal.targetTaskPhase,
+            workspaceRoot: taskContext.goal.workspaceRoot,
+            preferredAgentKind: .code
+        )
+        guard let searchResult = graphPlanner.search(
+            from: worldState.planningState,
+            goal: graphGoal,
+            graphStore: graphStore,
+            memoryStore: memoryStore,
+            worldState: worldState
+        ),
+              let edge = searchResult.edges.first,
               let contract = graphStore.actionContract(for: edge.actionContractID)
         else {
             return nil
@@ -180,12 +217,34 @@ public final class CodePlanner: @unchecked Sendable {
             executionMode: .direct,
             actionContract: contract,
             source: .stableGraph,
-            pathEdgeIDs: [edge.edgeID],
+            pathEdgeIDs: searchResult.edges.map(\.edgeID),
             currentEdgeID: edge.edgeID,
             projectMemoryRefs: projectMemoryRefs,
             architectureFindings: architectureReview.findings,
             refactorProposalID: architectureReview.refactorProposal?.id,
-            notes: ["graph-backed engineering action"]
+            notes: [
+                searchResult.reachedGoal ? "graph path reaches engineering goal" : "graph-backed engineering path",
+            ]
+        )
+    }
+
+    private func workflowDecision(
+        taskContext: TaskContext,
+        worldState: WorldState,
+        projectMemoryRefs: [ProjectMemoryRef]
+    ) -> PlannerDecision? {
+        guard let workflowMatch = workflowRetriever.retrieve(
+            goal: taskContext.goal,
+            taskContext: taskContext,
+            worldState: worldState,
+            workflowIndex: workflowIndex
+        ) else {
+            return nil
+        }
+        return workflowExecutor.nextDecision(
+            match: workflowMatch,
+            plannerFamily: .code,
+            sourceNotes: projectMemoryRefs.isEmpty ? [] : ["project memory informed workflow retrieval"]
         )
     }
 
@@ -284,16 +343,20 @@ public final class CodePlanner: @unchecked Sendable {
     private func experimentSpec(
         taskContext: TaskContext,
         snapshot: RepositorySnapshot,
-        architectureReview: ArchitectureReview
+        architectureReview: ArchitectureReview,
+        projectMemoryContext: ProjectMemoryPlanningContext,
+        candidatePaths: [String]
     ) -> ExperimentSpec? {
         guard !taskContext.experimentCandidates.isEmpty else {
             return nil
         }
 
         let shouldFanOut = architectureReview.triggered
+            || projectMemoryContext.shouldEscalateToExperiment
             || taskContext.goal.description.lowercased().contains("experiment")
             || taskContext.goal.description.lowercased().contains("compare")
             || taskContext.goal.description.lowercased().contains("fix")
+            || candidatePaths.count > 1
 
         guard shouldFanOut,
               let workspaceRoot = taskContext.workspaceRoot
@@ -344,5 +407,49 @@ public final class CodePlanner: @unchecked Sendable {
         default:
             nil
         }
+    }
+}
+
+private struct ProjectMemoryPlanningContext {
+    let refs: [ProjectMemoryRef]
+
+    var hasRejectedApproaches: Bool {
+        refs.contains(where: { $0.kind == .rejectedApproach })
+    }
+
+    var hasKnownGoodPatterns: Bool {
+        refs.contains(where: { $0.kind == .knownGoodPattern })
+    }
+
+    var hasOpenProblems: Bool {
+        refs.contains(where: { $0.kind == .openProblem })
+    }
+
+    var hasArchitectureDecisions: Bool {
+        refs.contains(where: { $0.kind == .architectureDecision })
+    }
+
+    var shouldEscalateToExperiment: Bool {
+        hasRejectedApproaches || hasOpenProblems
+    }
+
+    var experimentBiasNote: String {
+        if hasRejectedApproaches {
+            return "rejected approaches bias toward experiment fanout"
+        }
+        if hasOpenProblems {
+            return "open problems bias toward experiment fanout"
+        }
+        return "experiments available"
+    }
+
+    var planningBiasNote: String {
+        if hasKnownGoodPatterns {
+            return "known-good patterns increased direct repair preference"
+        }
+        if hasArchitectureDecisions {
+            return "architecture decisions constrained repair path"
+        }
+        return "project memory context available"
     }
 }

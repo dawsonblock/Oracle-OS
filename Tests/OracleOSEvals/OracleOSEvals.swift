@@ -41,8 +41,8 @@ struct OracleOSEvals {
     func codeRepairEval() async {
         let metrics = await EvalRunner.run(task: makeCodeRepairTask())
         #expect(metrics.successRate == 1)
-        #expect(metrics.averageSteps >= 3)
-        #expect(metrics.graphReuseRatio >= 0.33)
+        #expect(metrics.averageSteps >= 1)
+        #expect(metrics.patchSelectionSuccessRate == 1)
     }
 
     @Test("Hybrid eval formalizes OS handoff into code execution")
@@ -50,6 +50,7 @@ struct OracleOSEvals {
         let metrics = await EvalRunner.run(task: makeHybridRepoTask())
         #expect(metrics.successRate == 1)
         #expect(metrics.averageSteps >= 2)
+        #expect(metrics.patchSelectionSuccessRate == 1)
     }
 
     private func makeFinderRenameTask() -> EvalTask {
@@ -257,41 +258,155 @@ struct OracleOSEvals {
     }
 
     private func makeOSRecoveryTask() -> EvalTask {
-        EvalTask(name: "os-recovery", runs: 3) { index in
-            let outcome = LoopOutcome(
-                reason: .goalAchieved,
-                finalWorldState: nil,
-                steps: 2 + index,
-                recoveries: 1,
-                lastFailure: nil
+        EvalTask(name: "os-recovery", runs: 3) { _ in
+            let ambiguous = Observation(
+                app: "Finder",
+                windowTitle: "Finder",
+                url: nil,
+                focusedElementID: "rename-primary",
+                elements: [
+                    UnifiedElement(id: "rename-primary", source: .ax, role: "AXButton", label: "Rename", focused: true, confidence: 0.95),
+                    UnifiedElement(id: "rename-secondary", source: .ax, role: "AXButton", label: "Rename", confidence: 0.94),
+                ]
             )
-            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index > 0)
+            let resolved = Observation(
+                app: "Finder",
+                windowTitle: "Finder",
+                url: nil,
+                focusedElementID: "save",
+                elements: [
+                    UnifiedElement(id: "save", source: .ax, role: "AXButton", label: "Save", focused: true, confidence: 0.97),
+                ]
+            )
+            let loop = AgentLoop(
+                observationProvider: EvalObservationProvider([ambiguous, resolved]),
+                executionDriver: EvalExecutionDriver { _, decision, _ in
+                    EvalExecutionDriver.recordedSources.append(decision.source)
+                    return ToolResult(success: true, data: [
+                        "action_result": ActionResult(success: true, verified: true).toDict(),
+                    ])
+                },
+                planner: Planner(),
+                graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+                policyEngine: PolicyEngine(mode: .confirmRisky),
+                recoveryEngine: RecoveryEngine(),
+                memoryStore: AppMemoryStore()
+            )
+            EvalExecutionDriver.recordedSources = []
+            let outcome = await loop.run(
+                goal: Goal(
+                    description: "rename file in finder",
+                    targetApp: "Finder",
+                    targetTaskPhase: "save"
+                )
+            )
+            return EvalRunSnapshot(
+                outcome: outcome,
+                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph)
+            )
         }
     }
 
     private func makeCodeRepairTask() -> EvalTask {
-        EvalTask(name: "code-repair", runs: 3) { index in
-            let outcome = LoopOutcome(
-                reason: .goalAchieved,
-                finalWorldState: nil,
-                steps: 3 + index,
-                recoveries: index == 0 ? 1 : 0,
-                lastFailure: nil
+        EvalTask(name: "code-repair", runs: 1) { _ in
+            let workspace = try! makeBrokenSwiftWorkspace()
+            let provider = EvalObservationProvider([
+                Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+                Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            ])
+            let driver = EvalExecutionDriver { intent, decision, _ in
+                EvalExecutionDriver.recordedSources.append(decision.source)
+                EvalExecutionDriver.selectedExperimentReplay = EvalExecutionDriver.selectedExperimentReplay || (decision.selectedExperimentCandidate == true)
+                if intent.agentKind == .code,
+                   let root = intent.workspaceRoot,
+                   let relativePath = intent.workspaceRelativePath,
+                   let text = intent.text
+                {
+                    let fileURL = URL(fileURLWithPath: root, isDirectory: true).appendingPathComponent(relativePath)
+                    try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? text.write(to: fileURL, atomically: true, encoding: .utf8)
+                }
+                return ToolResult(success: true, data: [
+                    "action_result": ActionResult(success: true, verified: true).toDict(),
+                ])
+            }
+            EvalExecutionDriver.recordedSources = []
+            EvalExecutionDriver.selectedExperimentReplay = false
+            let loop = AgentLoop(
+                observationProvider: provider,
+                executionDriver: driver,
+                planner: Planner(),
+                graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+                policyEngine: PolicyEngine(mode: .confirmRisky),
+                recoveryEngine: RecoveryEngine(),
+                memoryStore: AppMemoryStore()
             )
-            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index > 0)
+            let outcome = await loop.run(
+                goal: Goal(
+                    description: "fix failing swift build",
+                    targetTaskPhase: "code-clean",
+                    workspaceRoot: workspace.root.path,
+                    preferredAgentKind: .code,
+                    experimentCandidates: workspace.candidates
+                )
+            )
+            return EvalRunSnapshot(
+                outcome: outcome,
+                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
+                patchSelectionSucceeded: EvalExecutionDriver.selectedExperimentReplay
+            )
         }
     }
 
     private func makeHybridRepoTask() -> EvalTask {
-        EvalTask(name: "hybrid-repo", runs: 3) { index in
-            let outcome = LoopOutcome(
-                reason: .goalAchieved,
-                finalWorldState: nil,
-                steps: 2 + index,
-                recoveries: 0,
-                lastFailure: nil
+        EvalTask(name: "hybrid-repo", runs: 1) { _ in
+            let workspace = try! makeBrokenSwiftWorkspace()
+            let provider = EvalObservationProvider([
+                Observation(app: "Notes", windowTitle: "Notes", url: nil, focusedElementID: nil, elements: []),
+                Observation(app: "Finder", windowTitle: "Finder", url: nil, focusedElementID: nil, elements: []),
+                Observation(app: "Finder", windowTitle: "Finder", url: nil, focusedElementID: nil, elements: []),
+            ])
+            let driver = EvalExecutionDriver { intent, decision, _ in
+                EvalExecutionDriver.recordedSources.append(decision.source)
+                EvalExecutionDriver.selectedExperimentReplay = EvalExecutionDriver.selectedExperimentReplay || (decision.selectedExperimentCandidate == true)
+                if intent.agentKind == .code,
+                   let root = intent.workspaceRoot,
+                   let relativePath = intent.workspaceRelativePath,
+                   let text = intent.text
+                {
+                    let fileURL = URL(fileURLWithPath: root, isDirectory: true).appendingPathComponent(relativePath)
+                    try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? text.write(to: fileURL, atomically: true, encoding: .utf8)
+                }
+                return ToolResult(success: true, data: [
+                    "action_result": ActionResult(success: true, verified: true).toDict(),
+                ])
+            }
+            EvalExecutionDriver.recordedSources = []
+            EvalExecutionDriver.selectedExperimentReplay = false
+            let loop = AgentLoop(
+                observationProvider: provider,
+                executionDriver: driver,
+                planner: Planner(),
+                graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+                policyEngine: PolicyEngine(mode: .confirmRisky),
+                recoveryEngine: RecoveryEngine(),
+                memoryStore: AppMemoryStore()
             )
-            return EvalRunSnapshot(outcome: outcome, usedStableGraph: index == 2)
+            let outcome = await loop.run(
+                goal: Goal(
+                    description: "open repo in finder then fix failing swift build",
+                    targetTaskPhase: "code-clean",
+                    workspaceRoot: workspace.root.path,
+                    preferredAgentKind: .mixed,
+                    experimentCandidates: workspace.candidates
+                )
+            )
+            return EvalRunSnapshot(
+                outcome: outcome,
+                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
+                patchSelectionSucceeded: EvalExecutionDriver.selectedExperimentReplay
+            )
         }
     }
 
@@ -323,6 +438,7 @@ private final class EvalObservationProvider: ObservationProvider {
 @MainActor
 private final class EvalExecutionDriver: AgentExecutionDriver {
     static var recordedSources: [PlannerSource] = []
+    static var selectedExperimentReplay = false
 
     private let handler: (ActionIntent, PlannerDecision, ElementCandidate?) -> ToolResult
 
@@ -336,5 +452,122 @@ private final class EvalExecutionDriver: AgentExecutionDriver {
         selectedCandidate: ElementCandidate?
     ) -> ToolResult {
         handler(intent, plannerDecision, selectedCandidate)
+    }
+}
+
+private struct BrokenSwiftWorkspace {
+    let root: URL
+    let candidates: [CandidatePatch]
+}
+
+private func makeBrokenSwiftWorkspace() throws -> BrokenSwiftWorkspace {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let sources = root.appendingPathComponent("Sources/Example", isDirectory: true)
+    let tests = root.appendingPathComponent("Tests/ExampleTests", isDirectory: true)
+    try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+
+    let package = """
+    // swift-tools-version: 6.2
+    import PackageDescription
+
+    let package = Package(
+        name: "Example",
+        products: [
+            .library(name: "Example", targets: ["Example"]),
+        ],
+        targets: [
+            .target(name: "Example"),
+            .testTarget(name: "ExampleTests", dependencies: ["Example"]),
+        ]
+    )
+    """
+
+    let goodSource = """
+    public struct Calculator {
+        public static func double(_ value: Int) -> Int {
+            value * 2
+        }
+    }
+    """
+
+    let brokenSource = """
+    public struct Calculator {
+        public static func double(_ value: Int) -> Int {
+            value *
+        }
+    }
+    """
+
+    let failingTestSource = """
+    public struct Calculator {
+        public static func double(_ value: Int) -> Int {
+            value * 3
+        }
+    }
+    """
+
+    let testSource = """
+    import Testing
+    @testable import Example
+
+    @Test func doublesInput() {
+        #expect(Calculator.double(2) == 4)
+    }
+    """
+    let gitignore = """
+    .oracle/
+    """
+
+    try package.write(to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+    try gitignore.write(to: root.appendingPathComponent(".gitignore"), atomically: true, encoding: .utf8)
+    try goodSource.write(to: sources.appendingPathComponent("Calculator.swift"), atomically: true, encoding: .utf8)
+    try testSource.write(to: tests.appendingPathComponent("CalculatorTests.swift"), atomically: true, encoding: .utf8)
+
+    try runProcess(["git", "init"], cwd: root)
+    try runProcess(["git", "config", "user.email", "eval@example.com"], cwd: root)
+    try runProcess(["git", "config", "user.name", "Eval Runner"], cwd: root)
+    try runProcess(["git", "add", "."], cwd: root)
+    try runProcess(["git", "commit", "-m", "baseline"], cwd: root)
+
+    try brokenSource.write(to: sources.appendingPathComponent("Calculator.swift"), atomically: true, encoding: .utf8)
+
+    return BrokenSwiftWorkspace(
+        root: root,
+        candidates: [
+            CandidatePatch(
+                title: "Restore valid calculator implementation",
+                summary: "Restore the known-good implementation so build and tests pass.",
+                workspaceRelativePath: "Sources/Example/Calculator.swift",
+                content: goodSource,
+                hypothesis: "Revert the broken edit."
+            ),
+            CandidatePatch(
+                title: "Replace build failure with test failure",
+                summary: "Compiles but keeps the task failing under tests.",
+                workspaceRelativePath: "Sources/Example/Calculator.swift",
+                content: failingTestSource,
+                hypothesis: "Compile first, then inspect test failure."
+            ),
+        ]
+    )
+}
+
+private func runProcess(_ arguments: [String], cwd: URL) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = arguments
+    process.currentDirectoryURL = cwd
+    let stdout = Pipe()
+    let stderr = Pipe()
+    process.standardOutput = stdout
+    process.standardError = stderr
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "process failed"
+        throw NSError(domain: "OracleOSEvals", code: Int(process.terminationStatus), userInfo: [
+            NSLocalizedDescriptionKey: message,
+        ])
     }
 }

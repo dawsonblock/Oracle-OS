@@ -27,10 +27,7 @@ public final class ApprovalStore: @unchecked Sendable {
     }
 
     public convenience init() {
-        self.init(rootDirectory: URL(
-            fileURLWithPath: NSString(string: GhostConstants.approvalsDirectory).expandingTildeInPath,
-            isDirectory: true
-        ))
+        self.init(rootDirectory: OracleProductPaths.approvalsDirectory)
     }
 
     public func isActive() -> Bool {

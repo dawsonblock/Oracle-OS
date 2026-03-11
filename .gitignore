@@ -8,6 +8,8 @@
 *.xcworkspace/
 !OracleController.xcworkspace/
 !OracleController.xcworkspace/**
+!OracleController.xcodeproj/
+!OracleController.xcodeproj/**
 DerivedData/
 *.o
 *.dylib
@@ -33,3 +35,4 @@ test.log
 ghost-os-*.tar.gz
 local/
 .oracle-graph/
+dist/

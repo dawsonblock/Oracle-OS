@@ -42,23 +42,27 @@ public final class ProjectMemoryIndexer: @unchecked Sendable {
         sqlite3_close(db)
     }
 
-    public func rebuild(from rootURL: URL) {
+    public func rebuild(from rootURLs: [URL]) {
         try? execute("DELETE FROM project_memory_records;")
 
         let fileManager = FileManager.default
-        guard let enumerator = fileManager.enumerator(
-            at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return
-        }
-
-        for case let fileURL as URL in enumerator where fileURL.pathExtension == "md" {
-            guard let record = Self.parseRecord(fileURL: fileURL) else {
+        for rootURL in rootURLs {
+            guard fileManager.fileExists(atPath: rootURL.path),
+                  let enumerator = fileManager.enumerator(
+                      at: rootURL,
+                      includingPropertiesForKeys: [.isRegularFileKey],
+                      options: [.skipsHiddenFiles]
+                  )
+            else {
                 continue
             }
-            upsert(record)
+
+            for case let fileURL as URL in enumerator where fileURL.pathExtension == "md" {
+                guard let record = Self.parseRecord(fileURL: fileURL) else {
+                    continue
+                }
+                upsert(record)
+            }
         }
     }
 

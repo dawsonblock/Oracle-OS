@@ -37,29 +37,19 @@ public struct RuntimeConfig: Sendable {
     }
 
     public static func live(policyMode: PolicyMode? = nil) -> RuntimeConfig {
-        RuntimeConfig(
+        try? OracleProductPaths.ensureUserDirectories()
+
+        return RuntimeConfig(
             policyMode: policyMode ?? PolicyEngine.defaultMode(),
             approvalRequiredSurfaces: [.controller, .mcp, .cli, .recipe],
             blockedApplications: ["Terminal", "iTerm", "Hyper", "System Settings", "Keychain Access"],
             protectedOperations: Set(ProtectedOperation.allCases),
             traceDirectory: TraceStore.traceRootDirectory(),
-            recipesDirectory: URL(
-                fileURLWithPath: NSString(string: GhostConstants.recipesDirectory).expandingTildeInPath,
-                isDirectory: true
-            ),
+            recipesDirectory: OracleProductPaths.recipesDirectory,
             controllerApprovalRequiredForRiskyActions: true,
-            approvalsDirectory: URL(
-                fileURLWithPath: NSString(string: GhostConstants.approvalsDirectory).expandingTildeInPath,
-                isDirectory: true
-            ),
-            projectMemoryDirectory: URL(
-                fileURLWithPath: FileManager.default.currentDirectoryPath,
-                isDirectory: true
-            ).appendingPathComponent("ProjectMemory", isDirectory: true),
-            experimentsDirectory: URL(
-                fileURLWithPath: FileManager.default.currentDirectoryPath,
-                isDirectory: true
-            ).appendingPathComponent(".oracle/experiments", isDirectory: true)
+            approvalsDirectory: OracleProductPaths.approvalsDirectory,
+            projectMemoryDirectory: OracleProductPaths.projectMemoryDirectory,
+            experimentsDirectory: OracleProductPaths.experimentsDirectory
         )
     }
 }

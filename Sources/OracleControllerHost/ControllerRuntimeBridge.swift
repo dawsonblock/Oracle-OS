@@ -74,12 +74,24 @@ final class ControllerRuntimeBridge {
             visionSidecarRunning: VisionBridge.isAvailable(),
             visionSidecarVersion: health?["version"] as? String,
             visionModelPath: VisionBridge.findModelPath(),
-            recipeDirectoryPath: NSString(string: GhostConstants.recipesDirectory).expandingTildeInPath,
+            recipeDirectoryPath: OracleProductPaths.recipesDirectory.path,
             recipeCount: RecipeStore.listRecipes().count,
             traceDirectoryPath: TraceStore.traceRootDirectory().path,
+            applicationSupportPath: OracleProductPaths.dataRootDirectory.path,
+            approvalsDirectoryPath: OracleProductPaths.approvalsDirectory.path,
+            projectMemoryDirectoryPath: OracleProductPaths.projectMemoryDirectory.path,
+            experimentsDirectoryPath: OracleProductPaths.experimentsDirectory.path,
+            logsDirectoryPath: OracleProductPaths.logsDirectory.path,
+            graphDatabasePath: OracleProductPaths.graphDatabaseURL.path,
             approvalBrokerActive: runtimeContext.approvalStore.isActive(),
             controllerConnected: runtimeLifecycle.controllerConnected(),
-            policyMode: runtimeContext.config.policyMode.rawValue
+            policyMode: runtimeContext.config.policyMode.rawValue,
+            runningFromAppBundle: OracleProductPaths.runningFromAppBundle,
+            bundledHostAvailable: OracleProductPaths.runningFromAppBundle,
+            bundledVisionBootstrapAvailable: OracleProductPaths.bundledVisionBootstrapDirectory != nil,
+            visionInstallPath: OracleProductPaths.visionInstallDirectory.path,
+            buildVersion: OracleProductPaths.buildVersion,
+            buildNumber: OracleProductPaths.buildNumber
         )
     }
 

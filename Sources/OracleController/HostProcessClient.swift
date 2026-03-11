@@ -1,5 +1,6 @@
 import Foundation
 import OracleControllerShared
+import OracleOS
 
 enum HostClientError: LocalizedError {
     case hostBinaryNotFound
@@ -10,7 +11,7 @@ enum HostClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .hostBinaryNotFound:
-            return "OracleControllerHost could not be found. Build the host target first or set ORACLE_CONTROLLER_HOST_PATH."
+            return "OracleControllerHost could not be found. Install the bundled app helper or set ORACLE_CONTROLLER_HOST_PATH for development."
         case .hostPipeUnavailable:
             return "OracleControllerHost pipes are unavailable."
         case .hostExited:
@@ -91,7 +92,9 @@ actor HostProcessClient {
 
         let process = Process()
         process.executableURL = hostURL
-        process.currentDirectoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        process.currentDirectoryURL = OracleProductPaths.runningFromAppBundle
+            ? OracleProductPaths.dataRootDirectory
+            : URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = errorPipe
@@ -114,6 +117,12 @@ actor HostProcessClient {
             if fileManager.isExecutableFile(atPath: url.path) {
                 return url
             }
+        }
+
+        if let bundledHelperURL = OracleProductPaths.bundledHelperURL,
+           fileManager.isExecutableFile(atPath: bundledHelperURL.path)
+        {
+            return bundledHelperURL
         }
 
         let executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()

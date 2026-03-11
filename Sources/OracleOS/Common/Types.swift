@@ -149,8 +149,8 @@ public enum GhostConstants {
     public static let defaultTimeoutSeconds: TimeInterval = 30
     public static let defaultPollInterval: TimeInterval = 0.5
     public static let maxSearchDepth = 100
-    public static let recipesDirectory = "~/.ghost-os/recipes"
-    public static let logsDirectory = "~/.ghost-os/logs"
-    public static let approvalsDirectory = "~/.ghost-os/approvals"
-    public static let graphDirectory = "~/.ghost-os/graph"
+    public static var recipesDirectory: String { OracleProductPaths.recipesDirectory.path }
+    public static var logsDirectory: String { OracleProductPaths.logsDirectory.path }
+    public static var approvalsDirectory: String { OracleProductPaths.approvalsDirectory.path }
+    public static var graphDirectory: String { OracleProductPaths.graphDirectory.path }
 }

@@ -6,4 +6,5 @@ struct EvalMetrics {
     let recoveryRate: Double
     let graphReuseRatio: Double
     let ambiguityFailureCount: Int
+    let patchSelectionSuccessRate: Double
 }

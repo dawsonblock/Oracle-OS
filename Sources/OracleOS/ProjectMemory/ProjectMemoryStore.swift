@@ -4,6 +4,7 @@ public final class ProjectMemoryStore: @unchecked Sendable {
     public let projectRootURL: URL
     public let rootURL: URL
     public let databaseURL: URL
+    public let draftsURL: URL
     public let residueURL: URL
     private let indexer: ProjectMemoryIndexer
 
@@ -11,9 +12,10 @@ public final class ProjectMemoryStore: @unchecked Sendable {
         self.projectRootURL = projectRootURL
         self.rootURL = Self.rootURL(for: projectRootURL)
         self.databaseURL = Self.databaseURL(for: projectRootURL)
+        self.draftsURL = Self.draftsURL(for: projectRootURL)
         self.residueURL = Self.residueURL(for: projectRootURL)
         self.indexer = try ProjectMemoryIndexer(databaseURL: databaseURL)
-        try ensureStructure()
+        try ensureRuntimeStructure()
     }
 
     public static func rootURL(for projectRootURL: URL) -> URL {
@@ -32,6 +34,12 @@ public final class ProjectMemoryStore: @unchecked Sendable {
             .appendingPathComponent("project-memory-episode", isDirectory: true)
     }
 
+    public static func draftsURL(for projectRootURL: URL) -> URL {
+        projectRootURL
+            .appendingPathComponent(".oracle", isDirectory: true)
+            .appendingPathComponent("project-memory-drafts", isDirectory: true)
+    }
+
     public func ensureStructure() throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         for kind in ProjectMemoryKind.allCases where kind != .risk {
@@ -40,18 +48,22 @@ public final class ProjectMemoryStore: @unchecked Sendable {
                 withIntermediateDirectories: true
             )
         }
+    }
+
+    public func ensureRuntimeStructure() throws {
+        try FileManager.default.createDirectory(at: draftsURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: residueURL, withIntermediateDirectories: true)
     }
 
     public func syncIndex() {
-        indexer.rebuild(from: rootURL)
+        indexer.rebuild(from: [rootURL, draftsURL])
     }
 
     public func writeDraft(_ draft: ProjectMemoryDraft) throws -> ProjectMemoryRef {
-        try ensureStructure()
+        try ensureRuntimeStructure()
         let fileURL = draft.knowledgeClass == .episode
             ? residueFileURL(for: draft)
-            : fileURL(for: draft)
+            : draftFileURL(for: draft)
         let record = ProjectMemoryRecord(
             id: fileURL.deletingPathExtension().lastPathComponent,
             kind: draft.kind,
@@ -199,6 +211,18 @@ public final class ProjectMemoryStore: @unchecked Sendable {
             .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         return residueURL.appendingPathComponent("\(datePrefix)-\(slug).md", isDirectory: false)
+    }
+
+    private func draftFileURL(for draft: ProjectMemoryDraft) -> URL {
+        let datePrefix = ISO8601DateFormatter().string(from: draft.createdAt)
+            .replacingOccurrences(of: ":", with: "-")
+        let slug = draft.title
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        let directory = draftsURL.appendingPathComponent(draft.kind.directoryName, isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent("\(datePrefix)-\(slug).md", isDirectory: false)
     }
 
     private func renderMarkdown(for draft: ProjectMemoryDraft, id: String) -> String {

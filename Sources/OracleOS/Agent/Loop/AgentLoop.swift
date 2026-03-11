@@ -12,7 +12,8 @@ public final class AgentLoop {
     private let memoryStore: AppMemoryStore
     private let skillRegistry: SkillRegistry
     private let repositoryIndexer: RepositoryIndexer
-    private let experimentManager: ExperimentManager
+    private let projectMemoryCoordinator: LoopProjectMemoryCoordinator
+    private let experimentCoordinator: LoopExperimentCoordinator
 
     public init(
         observationProvider: any ObservationProvider,
@@ -37,7 +38,17 @@ public final class AgentLoop {
         self.memoryStore = memoryStore
         self.skillRegistry = skillRegistry
         self.repositoryIndexer = repositoryIndexer
-        self.experimentManager = experimentManager
+        self.projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+        self.experimentCoordinator = LoopExperimentCoordinator(
+            experimentManager: experimentManager,
+            executionDriver: executionDriver,
+            observationProvider: observationProvider,
+            stateAbstraction: stateAbstraction,
+            recoveryEngine: recoveryEngine,
+            memoryStore: memoryStore,
+            repositoryIndexer: repositoryIndexer,
+            projectMemoryCoordinator: LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+        )
     }
 
     @discardableResult
@@ -59,6 +70,7 @@ public final class AgentLoop {
         var patchIterations = 0
         var buildAttempts = 0
         var testAttempts = 0
+        var diagnostics = LoopDiagnostics.empty
 
         for step in 0..<budget.maxSteps {
             let worldState = captureWorldState(lastAction: lastAction, taskContext: taskContext)
@@ -69,7 +81,8 @@ public final class AgentLoop {
                     reason: .goalAchieved,
                     finalWorldState: worldState,
                     steps: step,
-                    recoveries: recoveries
+                    recoveries: recoveries,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -82,7 +95,8 @@ public final class AgentLoop {
                     reason: .noViablePlan,
                     finalWorldState: worldState,
                     steps: step,
-                    recoveries: recoveries
+                    recoveries: recoveries,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -93,7 +107,8 @@ public final class AgentLoop {
                         reason: .explorationBudgetExceeded,
                         finalWorldState: worldState,
                         steps: step,
-                        recoveries: recoveries
+                        recoveries: recoveries,
+                        diagnostics: diagnostics
                     )
                 }
             } else {
@@ -103,14 +118,15 @@ public final class AgentLoop {
             if decision.executionMode == .experiment,
                let experimentSpec = decision.experimentSpec
             {
-                let experimentOutcome = await handleExperimentDecision(
+                let experimentOutcome = await experimentCoordinator.handle(
                     decision: decision,
                     experimentSpec: experimentSpec,
                     taskContext: taskContext,
                     worldState: worldState,
                     recoveries: &recoveries,
                     step: step,
-                    budget: budget
+                    budget: budget,
+                    diagnostics: &diagnostics
                 )
                 if let experimentOutcome {
                     return experimentOutcome
@@ -128,7 +144,8 @@ public final class AgentLoop {
                     worldState: worldState,
                     recoveries: &recoveries,
                     step: step,
-                    budget: budget
+                    budget: budget,
+                    diagnostics: &diagnostics
                 ) {
                     return outcome
                 }
@@ -140,7 +157,8 @@ public final class AgentLoop {
                     worldState: worldState,
                     recoveries: &recoveries,
                     step: step,
-                    budget: budget
+                    budget: budget,
+                    diagnostics: &diagnostics
                 ) {
                     return outcome
                 }
@@ -151,7 +169,8 @@ public final class AgentLoop {
                     finalWorldState: worldState,
                     steps: step + 1,
                     recoveries: recoveries,
-                    lastFailure: .actionFailed
+                    lastFailure: .actionFailed,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -168,11 +187,24 @@ public final class AgentLoop {
                 )
             )
             if policyDecision.blockedByPolicy || policyDecision.requiresApproval {
+                diagnostics.append(
+                    LoopStepSummary(
+                        stepIndex: step,
+                        source: decision.source,
+                        skillName: decision.skillName,
+                        workflowID: decision.workflowID,
+                        experimentID: decision.experimentSpec?.id,
+                        success: false,
+                        failure: .actionFailed,
+                        notes: decision.notes + ["policy precheck blocked execution"]
+                    )
+                )
                 return LoopOutcome(
                     reason: .policyBlocked,
                     finalWorldState: worldState,
                     steps: step,
-                    recoveries: recoveries
+                    recoveries: recoveries,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -194,11 +226,24 @@ public final class AgentLoop {
                 testAttempts: testAttempts,
                 budget: budget
             ) {
+                diagnostics.append(
+                    LoopStepSummary(
+                        stepIndex: step,
+                        source: decision.source,
+                        skillName: decision.skillName,
+                        workflowID: decision.workflowID,
+                        experimentID: decision.experimentSpec?.id,
+                        success: false,
+                        failure: .patchApplyFailed,
+                        notes: decision.notes + ["code budget exceeded"]
+                    )
+                )
                 return LoopOutcome(
                     reason: .lowConfidenceRepeatedFailure,
                     finalWorldState: worldState,
                     steps: step + 1,
-                    recoveries: recoveries
+                    recoveries: recoveries,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -210,12 +255,23 @@ public final class AgentLoop {
                 )
 
             if actionResult.success {
-                maybeRecordKnownGoodPattern(
+                diagnostics.append(
+                    LoopStepSummary(
+                        stepIndex: step,
+                        source: decision.source,
+                        skillName: decision.skillName,
+                        workflowID: decision.workflowID,
+                        experimentID: decision.experimentSpec?.id,
+                        success: true,
+                        notes: decision.notes
+                    )
+                )
+                projectMemoryCoordinator.recordKnownGoodPattern(
                     decision: decision,
                     intent: prepared.intent,
                     taskContext: taskContext
                 )
-                maybeRecordArchitectureDecision(
+                projectMemoryCoordinator.recordArchitectureDecision(
                     decision: decision,
                     taskContext: taskContext
                 )
@@ -242,6 +298,18 @@ public final class AgentLoop {
                 state: afterWorldState,
                 store: memoryStore
             )
+            diagnostics.append(
+                LoopStepSummary(
+                    stepIndex: step,
+                    source: decision.source,
+                    skillName: decision.skillName,
+                    workflowID: decision.workflowID,
+                    experimentID: decision.experimentSpec?.id,
+                    success: false,
+                    failure: failure,
+                    notes: decision.notes
+                )
+            )
 
             if recoveries < budget.maxRecoveries {
                 let recoveryAttempt = await recoveryEngine.recover(
@@ -258,6 +326,16 @@ public final class AgentLoop {
                     )
                 )
                 if recoveryAttempt.result.success {
+                    diagnostics.append(
+                        LoopStepSummary(
+                            stepIndex: step,
+                            source: .recovery,
+                            skillName: recoveryAttempt.strategyName ?? "recovery",
+                            success: true,
+                            recoveryStrategy: recoveryAttempt.strategyName,
+                            notes: ["bounded recovery succeeded"]
+                        )
+                    )
                     continue
                 }
             }
@@ -267,9 +345,14 @@ public final class AgentLoop {
                 finalWorldState: worldState,
                 steps: step + 1,
                 recoveries: recoveries,
-                lastFailure: failure
+                lastFailure: failure,
+                diagnostics: diagnostics
             )
-            recordOpenProblemIfNeeded(outcome: outcome, taskContext: taskContext, decision: decision)
+            projectMemoryCoordinator.recordOpenProblem(
+                outcome: outcome,
+                taskContext: taskContext,
+                decision: decision
+            )
             return outcome
         }
 
@@ -277,9 +360,14 @@ public final class AgentLoop {
             reason: .maxSteps,
             finalWorldState: latestWorldState,
             steps: budget.maxSteps,
-            recoveries: recoveries
+            recoveries: recoveries,
+            diagnostics: diagnostics
         )
-        recordOpenProblemIfNeeded(outcome: outcome, taskContext: taskContext, decision: nil)
+        projectMemoryCoordinator.recordOpenProblem(
+            outcome: outcome,
+            taskContext: taskContext,
+            decision: nil
+        )
         return outcome
     }
 
@@ -315,40 +403,38 @@ public final class AgentLoop {
             )
         }
 
-        switch decision.actionContract.skillName {
-        case "click":
-            guard let clickSkill = skillRegistry.get("click") as? ClickSkill else {
-                throw SkillResolutionError.noCandidate("click skill unavailable")
-            }
+        if decision.actionContract.skillName == "focus" {
+            let app = decision.actionContract.targetLabel ?? state.observation.app ?? "unknown"
+            let intent = ActionIntent.focus(app: app)
+            return SkillResolution(intent: intent)
+        }
+
+        if let skill = skillRegistry.get(decision.skillName) {
             let query = decision.semanticQuery ?? ElementQuery(
                 text: decision.actionContract.targetLabel,
                 role: decision.actionContract.targetRole,
-                editable: false,
-                clickable: true,
+                editable: decision.skillName == "type" || decision.skillName == "fill_form",
+                clickable: decision.skillName == "click" || decision.skillName == "read_file",
                 visibleOnly: true,
                 app: state.observation.app
             )
-            return try clickSkill.resolve(
+            return try skill.resolve(
                 query: query,
                 state: state,
                 memoryStore: memoryStore
             )
-        case "focus":
-            let app = decision.actionContract.targetLabel ?? state.observation.app ?? "unknown"
-            let intent = ActionIntent.focus(app: app)
-            return SkillResolution(intent: intent)
-        default:
-            let intent = ActionIntent(
-                agentKind: decision.agentKind,
-                app: state.observation.app ?? decision.actionContract.targetLabel ?? "unknown",
-                name: decision.actionContract.skillName,
-                action: decision.actionContract.skillName,
-                query: decision.actionContract.targetLabel,
-                role: decision.actionContract.targetRole,
-                workspaceRelativePath: decision.actionContract.workspaceRelativePath
-            )
-            return SkillResolution(intent: intent, semanticQuery: decision.semanticQuery)
         }
+
+        let intent = ActionIntent(
+            agentKind: decision.agentKind,
+            app: state.observation.app ?? decision.actionContract.targetLabel ?? "unknown",
+            name: decision.actionContract.skillName,
+            action: decision.actionContract.skillName,
+            query: decision.actionContract.targetLabel,
+            role: decision.actionContract.targetRole,
+            workspaceRelativePath: decision.actionContract.workspaceRelativePath
+        )
+        return SkillResolution(intent: intent, semanticQuery: decision.semanticQuery)
     }
 
     private func repositorySnapshot(for taskContext: TaskContext) -> RepositorySnapshot? {
@@ -366,17 +452,21 @@ public final class AgentLoop {
         worldState: WorldState,
         recoveries: inout Int,
         step: Int,
-        budget: LoopBudget
+        budget: LoopBudget,
+        diagnostics: inout LoopDiagnostics
     ) async -> LoopOutcome? {
-        graphStore.recordFailure(
-            state: worldState.planningState,
-            actionContract: decision.actionContract,
-            failure: failure,
-            ambiguityScore: failure == .elementAmbiguous || failure == .ambiguousEditTarget ? 1 : 0,
-            recoveryTagged: decision.recoveryTagged
+        diagnostics.append(
+            LoopStepSummary(
+                stepIndex: step,
+                source: decision.source,
+                skillName: decision.skillName,
+                workflowID: decision.workflowID,
+                experimentID: decision.experimentSpec?.id,
+                success: false,
+                failure: failure,
+                notes: decision.notes + ["preparation failure"]
+            )
         )
-        _ = graphStore.promoteEligibleEdges()
-        _ = graphStore.pruneOrDemoteEdges()
         if recoveries < budget.maxRecoveries {
             let recoveryAttempt = await recoveryEngine.recover(
                 failure: failure,
@@ -392,6 +482,16 @@ public final class AgentLoop {
                 )
             )
             if recoveryAttempt.result.success {
+                diagnostics.append(
+                    LoopStepSummary(
+                        stepIndex: step,
+                        source: .recovery,
+                        skillName: recoveryAttempt.strategyName ?? "recovery",
+                        success: true,
+                        recoveryStrategy: recoveryAttempt.strategyName,
+                        notes: ["recovery succeeded after preparation failure"]
+                    )
+                )
                 return nil
             }
         }
@@ -401,7 +501,8 @@ public final class AgentLoop {
             finalWorldState: worldState,
             steps: step + 1,
             recoveries: recoveries,
-            lastFailure: failure
+            lastFailure: failure,
+            diagnostics: diagnostics
         )
     }
 
@@ -434,270 +535,4 @@ public final class AgentLoop {
             || testAttempts > budget.maxTestAttempts
     }
 
-    private func handleExperimentDecision(
-        decision: PlannerDecision,
-        experimentSpec: ExperimentSpec,
-        taskContext: TaskContext,
-        worldState: WorldState,
-        recoveries: inout Int,
-        step: Int,
-        budget: LoopBudget
-    ) async -> LoopOutcome? {
-        do {
-            let results = try await experimentManager.run(
-                spec: experimentSpec,
-                architectureRiskScore: decision.architectureFindings.map(\.riskScore).max() ?? 0
-            )
-            guard let selected = experimentManager.replaySelected(from: results) else {
-                writeRejectedApproachDraft(
-                    title: "Experiment fanout produced no viable winner",
-                    taskContext: taskContext,
-                    decision: decision,
-                    body: results.map { "\($0.candidate.title): \($0.commandResults.map(\.succeeded).allSatisfy { $0 })" }.joined(separator: "\n")
-                )
-                return LoopOutcome(
-                    reason: .lowConfidenceRepeatedFailure,
-                    finalWorldState: worldState,
-                    steps: step + 1,
-                    recoveries: recoveries,
-                    lastFailure: .patchApplyFailed
-                )
-            }
-
-            let replayCommand = CommandSpec(
-                category: .generatePatch,
-                executable: "/usr/bin/env",
-                arguments: [],
-                workspaceRoot: experimentSpec.workspaceRoot,
-                workspaceRelativePath: selected.workspaceRelativePath,
-                summary: "replay experiment candidate \(selected.title)"
-            )
-            let replayIntent = ActionIntent.code(
-                name: "Replay experiment candidate",
-                command: replayCommand,
-                workspaceRelativePath: selected.workspaceRelativePath,
-                text: selected.content
-            )
-            let replayContract = ActionContract(
-                id: [
-                    "code",
-                    "experiment-replay",
-                    selected.workspaceRelativePath,
-                    experimentSpec.id,
-                    selected.id,
-                ].joined(separator: "|"),
-                agentKind: .code,
-                skillName: "generate_patch",
-                targetRole: nil,
-                targetLabel: selected.title,
-                locatorStrategy: "experiment-replay",
-                workspaceRelativePath: selected.workspaceRelativePath,
-                commandCategory: CodeCommandCategory.generatePatch.rawValue,
-                plannerFamily: PlannerFamily.code.rawValue
-            )
-            let selectedResult = results.first(where: { $0.candidate.id == selected.id })
-            let replayDecision = PlannerDecision(
-                agentKind: .code,
-                skillName: "generate_patch",
-                plannerFamily: .code,
-                stepPhase: .engineering,
-                executionMode: .direct,
-                actionContract: replayContract,
-                source: .exploration,
-                projectMemoryRefs: decision.projectMemoryRefs,
-                architectureFindings: decision.architectureFindings,
-                refactorProposalID: decision.refactorProposalID,
-                experimentSpec: experimentSpec,
-                experimentCandidateID: selected.id,
-                experimentSandboxPath: selectedResult?.sandboxPath,
-                selectedExperimentCandidate: true,
-                experimentOutcome: selectedResult?.succeeded == true ? "selected-replay" : "selected-with-failures",
-                knowledgeTier: .candidate,
-                notes: decision.notes + ["replaying selected experiment candidate"]
-            )
-
-            let result = executionDriver.execute(
-                intent: replayIntent,
-                plannerDecision: replayDecision,
-                selectedCandidate: nil
-            )
-
-            if result.success {
-                maybeRecordArchitectureDecision(
-                    decision: replayDecision,
-                    taskContext: taskContext
-                )
-                return nil
-            }
-
-            if recoveries < budget.maxRecoveries {
-                let afterObservation = observationProvider.observe()
-                let afterWorldState = WorldState(
-                    observation: afterObservation,
-                    lastAction: replayIntent,
-                    repositorySnapshot: repositorySnapshot(for: taskContext),
-                    stateAbstraction: stateAbstraction
-                )
-                let recoveryAttempt = await recoveryEngine.recover(
-                    failure: .patchApplyFailed,
-                    state: afterWorldState,
-                    memoryStore: memoryStore
-                )
-                recoveries += 1
-                if recoveryAttempt.result.success {
-                    return nil
-                }
-            }
-
-            return LoopOutcome(
-                reason: .lowConfidenceRepeatedFailure,
-                finalWorldState: worldState,
-                steps: step + 1,
-                recoveries: recoveries,
-                lastFailure: .patchApplyFailed
-            )
-        } catch {
-            writeRejectedApproachDraft(
-                title: "Experiment execution failed",
-                taskContext: taskContext,
-                decision: decision,
-                body: error.localizedDescription
-            )
-            return LoopOutcome(
-                reason: .lowConfidenceRepeatedFailure,
-                finalWorldState: worldState,
-                steps: step + 1,
-                recoveries: recoveries,
-                lastFailure: .patchApplyFailed
-            )
-        }
-    }
-
-    private func recordOpenProblemIfNeeded(
-        outcome: LoopOutcome,
-        taskContext: TaskContext,
-        decision: PlannerDecision?
-    ) {
-        guard taskContext.agentKind == .code || taskContext.agentKind == .mixed else {
-            return
-        }
-        guard outcome.reason != .goalAchieved else {
-            return
-        }
-        do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeOpenProblemDraft(
-                title: taskContext.goal.description,
-                summary: "Loop ended with \(outcome.reason.rawValue)",
-                knowledgeClass: .reusable,
-                affectedModules: decision?.architectureFindings.flatMap(\.affectedModules) ?? [],
-                evidenceRefs: decision?.projectMemoryRefs.map(\.path) ?? [],
-                sourceTraceIDs: [],
-                body: """
-                Reason: \(outcome.reason.rawValue)
-                Last failure: \(outcome.lastFailure?.rawValue ?? "none")
-                Steps: \(outcome.steps)
-                Recoveries: \(outcome.recoveries)
-                """
-            )
-        } catch {
-            return
-        }
-    }
-
-    private func maybeRecordArchitectureDecision(
-        decision: PlannerDecision,
-        taskContext: TaskContext
-    ) {
-        guard !decision.architectureFindings.isEmpty,
-              let refactorProposalID = decision.refactorProposalID,
-              taskContext.agentKind == .code || taskContext.agentKind == .mixed
-        else {
-            return
-        }
-
-        do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeArchitectureDecisionDraft(
-                title: "Architecture review for \(taskContext.goal.description)",
-                summary: "High-impact change touched \(decision.architectureFindings.flatMap(\.affectedModules).count) module references",
-                knowledgeClass: .reusable,
-                affectedModules: Array(Set(decision.architectureFindings.flatMap(\.affectedModules))).sorted(),
-                evidenceRefs: decision.projectMemoryRefs.map(\.path),
-                sourceTraceIDs: [],
-                body: """
-                Refactor proposal id: \(refactorProposalID)
-
-                Findings:
-                \(decision.architectureFindings.map { "- \($0.title): \($0.summary)" }.joined(separator: "\n"))
-                """
-            )
-        } catch {
-            return
-        }
-    }
-
-    private func maybeRecordKnownGoodPattern(
-        decision: PlannerDecision,
-        intent: ActionIntent,
-        taskContext: TaskContext
-    ) {
-        guard intent.agentKind == .code,
-              let workspaceRoot = taskContext.workspaceRoot,
-              let commandCategory = intent.commandCategory,
-              memoryStore.commandBias(category: commandCategory, workspaceRoot: workspaceRoot) >= 0.1
-        else {
-            return
-        }
-
-        do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeKnownGoodPatternDraft(
-                title: "Reliable \(commandCategory) pattern",
-                summary: "Command \(commandCategory) has repeated successful verified reuse in this workspace.",
-                knowledgeClass: .reusable,
-                affectedModules: decision.architectureFindings.flatMap(\.affectedModules),
-                evidenceRefs: decision.projectMemoryRefs.map(\.path),
-                sourceTraceIDs: [],
-                body: """
-                Command category: \(commandCategory)
-                Workspace path: \(intent.workspaceRelativePath ?? "workspace-root")
-                """
-            )
-        } catch {
-            return
-        }
-    }
-
-    private func writeRejectedApproachDraft(
-        title: String,
-        taskContext: TaskContext,
-        decision: PlannerDecision,
-        body: String
-    ) {
-        guard taskContext.agentKind == .code || taskContext.agentKind == .mixed else {
-            return
-        }
-        do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeRejectedApproachDraft(
-                title: title,
-                summary: "Parallel experiment candidates did not produce a safe winner",
-                knowledgeClass: .reusable,
-                affectedModules: Array(Set(decision.architectureFindings.flatMap(\.affectedModules))).sorted(),
-                evidenceRefs: decision.projectMemoryRefs.map(\.path),
-                sourceTraceIDs: [],
-                body: body
-            )
-        } catch {
-            return
-        }
-    }
-
-    private func projectMemoryStore(for taskContext: TaskContext) throws -> ProjectMemoryStore {
-        guard let workspaceRoot = taskContext.workspaceRoot else {
-            throw NSError(domain: "AgentLoop", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing workspace root"])
-        }
-        return try ProjectMemoryStore(projectRootURL: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
-    }
 }

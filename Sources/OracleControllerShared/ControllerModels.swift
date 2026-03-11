@@ -399,9 +399,21 @@ public struct HealthStatus: Codable, Sendable, Equatable {
     public let recipeDirectoryPath: String
     public let recipeCount: Int
     public let traceDirectoryPath: String
+    public let applicationSupportPath: String
+    public let approvalsDirectoryPath: String
+    public let projectMemoryDirectoryPath: String
+    public let experimentsDirectoryPath: String
+    public let logsDirectoryPath: String
+    public let graphDatabasePath: String
     public let approvalBrokerActive: Bool
     public let controllerConnected: Bool
     public let policyMode: String
+    public let runningFromAppBundle: Bool
+    public let bundledHostAvailable: Bool
+    public let bundledVisionBootstrapAvailable: Bool
+    public let visionInstallPath: String
+    public let buildVersion: String
+    public let buildNumber: String
 
     public init(
         updatedAt: Date = Date(),
@@ -414,9 +426,21 @@ public struct HealthStatus: Codable, Sendable, Equatable {
         recipeDirectoryPath: String,
         recipeCount: Int,
         traceDirectoryPath: String,
+        applicationSupportPath: String,
+        approvalsDirectoryPath: String,
+        projectMemoryDirectoryPath: String,
+        experimentsDirectoryPath: String,
+        logsDirectoryPath: String,
+        graphDatabasePath: String,
         approvalBrokerActive: Bool,
         controllerConnected: Bool,
-        policyMode: String
+        policyMode: String,
+        runningFromAppBundle: Bool,
+        bundledHostAvailable: Bool,
+        bundledVisionBootstrapAvailable: Bool,
+        visionInstallPath: String,
+        buildVersion: String,
+        buildNumber: String
     ) {
         self.updatedAt = updatedAt
         self.runtimeVersion = runtimeVersion
@@ -428,9 +452,21 @@ public struct HealthStatus: Codable, Sendable, Equatable {
         self.recipeDirectoryPath = recipeDirectoryPath
         self.recipeCount = recipeCount
         self.traceDirectoryPath = traceDirectoryPath
+        self.applicationSupportPath = applicationSupportPath
+        self.approvalsDirectoryPath = approvalsDirectoryPath
+        self.projectMemoryDirectoryPath = projectMemoryDirectoryPath
+        self.experimentsDirectoryPath = experimentsDirectoryPath
+        self.logsDirectoryPath = logsDirectoryPath
+        self.graphDatabasePath = graphDatabasePath
         self.approvalBrokerActive = approvalBrokerActive
         self.controllerConnected = controllerConnected
         self.policyMode = policyMode
+        self.runningFromAppBundle = runningFromAppBundle
+        self.bundledHostAvailable = bundledHostAvailable
+        self.bundledVisionBootstrapAvailable = bundledVisionBootstrapAvailable
+        self.visionInstallPath = visionInstallPath
+        self.buildVersion = buildVersion
+        self.buildNumber = buildNumber
     }
 }
 

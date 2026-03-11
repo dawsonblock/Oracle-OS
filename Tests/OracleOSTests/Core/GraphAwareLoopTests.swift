@@ -540,6 +540,152 @@ struct GraphAwareLoopTests {
         #expect(graphStore.allStableEdges().isEmpty)
     }
 
+    @Test("Planner prefers workflow retrieval before stable graph reuse")
+    func plannerPrefersWorkflowBeforeStableGraph() {
+        let abstraction = StateAbstraction()
+        let inboxObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Inbox - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox",
+            focusedElementID: "compose",
+            elements: [
+                UnifiedElement(id: "compose", source: .ax, role: "AXButton", label: "Compose", focused: true, confidence: 0.98),
+            ]
+        )
+        let composeObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Compose - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+            focusedElementID: "body",
+            elements: [
+                UnifiedElement(id: "body", source: .ax, role: "AXTextArea", label: "Message Body", focused: true, confidence: 0.95),
+            ]
+        )
+        let fromState = abstraction.abstract(
+            observation: inboxObservation,
+            observationHash: ObservationHash.hash(inboxObservation)
+        )
+        let toState = abstraction.abstract(
+            observation: composeObservation,
+            observationHash: ObservationHash.hash(composeObservation)
+        )
+        let contract = ActionContract(
+            id: "click|AXButton|Compose|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose",
+            locatorStrategy: "query"
+        )
+        let store = GraphStore(databaseURL: makeTempGraphURL())
+        for _ in 0..<5 {
+            store.recordTransition(
+                transition(
+                    from: fromState.id,
+                    to: toState.id,
+                    actionContractID: contract.id,
+                    verified: true
+                ),
+                actionContract: contract,
+                fromState: fromState,
+                toState: toState
+            )
+        }
+        _ = store.promoteEligibleEdges()
+
+        let planner = Planner()
+        planner.workflowIndex.add(
+            WorkflowPlan(
+                agentKind: .os,
+                goalPattern: "open gmail compose",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .os,
+                        stepPhase: .operatingSystem,
+                        actionContract: contract,
+                        semanticQuery: ElementQuery(
+                            text: "Compose",
+                            role: "AXButton",
+                            clickable: true,
+                            visibleOnly: true,
+                            app: "Google Chrome"
+                        ),
+                        fromPlanningStateID: fromState.id.rawValue
+                    ),
+                ],
+                successRate: 0.95,
+                sourceTraceRefs: ["trace-1"],
+                sourceGraphEdgeRefs: ["edge-1"],
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+        planner.setGoal(
+            Goal(
+                description: "open gmail compose",
+                targetApp: "Google Chrome",
+                targetDomain: "mail.google.com",
+                targetTaskPhase: "compose"
+            )
+        )
+
+        let decision = planner.nextStep(
+            worldState: WorldState(observation: inboxObservation),
+            graphStore: store,
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(decision?.source == .workflow)
+        #expect(decision?.workflowID != nil)
+    }
+
+    @Test("Workflow promotion policy rejects experiment and recovery evidence")
+    func workflowPromotionPolicyRejectsUntrustedEvidence() {
+        let policy = WorkflowPromotionPolicy()
+        let contract = ActionContract(
+            id: "click|AXButton|Compose|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose",
+            locatorStrategy: "query"
+        )
+        let promoted = WorkflowPlan(
+            agentKind: .os,
+            goalPattern: "open gmail compose",
+            steps: [
+                WorkflowStep(
+                    agentKind: .os,
+                    stepPhase: .operatingSystem,
+                    actionContract: contract
+                ),
+            ],
+            successRate: 0.9,
+            evidenceTiers: [.candidate],
+            repeatedTraceSegmentCount: 3,
+            replayValidationSuccess: 0.9,
+            promotionStatus: .candidate
+        )
+        let experimental = WorkflowPlan(
+            agentKind: .os,
+            goalPattern: "open gmail compose",
+            steps: [
+                WorkflowStep(
+                    agentKind: .os,
+                    stepPhase: .operatingSystem,
+                    actionContract: contract
+                ),
+            ],
+            successRate: 0.95,
+            evidenceTiers: [.experiment],
+            repeatedTraceSegmentCount: 4,
+            replayValidationSuccess: 0.9,
+            promotionStatus: .candidate
+        )
+
+        #expect(policy.shouldPromote(promoted))
+        #expect(policy.shouldPromote(experimental) == false)
+    }
+
     private func transition(
         from: PlanningStateID,
         to: PlanningStateID,

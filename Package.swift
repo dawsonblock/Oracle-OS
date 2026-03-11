@@ -55,7 +55,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "OracleController",
-            dependencies: ["OracleControllerShared"],
+            dependencies: ["OracleControllerShared", "OracleOS"],
             path: "Sources/OracleController",
             swiftSettings: concurrencySettings,
             linkerSettings: [

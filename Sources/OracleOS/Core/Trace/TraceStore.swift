@@ -39,16 +39,7 @@ public final class TraceStore: @unchecked Sendable {
     }
 
     public static func traceRootDirectory() -> URL {
-        if let override = ProcessInfo.processInfo.environment["GHOST_OS_TRACE_DIR"], !override.isEmpty {
-            return URL(
-                fileURLWithPath: NSString(string: override).expandingTildeInPath,
-                isDirectory: true
-            )
-        }
-
-        let currentDirectory = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: currentDirectory, isDirectory: true)
-            .appendingPathComponent(".traces", isDirectory: true)
+        OracleProductPaths.tracesRootDirectory
     }
 
     public static func resolveSessionsDirectory() -> URL {
