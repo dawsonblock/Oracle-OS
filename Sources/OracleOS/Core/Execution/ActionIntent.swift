@@ -4,6 +4,7 @@ public struct ActionIntent: Sendable, Codable {
     public let name: String
     public let action: String
     public let query: String?
+    public let text: String?
     public let role: String?
     public let domID: String?
     public let x: Double?
@@ -14,13 +15,13 @@ public struct ActionIntent: Sendable, Codable {
 
     public var elementID: String? { domID }
     public var targetQuery: String? { query }
-    public var text: String? { query } // For compatibility with older code using 'text' instead of 'query'
 
     public init(
         app: String,
         name: String? = nil,
         action: String,
         query: String? = nil,
+        text: String? = nil,
         role: String? = nil,
         domID: String? = nil,
         x: Double? = nil,
@@ -33,6 +34,7 @@ public struct ActionIntent: Sendable, Codable {
         self.name = name ?? "\(action) \(query ?? "")"
         self.action = action
         self.query = query
+        self.text = text
         self.role = role
         self.domID = domID
         self.x = x
@@ -57,6 +59,7 @@ public struct ActionIntent: Sendable, Codable {
             name: "click \(query ?? domID ?? "")",
             action: "click",
             query: query,
+            text: nil,
             role: role,
             domID: domID,
             x: x,
@@ -80,6 +83,7 @@ public struct ActionIntent: Sendable, Codable {
             name: "type into \(into ?? domID ?? "")",
             action: "type",
             query: into,
+            text: text,
             domID: domID,
             postconditions: postconditions
         )
@@ -95,6 +99,7 @@ public struct ActionIntent: Sendable, Codable {
             name: "focus \(app)",
             action: "focus",
             query: windowTitle ?? app,
+            text: nil,
             postconditions: postconditions
         )
     }
@@ -110,6 +115,7 @@ public struct ActionIntent: Sendable, Codable {
             name: "press \(modifiers.map { $0.joined(separator: "+") + "+" } ?? "")\(key)",
             action: "press",
             query: key,
+            text: nil,
             role: modifiers?.joined(separator: "+"),
             postconditions: postconditions
         )
