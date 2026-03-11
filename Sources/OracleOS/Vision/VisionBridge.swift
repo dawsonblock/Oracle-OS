@@ -264,17 +264,15 @@ public enum VisionBridge {
 
     /// Find the ghost-vision launcher script/binary.
     private static func findGhostVisionBinary() -> String? {
-        let candidates = [
-            // Homebrew install
+        let executableDirectory = (ProcessInfo.processInfo.arguments[0] as NSString).deletingLastPathComponent
+        let candidates: [String] = [
+            OracleProductPaths.visionInstallDirectory.appendingPathComponent("ghost-vision", isDirectory: false).path,
+            OracleProductPaths.bundledVisionBootstrapDirectory?.appendingPathComponent("ghost-vision", isDirectory: false).path,
             "/opt/homebrew/bin/ghost-vision",
             "/usr/local/bin/ghost-vision",
-            // Same directory as the ghost binary
-            (ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent + "/ghost-vision",
-            // Development location
-            (ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent + "/../vision-sidecar/ghost-vision",
-        ]
+            executableDirectory + "/ghost-vision",
+            executableDirectory + "/../vision-sidecar/ghost-vision",
+        ].compactMap { $0 }
 
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
@@ -286,22 +284,17 @@ public enum VisionBridge {
 
     /// Find the server.py script in expected locations.
     private static func findServerScript() -> String? {
-        let candidates = [
-            // Homebrew install
+        let executableDirectory = (ProcessInfo.processInfo.arguments[0] as NSString).deletingLastPathComponent
+        let bundledVisionDirectory = OracleProductPaths.bundledVisionBootstrapDirectory
+        let candidates: [String] = [
+            OracleProductPaths.visionInstallDirectory.appendingPathComponent("server.py", isDirectory: false).path,
+            bundledVisionDirectory?.appendingPathComponent("server.py", isDirectory: false).path,
             "/opt/homebrew/share/ghost-os/vision-sidecar/server.py",
             "/usr/local/share/ghost-os/vision-sidecar/server.py",
-            // Next to the ghost binary (installed)
-            (ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent + "/vision-sidecar/server.py",
-            // Development: .build/debug/oracle -> project root/vision-sidecar/
-            ((ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent as NSString)
-                .deletingLastPathComponent + "/vision-sidecar/server.py",
-            (((ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent as NSString)
-                .deletingLastPathComponent as NSString)
-                .deletingLastPathComponent + "/vision-sidecar/server.py",
-        ]
+            executableDirectory + "/vision-sidecar/server.py",
+            (executableDirectory as NSString).deletingLastPathComponent + "/vision-sidecar/server.py",
+            ((executableDirectory as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent + "/vision-sidecar/server.py",
+        ].compactMap { $0 }
 
         for path in candidates {
             if FileManager.default.fileExists(atPath: path) {
@@ -315,9 +308,14 @@ public enum VisionBridge {
     /// Returns nil if no suitable Python is found.
     private static func findPython() -> String? {
         // Check venv first (most likely to have mlx_vlm)
-        let venvPython = NSHomeDirectory() + "/.ghost-os/venv/bin/python3"
-        if FileManager.default.isExecutableFile(atPath: venvPython) {
-            return venvPython
+        let candidates = [
+            OracleProductPaths.visionInstallDirectory
+                .appendingPathComponent(".venv/bin/python3", isDirectory: false)
+                .path,
+            NSHomeDirectory() + "/.ghost-os/venv/bin/python3",
+        ]
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
         }
 
         // Homebrew Python
@@ -336,6 +334,7 @@ public enum VisionBridge {
     /// Returns the path if found, nil otherwise.
     public static func findModelPath() -> String? {
         let candidates = [
+            OracleProductPaths.visionModelDirectory.path,
             "/opt/homebrew/share/ghost-os/models/ShowUI-2B",
             NSHomeDirectory() + "/.ghost-os/models/ShowUI-2B",
             NSHomeDirectory() + "/.shadow/models/llm/ShowUI-2B-bf16-8bit",

@@ -1,3 +1,4 @@
+import AppKit
 import Observation
 import SwiftUI
 
@@ -25,6 +26,12 @@ private struct ControllerCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Oracle Controller") {
+            Button("About Oracle Controller") {
+                store.showAboutPanel()
+            }
+
+            Divider()
+
             Button("Refresh Snapshot") {
                 Task { await store.refreshNow() }
             }
@@ -43,6 +50,21 @@ private struct ControllerCommands: Commands {
             sectionButton(.traces, shortcut: "3")
             sectionButton(.health, shortcut: "4")
             sectionButton(.settings, shortcut: ",")
+
+            Divider()
+
+            Button("Run Setup Wizard") {
+                store.reopenOnboarding()
+            }
+            Button("Reveal Data Folder") {
+                store.revealDataFolder()
+            }
+            Button("Export Diagnostics") {
+                store.exportDiagnostics()
+            }
+            Button("Open Help") {
+                store.openHelp()
+            }
         }
     }
 

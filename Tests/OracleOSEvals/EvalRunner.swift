@@ -8,6 +8,7 @@ enum EvalRunner {
         var recoveries = 0
         var graphReuseCount = 0
         var ambiguityFailures = 0
+        var patchSelections = 0
 
         for index in 0..<task.runs {
             let snapshot = await task.executeRun(index)
@@ -22,6 +23,9 @@ enum EvalRunner {
             if snapshot.outcome.lastFailure == .elementAmbiguous {
                 ambiguityFailures += 1
             }
+            if snapshot.patchSelectionSucceeded {
+                patchSelections += 1
+            }
         }
 
         return EvalMetrics(
@@ -29,7 +33,8 @@ enum EvalRunner {
             averageSteps: Double(totalSteps) / Double(max(task.runs, 1)),
             recoveryRate: Double(recoveries) / Double(max(task.runs, 1)),
             graphReuseRatio: Double(graphReuseCount) / Double(max(task.runs, 1)),
-            ambiguityFailureCount: ambiguityFailures
+            ambiguityFailureCount: ambiguityFailures,
+            patchSelectionSuccessRate: Double(patchSelections) / Double(max(task.runs, 1))
         )
     }
 }

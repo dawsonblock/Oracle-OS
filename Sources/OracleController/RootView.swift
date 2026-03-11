@@ -53,6 +53,11 @@ struct RootView: View {
                     .padding()
             }
         }
+        .overlay {
+            if store.showOnboarding {
+                OnboardingOverlayView(store: store)
+            }
+        }
         .alert(
             "Controller Error",
             isPresented: Binding(
@@ -131,6 +136,189 @@ struct RootView: View {
             HealthInspectorView(store: store)
         case .settings:
             SettingsInspectorView(store: store)
+        }
+    }
+}
+
+private struct OnboardingOverlayView: View {
+    @Bindable var store: ControllerStore
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.black.opacity(0.18))
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Oracle Controller Setup")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                        Text(store.onboardingStep.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("\(store.onboardingStep.rawValue + 1) / \(OnboardingStep.allCases.count)")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                content
+
+                Divider()
+
+                HStack {
+                    Button("Back") {
+                        store.retreatOnboarding()
+                    }
+                    .disabled(store.onboardingStep == .welcome)
+
+                    Spacer()
+
+                    if store.onboardingStep == .ready {
+                        Button("Finish") {
+                            store.completeOnboarding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button(store.onboardingStep == .vision ? "Skip for Now" : "Continue") {
+                            store.advanceOnboarding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+            .padding(28)
+            .frame(width: 760)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 24, y: 18)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch store.onboardingStep {
+        case .welcome:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Oracle Controller is the packaged local console for Oracle OS. It keeps the existing execution truth path intact while giving you a guided setup, approvals, traces, recipes, and diagnostics in one app.")
+                    .font(.system(size: 14))
+                onboardingFacts([
+                    "Runs local-only and supervised.",
+                    "Embeds the controller host inside the app bundle.",
+                    "Stores app data under Application Support instead of the repo.",
+                ])
+            }
+
+        case .accessibility:
+            permissionStep(
+                title: "Grant Accessibility",
+                detail: store.health?.permissions.first(where: { $0.id == "accessibility" })?.detail
+                    ?? "Oracle Controller needs Accessibility access to inspect and act on applications.",
+                granted: store.health?.permissions.first(where: { $0.id == "accessibility" })?.granted == true,
+                buttonTitle: "Open Accessibility Settings",
+                action: { store.openAccessibilitySettings() }
+            )
+
+        case .screenRecording:
+            permissionStep(
+                title: "Grant Screen Recording",
+                detail: store.health?.permissions.first(where: { $0.id == "screen-recording" })?.detail
+                    ?? "Screen Recording powers the live monitor and screenshot-backed diagnostics.",
+                granted: store.health?.permissions.first(where: { $0.id == "screen-recording" })?.granted == true,
+                buttonTitle: "Open Screen Recording Settings",
+                action: { store.openScreenRecordingSettings() }
+            )
+
+        case .runtime:
+            VStack(alignment: .leading, spacing: 12) {
+                onboardingFacts([
+                    "Runtime version: \(store.health?.runtimeVersion ?? "Unknown")",
+                    "Bundled host: \(store.productStatus?.bundledHelperAvailable == true ? "available" : "missing")",
+                    "App bundle mode: \(store.health?.runningFromAppBundle == true ? "enabled" : "development")",
+                    "Application Support: \(store.health?.applicationSupportPath ?? store.productStatus?.applicationSupportPath ?? "Unknown")",
+                ])
+
+                if let productStatus = store.productStatus, productStatus.migrationStatus.didMigrateAnything {
+                    Text("Imported existing controller data so the packaged app can pick up where the developer setup left off.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+        case .vision:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Vision is optional. Core Accessibility-based control works immediately once permissions are granted. You can install or repair the packaged vision bootstrap here and enable the sidecar later.")
+                    .font(.system(size: 14))
+                HStack(spacing: 10) {
+                    Button("Install Vision Bootstrap") {
+                        Task { await store.installVisionBootstrap() }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Repair Vision") {
+                        Task { await store.repairVisionBootstrap() }
+                    }
+                }
+                onboardingFacts([
+                    "Bundled assets: \(store.productStatus?.bundledVisionBootstrapAvailable == true ? "available" : "missing")",
+                    "Installed location: \(store.productStatus?.visionInstallPath ?? "Unknown")",
+                    "Installed now: \(store.productStatus?.visionInstalled == true ? "yes" : "no")",
+                ])
+            }
+
+        case .recipes:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("The app seeds bundled sample recipes into your personal data directory the first time it launches. Quick-start tasks are then available from the Recipes and Control sections.")
+                    .font(.system(size: 14))
+                onboardingFacts([
+                    "Bundled sample recipes: \(store.productStatus?.bundledSampleRecipesAvailable == true ? "available" : "missing")",
+                    "Seeded recipes: \(store.productStatus?.migrationStatus.seededSampleRecipes ?? 0)",
+                    "Recipe library path: \(store.health?.recipeDirectoryPath ?? store.productStatus?.recipesPath ?? "Unknown")",
+                ])
+            }
+
+        case .ready:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("The packaged controller is ready. You can start with the manual operator console, run a sample recipe, or stay in the health/settings sections until everything is green.")
+                    .font(.system(size: 14))
+                onboardingFacts([
+                    "Quick actions live on the Control page.",
+                    "Risky actions still require approval.",
+                    "You can reopen this setup flow from the Oracle Controller menu or Settings.",
+                ])
+            }
+        }
+    }
+
+    private func permissionStep(
+        title: String,
+        detail: String,
+        granted: Bool,
+        buttonTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                Spacer()
+                StatusBadge(label: granted ? "Granted" : "Required", tone: granted ? .good : .warning)
+            }
+            Text(detail)
+                .font(.system(size: 14))
+            Button(buttonTitle, action: action)
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func onboardingFacts(_ facts: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(facts, id: \.self) { fact in
+                Label(fact, systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(ControllerTheme.accent)
+            }
         }
     }
 }
@@ -238,41 +426,78 @@ private struct ControlWorkspaceView: View {
 
     private var controlStatusRow: some View {
         PanelCard("Operator Console", subtitle: "Supervised local runtime control") {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(store.snapshot?.observation.appName ?? "No app selected")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                    Text(store.snapshot?.observation.windowTitle ?? "No active window")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    if let url = store.snapshot?.observation.url {
-                        Text(url)
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(ControllerTheme.accent)
-                            .lineLimit(1)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(store.snapshot?.observation.appName ?? "No app selected")
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                        Text(store.snapshot?.observation.windowTitle ?? "No active window")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                        if let url = store.snapshot?.observation.url {
+                            Text(url)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(ControllerTheme.accent)
+                                .lineLimit(1)
+                        }
+                        if let productStatus = store.productStatus {
+                            Text("Build \(productStatus.buildVersion) (\(productStatus.buildNumber))")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 10) {
+                        HStack(spacing: 8) {
+                            StatusBadge(
+                                label: store.health?.visionSidecarRunning == true ? "Sidecar Ready" : "Sidecar Optional",
+                                tone: store.health?.visionSidecarRunning == true ? .good : .warning
+                            )
+                            StatusBadge(
+                                label: store.health?.approvalBrokerActive == true ? "Approval Broker" : "Approvals Offline",
+                                tone: store.health?.approvalBrokerActive == true ? .neutral : .warning
+                            )
+                            StatusBadge(
+                                label: store.autoRefreshEnabled ? "Monitoring" : "Paused",
+                                tone: store.autoRefreshEnabled ? .neutral : .warning
+                            )
+                        }
+                        if let permissions = store.health?.permissions {
+                            HStack(spacing: 8) {
+                                ForEach(permissions) { permission in
+                                    StatusBadge(
+                                        label: permission.granted ? permission.title : "\(permission.title) Required",
+                                        tone: permission.granted ? .good : .warning
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 10) {
-                    HStack(spacing: 8) {
-                        StatusBadge(
-                            label: store.health?.visionSidecarRunning == true ? "Sidecar Ready" : "Sidecar Down",
-                            tone: store.health?.visionSidecarRunning == true ? .good : .warning
-                        )
-                        StatusBadge(
-                            label: store.health?.approvalBrokerActive == true ? "Approval Broker" : "Approvals Offline",
-                            tone: store.health?.approvalBrokerActive == true ? .neutral : .warning
-                        )
-                        StatusBadge(
-                            label: store.autoRefreshEnabled ? "Monitoring" : "Paused",
-                            tone: store.autoRefreshEnabled ? .neutral : .warning
-                        )
+
+                HStack(spacing: 10) {
+                    Button("Run Setup Wizard") {
+                        store.reopenOnboarding()
                     }
-                    if let inlineMessage = store.inlineMessage, !inlineMessage.isEmpty {
-                        Text(inlineMessage)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Reveal Data Folder") {
+                        store.revealDataFolder()
                     }
+
+                    Button("Export Diagnostics") {
+                        store.exportDiagnostics()
+                    }
+
+                    Button("Open Help") {
+                        store.openHelp()
+                    }
+                }
+
+                if let inlineMessage = store.inlineMessage, !inlineMessage.isEmpty {
+                    Text(inlineMessage)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -1120,8 +1345,20 @@ private struct HealthWorkspaceView: View {
                                 KVRow(key: "Claude MCP", value: health.claudeConfigured ? "Configured" : "Missing")
                             }
                             GridRow {
+                                KVRow(key: "Bundle Mode", value: health.runningFromAppBundle ? "Packaged App" : "Developer")
+                                KVRow(key: "Bundled Host", value: health.bundledHostAvailable ? "Embedded" : "Missing")
+                            }
+                            GridRow {
                                 KVRow(key: "Trace Dir", value: health.traceDirectoryPath)
                                 KVRow(key: "Recipe Dir", value: health.recipeDirectoryPath)
+                            }
+                            GridRow {
+                                KVRow(key: "App Support", value: health.applicationSupportPath)
+                                KVRow(key: "Logs", value: health.logsDirectoryPath)
+                            }
+                            GridRow {
+                                KVRow(key: "Graph DB", value: health.graphDatabasePath)
+                                KVRow(key: "Vision Install", value: health.visionInstallPath)
                             }
                         }
                     } else {
@@ -1153,6 +1390,34 @@ private struct HealthWorkspaceView: View {
                         }
                     }
                 }
+
+                PanelCard("Product Setup", subtitle: "Packaged runtime, diagnostics, and optional vision bootstrap") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let productStatus = store.productStatus {
+                            KVRow(key: "Build", value: "\(productStatus.buildVersion) (\(productStatus.buildNumber))")
+                            KVRow(key: "Vision Assets", value: productStatus.bundledVisionBootstrapAvailable ? "Bundled" : "Missing")
+                            KVRow(key: "Vision Installed", value: productStatus.visionInstalled ? "Yes" : "No")
+                            if !productStatus.migrationStatus.migratedLegacyItems.isEmpty {
+                                KVRow(
+                                    key: "Imported",
+                                    value: productStatus.migrationStatus.migratedLegacyItems.joined(separator: ", ")
+                                )
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Button("Install Vision Bootstrap") {
+                                Task { await store.installVisionBootstrap() }
+                            }
+                            Button("Repair Vision") {
+                                Task { await store.repairVisionBootstrap() }
+                            }
+                            Button("Export Diagnostics") {
+                                store.exportDiagnostics()
+                            }
+                        }
+                    }
+                }
             }
             .padding(20)
         }
@@ -1171,8 +1436,13 @@ private struct HealthInspectorView: View {
                     KVRow(key: "Approval Broker", value: health.approvalBrokerActive ? "Active" : "Offline")
                     KVRow(key: "Controller", value: health.controllerConnected ? "Connected" : "Offline")
                     KVRow(key: "Policy Mode", value: health.policyMode)
+                    KVRow(key: "App Support", value: health.applicationSupportPath, monospaced: true)
+                    KVRow(key: "Logs", value: health.logsDirectoryPath, monospaced: true)
                     KVRow(key: "Trace Directory", value: health.traceDirectoryPath, monospaced: true)
                     KVRow(key: "Recipe Directory", value: health.recipeDirectoryPath, monospaced: true)
+                    KVRow(key: "Project Memory", value: health.projectMemoryDirectoryPath, monospaced: true)
+                    KVRow(key: "Experiments", value: health.experimentsDirectoryPath, monospaced: true)
+                    KVRow(key: "Graph DB", value: health.graphDatabasePath, monospaced: true)
                 } else {
                     EmptyStateView(
                         systemImage: "stethoscope",
@@ -1215,6 +1485,36 @@ struct SettingsWorkspaceView: View {
                         if let path = store.health?.recipeDirectoryPath {
                             store.openArtifact(path)
                         }
+                    }
+                    Button("Reveal Application Support") {
+                        store.revealDataFolder()
+                    }
+                    Button("Reveal Logs") {
+                        store.revealLogsFolder()
+                    }
+                    Button("Export Diagnostics") {
+                        store.exportDiagnostics()
+                    }
+                    Button("Reset App Data") {
+                        store.resetControllerData()
+                    }
+                }
+
+                PanelCard("Onboarding + Help", subtitle: "Product setup, help, and optional vision bootstrap") {
+                    Button("Run Setup Wizard") {
+                        store.reopenOnboarding()
+                    }
+                    Button("Open Help") {
+                        store.openHelp()
+                    }
+                    Button("Open Release Notes") {
+                        store.openReleaseNotes()
+                    }
+                    Button("Install Vision Bootstrap") {
+                        Task { await store.installVisionBootstrap() }
+                    }
+                    Button("Repair Vision Bootstrap") {
+                        Task { await store.repairVisionBootstrap() }
                     }
                 }
             }

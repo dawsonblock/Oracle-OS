@@ -22,15 +22,29 @@ public final class MixedTaskPlanner: @unchecked Sendable {
         let needsFinder = description.contains("finder") || description.contains("open repo")
 
         if needsFinder, (worldState.observation.app ?? "").localizedCaseInsensitiveContains("finder") == false {
-            let goal = Goal(
-                description: taskContext.goal.description,
-                targetApp: "Finder",
-                targetDomain: nil,
-                targetTaskPhase: taskContext.goal.targetTaskPhase,
+            let handoffContext = TaskContext(
+                goal: Goal(
+                    description: taskContext.goal.description,
+                    targetApp: "Finder",
+                    targetDomain: nil,
+                    targetTaskPhase: taskContext.goal.targetTaskPhase,
+                    workspaceRoot: taskContext.workspaceRoot,
+                    preferredAgentKind: .os
+                ),
+                agentKind: .os,
                 workspaceRoot: taskContext.workspaceRoot,
-                preferredAgentKind: .os
+                phases: taskContext.phases,
+                projectMemoryRoot: taskContext.projectMemoryRoot,
+                experimentsRoot: taskContext.experimentsRoot,
+                maxExperimentCandidates: taskContext.maxExperimentCandidates,
+                experimentCandidates: taskContext.experimentCandidates
             )
-            guard let step = osPlanner.nextStep(goal: goal, worldState: worldState, graphStore: graphStore) else {
+            guard let step = osPlanner.nextStep(
+                taskContext: handoffContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore
+            ) else {
                 return nil
             }
             return PlannerDecision(
@@ -38,11 +52,23 @@ public final class MixedTaskPlanner: @unchecked Sendable {
                 skillName: step.skillName,
                 plannerFamily: .mixed,
                 stepPhase: .handoff,
+                executionMode: step.executionMode,
                 actionContract: step.actionContract,
                 source: step.source,
+                workflowID: step.workflowID,
+                workflowStepID: step.workflowStepID,
                 pathEdgeIDs: step.pathEdgeIDs,
                 currentEdgeID: step.currentEdgeID,
                 semanticQuery: step.semanticQuery,
+                projectMemoryRefs: step.projectMemoryRefs,
+                architectureFindings: step.architectureFindings,
+                refactorProposalID: step.refactorProposalID,
+                experimentSpec: step.experimentSpec,
+                experimentCandidateID: step.experimentCandidateID,
+                experimentSandboxPath: step.experimentSandboxPath,
+                selectedExperimentCandidate: step.selectedExperimentCandidate,
+                experimentOutcome: step.experimentOutcome,
+                knowledgeTier: step.knowledgeTier,
                 notes: ["mixed-task OS handoff"] + step.notes,
                 recoveryTagged: step.recoveryTagged,
                 recoveryStrategy: step.recoveryStrategy,
@@ -64,11 +90,23 @@ public final class MixedTaskPlanner: @unchecked Sendable {
             skillName: codeStep.skillName,
             plannerFamily: .mixed,
             stepPhase: .engineering,
+            executionMode: codeStep.executionMode,
             actionContract: codeStep.actionContract,
             source: codeStep.source,
+            workflowID: codeStep.workflowID,
+            workflowStepID: codeStep.workflowStepID,
             pathEdgeIDs: codeStep.pathEdgeIDs,
             currentEdgeID: codeStep.currentEdgeID,
             semanticQuery: codeStep.semanticQuery,
+            projectMemoryRefs: codeStep.projectMemoryRefs,
+            architectureFindings: codeStep.architectureFindings,
+            refactorProposalID: codeStep.refactorProposalID,
+            experimentSpec: codeStep.experimentSpec,
+            experimentCandidateID: codeStep.experimentCandidateID,
+            experimentSandboxPath: codeStep.experimentSandboxPath,
+            selectedExperimentCandidate: codeStep.selectedExperimentCandidate,
+            experimentOutcome: codeStep.experimentOutcome,
+            knowledgeTier: codeStep.knowledgeTier,
             notes: ["mixed-task code handoff"] + codeStep.notes,
             recoveryTagged: codeStep.recoveryTagged,
             recoveryStrategy: codeStep.recoveryStrategy,

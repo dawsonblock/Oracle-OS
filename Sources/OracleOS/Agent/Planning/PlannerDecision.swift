@@ -1,6 +1,7 @@
 import Foundation
 
 public enum PlannerSource: String, Codable, Sendable {
+    case workflow
     case stableGraph = "stable_graph"
     case exploration
     case recovery
@@ -19,6 +20,8 @@ public struct PlannerDecision: Sendable {
     public let executionMode: PlannerExecutionMode
     public let actionContract: ActionContract
     public let source: PlannerSource
+    public let workflowID: String?
+    public let workflowStepID: String?
     public let pathEdgeIDs: [String]
     public let currentEdgeID: String?
     public let semanticQuery: ElementQuery?
@@ -44,6 +47,8 @@ public struct PlannerDecision: Sendable {
         executionMode: PlannerExecutionMode = .direct,
         actionContract: ActionContract,
         source: PlannerSource,
+        workflowID: String? = nil,
+        workflowStepID: String? = nil,
         pathEdgeIDs: [String] = [],
         currentEdgeID: String? = nil,
         semanticQuery: ElementQuery? = nil,
@@ -68,6 +73,8 @@ public struct PlannerDecision: Sendable {
         self.executionMode = executionMode
         self.actionContract = actionContract
         self.source = source
+        self.workflowID = workflowID
+        self.workflowStepID = workflowStepID
         self.pathEdgeIDs = pathEdgeIDs
         self.currentEdgeID = currentEdgeID
         self.semanticQuery = semanticQuery

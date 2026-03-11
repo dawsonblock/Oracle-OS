@@ -371,6 +371,7 @@ Oracle OS includes a native local controller:
 - `OracleController`
 - `OracleControllerHost`
 - `OracleController.xcworkspace`
+- `OracleController.xcodeproj`
 
 The controller is local-only and supervised.
 
@@ -386,6 +387,37 @@ The controller is local-only and supervised.
 - experiment metadata
 - project-memory references
 - architecture findings
+- guided first-launch onboarding
+- optional vision bootstrap install and repair
+- Application Support data migration from legacy paths
+- packaged app diagnostics and data-folder actions
+
+### Packaged app distribution
+
+Oracle Controller can now be packaged as a standalone macOS app bundle and DMG:
+
+- app bundle: `Oracle Controller.app`
+- helper: `Contents/Helpers/OracleControllerHost`
+- DMG: `Oracle-Controller-<version>.dmg`
+- install target: `/Applications`
+
+The packaged app uses user-owned paths instead of repo-relative paths:
+
+- `~/Library/Application Support/Oracle OS/Traces/`
+- `~/Library/Application Support/Oracle OS/Recipes/`
+- `~/Library/Application Support/Oracle OS/Approvals/`
+- `~/Library/Application Support/Oracle OS/ProjectMemory/`
+- `~/Library/Application Support/Oracle OS/Experiments/`
+- `~/Library/Logs/Oracle OS/`
+
+On first launch the app:
+
+1. creates the Application Support tree
+2. seeds bundled sample recipes if the user recipe directory is empty
+3. migrates legacy data from `~/.ghost-os` when available
+4. walks the user through Accessibility, Screen Recording, host health, and optional vision setup
+
+Vision remains optional and experimental in the packaged product. The base app works without it.
 
 Open it with:
 
@@ -395,6 +427,22 @@ open OracleController.xcworkspace
 ```
 
 More details: [docs/oracle-controller.md](docs/oracle-controller.md)
+
+Build the packaged app locally with:
+
+```bash
+./scripts/build-controller-app.sh --configuration release
+./scripts/create-controller-dmg.sh --configuration release
+```
+
+For signed and notarized releases, use:
+
+```bash
+./scripts/notarize-controller-release.sh "dist/Oracle Controller.app"
+./scripts/notarize-controller-release.sh dist/Oracle-Controller-*.dmg
+```
+
+CI and tagged release packaging are defined in [.github/workflows/controller-release.yml](.github/workflows/controller-release.yml).
 
 ## MCP Tool Surface
 
@@ -499,6 +547,8 @@ swift build
 swift build
 swift test
 open OracleController.xcworkspace
+./scripts/build-controller-app.sh --configuration debug --skip-sign
+./scripts/create-controller-dmg.sh --configuration debug --skip-sign
 ```
 
 ## How Code Tasks Execute

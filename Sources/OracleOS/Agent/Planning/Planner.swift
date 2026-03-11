@@ -2,18 +2,40 @@ import Foundation
 
 public final class Planner: @unchecked Sendable {
     private var currentGoal: Goal?
+    public let workflowIndex: WorkflowIndex
     private let osPlanner: OSPlanner
     private let codePlanner: CodePlanner
     private let mixedTaskPlanner: MixedTaskPlanner
 
     public init(
-        osPlanner: OSPlanner = OSPlanner(),
-        codePlanner: CodePlanner = CodePlanner(),
-        mixedTaskPlanner: MixedTaskPlanner = MixedTaskPlanner()
+        workflowIndex: WorkflowIndex? = nil,
+        osPlanner: OSPlanner? = nil,
+        codePlanner: CodePlanner? = nil,
+        mixedTaskPlanner: MixedTaskPlanner? = nil
     ) {
-        self.osPlanner = osPlanner
-        self.codePlanner = codePlanner
-        self.mixedTaskPlanner = mixedTaskPlanner
+        let sharedWorkflowIndex = workflowIndex ?? WorkflowIndex()
+        let sharedGraphPlanner = GraphPlanner(maxDepth: 6, beamWidth: 5)
+        let sharedWorkflowRetriever = WorkflowRetriever()
+        let sharedWorkflowExecutor = WorkflowExecutor()
+        let resolvedOSPlanner = osPlanner ?? OSPlanner(
+            graphPlanner: sharedGraphPlanner,
+            workflowIndex: sharedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            workflowExecutor: sharedWorkflowExecutor
+        )
+        let resolvedCodePlanner = codePlanner ?? CodePlanner(
+            graphPlanner: sharedGraphPlanner,
+            workflowIndex: sharedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            workflowExecutor: sharedWorkflowExecutor
+        )
+        self.workflowIndex = sharedWorkflowIndex
+        self.osPlanner = resolvedOSPlanner
+        self.codePlanner = resolvedCodePlanner
+        self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(
+            osPlanner: resolvedOSPlanner,
+            codePlanner: resolvedCodePlanner
+        )
     }
 
     public func setGoal(_ goal: Goal) {
@@ -77,7 +99,12 @@ public final class Planner: @unchecked Sendable {
 
         switch taskContext.agentKind {
         case .os:
-            return osPlanner.nextStep(goal: currentGoal, worldState: worldState, graphStore: graphStore)
+            return osPlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore
+            )
         case .code:
             return codePlanner.nextStep(
                 taskContext: taskContext,

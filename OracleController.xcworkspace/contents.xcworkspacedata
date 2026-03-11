@@ -4,4 +4,7 @@
    <FileRef
       location = "group:Package.swift">
    </FileRef>
+   <FileRef
+      location = "group:OracleController.xcodeproj">
+   </FileRef>
 </Workspace>

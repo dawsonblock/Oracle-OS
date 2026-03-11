@@ -1,6 +1,6 @@
 // RecipeStore.swift - File-based recipe storage
 //
-// Loads/saves/lists/deletes recipes from ~/.ghost-os/recipes/
+// Loads/saves/lists/deletes recipes from the user-owned Oracle OS recipes directory.
 // Logs decode errors so broken recipes are visible, not silently skipped.
 
 import Foundation
@@ -8,7 +8,9 @@ import Foundation
 /// File-based recipe storage.
 public enum RecipeStore {
 
-    private static let recipesDir = NSString(string: "~/.ghost-os/recipes").expandingTildeInPath
+    private static var recipesDir: String {
+        OracleProductPaths.recipesDirectory.path
+    }
 
     /// List all available recipes. Logs decode errors for broken recipe files.
     public static func listRecipes() -> [Recipe] {

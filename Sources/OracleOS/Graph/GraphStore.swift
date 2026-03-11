@@ -164,14 +164,7 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public static func defaultDatabaseURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["GHOST_OS_GRAPH_DB"], !override.isEmpty {
-            return URL(fileURLWithPath: NSString(string: override).expandingTildeInPath)
-        }
-
-        let currentDirectory = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: currentDirectory, isDirectory: true)
-            .appendingPathComponent(".oracle-graph", isDirectory: true)
-            .appendingPathComponent("oracleos.sqlite3", isDirectory: false)
+        OracleProductPaths.graphDatabaseURL
     }
 
     private func edgeKey(for transition: VerifiedTransition) -> String {
