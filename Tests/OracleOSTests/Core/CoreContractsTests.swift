@@ -134,6 +134,66 @@ struct CoreContractsTests {
         #expect(fused[0].confidence == 0.92)
     }
 
+    @Test("Planning state abstraction is stable across small observation drift")
+    func planningStateStableAcrossDrift() {
+        let abstraction = StateAbstraction()
+
+        let firstObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Inbox - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox",
+            focusedElementID: "compose",
+            elements: [
+                UnifiedElement(id: "compose", source: .ax, role: "AXButton", label: "Compose", focused: true),
+            ]
+        )
+        let secondObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Inbox - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox?zx=123",
+            focusedElementID: "compose-2",
+            elements: [
+                UnifiedElement(id: "compose-2", source: .ax, role: "AXButton", label: "Compose mail", focused: true),
+            ]
+        )
+
+        let firstState = abstraction.abstract(
+            observation: firstObservation,
+            observationHash: ObservationHash.hash(firstObservation)
+        )
+        let secondState = abstraction.abstract(
+            observation: secondObservation,
+            observationHash: ObservationHash.hash(secondObservation)
+        )
+
+        #expect(firstState.id == secondState.id)
+        #expect(firstState.navigationClass == "gmail")
+    }
+
+    @Test("Candidate graph accumulates repeated verified transitions")
+    func candidateGraphAccumulatesTransitions() {
+        let candidateGraph = CandidateGraph()
+        let fromState = PlanningStateID(rawValue: "chrome|gmail|inbox")
+        let toState = PlanningStateID(rawValue: "chrome|gmail|compose")
+        let transition = VerifiedTransition(
+            fromPlanningStateID: fromState,
+            toPlanningStateID: toState,
+            actionContractID: "click|AXButton|Compose|query",
+            postconditionClass: .elementAppeared,
+            verified: true,
+            failureClass: nil,
+            latencyMs: 120
+        )
+
+        candidateGraph.record(transition)
+        candidateGraph.record(transition)
+
+        #expect(candidateGraph.nodes[fromState]?.visitCount == 2)
+        #expect(candidateGraph.edges.count == 1)
+        #expect(candidateGraph.edges.values.first?.attempts == 2)
+        #expect(candidateGraph.edges.values.first?.successes == 2)
+    }
+
     @Test("Trace event codable round trip")
     func traceEventRoundTrip() throws {
         let result = ActionResult(
@@ -159,11 +219,17 @@ struct CoreContractsTests {
             candidateReasons: ["exact label match", "source trust"],
             preObservationHash: "pre",
             postObservationHash: "post",
+            planningStateID: "gmail|compose",
+            beliefSnapshotID: nil,
             postcondition: "element_appeared:Message sent",
+            postconditionClass: "elementAppeared",
+            actionContractID: "click|AXButton|Send|ax-native",
+            executionMode: "verified-execution",
             verified: result.verified,
             success: result.success,
             failureClass: nil,
             recoveryStrategy: nil,
+            recoverySource: nil,
             elapsedMs: result.elapsedMs,
             screenshotPath: nil,
             notes: nil
@@ -182,6 +248,9 @@ struct CoreContractsTests {
         #expect(decoded.selectedElementID == "send-button")
         #expect(decoded.verified)
         #expect(decoded.elapsedMs == 123)
+        #expect(decoded.schemaVersion == TraceSchemaVersion.current)
+        #expect(decoded.planningStateID == "gmail|compose")
+        #expect(decoded.actionContractID == "click|AXButton|Send|ax-native")
     }
 
     @Test("ActionResult encodes verification and elapsed time")
@@ -213,6 +282,31 @@ struct CoreContractsTests {
         #expect(event.actionName == "click _Applications_")
         #expect(event.success)
         #expect(event.verified)
+        #expect(event.schemaVersion == TraceSchemaVersion.current)
         #expect(event.notes == "compat")
+    }
+
+    @Test("Legacy trace payloads still decode")
+    func legacyTracePayloadDecode() throws {
+        let legacyJSON = """
+        {
+          "timestamp": "2026-03-10T12:00:00Z",
+          "action": "click Compose",
+          "success": true,
+          "message": "legacy trace"
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(TraceEvent.self, from: legacyJSON)
+
+        #expect(decoded.schemaVersion == 1)
+        #expect(decoded.sessionID == "legacy")
+        #expect(decoded.stepID == 0)
+        #expect(decoded.actionName == "click Compose")
+        #expect(decoded.success)
+        #expect(decoded.verified)
+        #expect(decoded.notes == "legacy trace")
     }
 }

@@ -24,14 +24,23 @@ public struct RecipeInducer {
                 target = nil
             }
 
+            let actionName = event.actionContractID?
+                .split(separator: "|")
+                .first
+                .map(String.init) ?? event.actionName
+            let noteParts = [
+                event.actionContractID.map { "contract=\($0)" },
+                event.postconditionClass.map { "postcondition=\($0)" },
+            ].compactMap { $0 }
+
             let step =
                 RecipeStep(
                     id: index,
-                    action: event.actionName,
+                    action: actionName,
                     target: target,
                     params: nil,
                     waitAfter: nil,
-                    note: nil,
+                    note: noteParts.isEmpty ? nil : noteParts.joined(separator: " | "),
                     onFailure: nil
                 )
 
