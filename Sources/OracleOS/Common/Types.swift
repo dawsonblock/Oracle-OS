@@ -151,4 +151,5 @@ public enum GhostConstants {
     public static let maxSearchDepth = 100
     public static let recipesDirectory = "~/.ghost-os/recipes"
     public static let logsDirectory = "~/.ghost-os/logs"
+    public static let approvalsDirectory = "~/.ghost-os/approvals"
 }

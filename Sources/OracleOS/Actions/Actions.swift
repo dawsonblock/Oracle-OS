@@ -34,6 +34,9 @@ public enum Actions {
         button: String?,
         count: Int?,
         executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
         taskID: String? = nil,
         toolName: String? = "ghost_click"
     ) -> ToolResult {
@@ -49,8 +52,29 @@ public enum Actions {
             postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
         )
 
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performClick(
+                    query: query,
+                    role: role,
+                    domId: domId,
+                    appName: appName,
+                    x: x,
+                    y: y,
+                    button: button,
+                    count: count
+                )
+            }
+        }
+
         let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
             performClick(
                 query: query,
                 role: role,
@@ -300,6 +324,9 @@ public enum Actions {
         appName: String?,
         clear: Bool,
         executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
         taskID: String? = nil,
         toolName: String? = "ghost_type"
     ) -> ToolResult {
@@ -312,8 +339,26 @@ public enum Actions {
             postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
         )
 
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performTypeText(
+                    text: text,
+                    into: into,
+                    domId: domId,
+                    appName: appName,
+                    clear: clear
+                )
+            }
+        }
+
         let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
             performTypeText(
                 text: text,
                 into: into,
@@ -497,6 +542,9 @@ public enum Actions {
         modifiers: [String]?,
         appName: String?,
         executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
         taskID: String? = nil,
         toolName: String? = "ghost_press"
     ) -> ToolResult {
@@ -507,8 +555,24 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performPressKey(
+                    key: key,
+                    modifiers: modifiers,
+                    appName: appName
+                )
+            }
+        }
+
         let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
             performPressKey(
                 key: key,
                 modifiers: modifiers,
@@ -554,6 +618,9 @@ public enum Actions {
         appName: String,
         windowTitle: String? = nil,
         executor: VerifiedActionExecutor? = nil,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
         taskID: String? = nil,
         toolName: String? = "ghost_focus"
     ) -> ToolResult {
@@ -564,8 +631,20 @@ public enum Actions {
             postconditions: postconditions
         )
 
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                FocusManager.focus(appName: appName, windowTitle: windowTitle)
+            }
+        }
+
         let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent) {
+        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
             FocusManager.focus(appName: appName, windowTitle: windowTitle)
         }
     }
@@ -575,11 +654,45 @@ public enum Actions {
     /// Press a key combination. Clears modifier flags after to prevent stuck keys.
     public static func hotkey(
         keys: [String],
-        appName: String?
+        appName: String?,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_hotkey"
     ) -> ToolResult {
         guard !keys.isEmpty else {
             return ToolResult(success: false, error: "Keys array cannot be empty")
         }
+
+        let intent = ActionIntent(
+            app: appName ?? "unknown",
+            name: "hotkey \(keys.joined(separator: "+"))",
+            action: "hotkey",
+            query: keys.last,
+            role: Array(keys.dropLast()).joined(separator: "+"),
+            postconditions: inferredPressPostconditions(appName: appName)
+        )
+
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performHotkey(keys: keys, appName: appName)
+            }
+        }
+
+        return performHotkey(keys: keys, appName: appName)
+    }
+
+    private static func performHotkey(
+        keys: [String],
+        appName: String?
+    ) -> ToolResult {
 
         if let appName {
             _ = FocusManager.focus(appName: appName)
@@ -609,6 +722,54 @@ public enum Actions {
     /// specified (auto-handles multi-monitor via AX coordinates). Falls back to
     /// InputDriver.scroll with explicit coordinates when x,y are provided.
     public static func scroll(
+        direction: String,
+        amount: Int?,
+        appName: String?,
+        x: Double?,
+        y: Double?,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_scroll"
+    ) -> ToolResult {
+        let intent = ActionIntent(
+            app: appName ?? "unknown",
+            name: "scroll \(direction)",
+            action: "scroll",
+            query: direction,
+            x: x,
+            y: y
+        )
+
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performScroll(
+                    direction: direction,
+                    amount: amount,
+                    appName: appName,
+                    x: x,
+                    y: y
+                )
+            }
+        }
+
+        return performScroll(
+            direction: direction,
+            amount: amount,
+            appName: appName,
+            x: x,
+            y: y
+        )
+    }
+
+    private static func performScroll(
         direction: String,
         amount: Int?,
         appName: String?,
@@ -711,6 +872,70 @@ public enum Actions {
 
     /// Window management operations.
     public static func manageWindow(
+        action: String,
+        appName: String,
+        windowTitle: String?,
+        x: Double?, y: Double?,
+        width: Double?, height: Double?,
+        runtime: OracleRuntime? = nil,
+        surface: RuntimeSurface = .mcp,
+        approvalRequestID: String? = nil,
+        taskID: String? = nil,
+        toolName: String? = "ghost_window"
+    ) -> ToolResult {
+        if action.lowercased() == "list" {
+            return performWindowAction(
+                action: action,
+                appName: appName,
+                windowTitle: windowTitle,
+                x: x,
+                y: y,
+                width: width,
+                height: height
+            )
+        }
+
+        let intent = ActionIntent(
+            app: appName,
+            name: "window \(action)",
+            action: "window:\(action.lowercased())",
+            query: windowTitle ?? action,
+            x: x,
+            y: y
+        )
+
+        if let runtime {
+            return runtime.performAction(
+                surface: surface,
+                taskID: taskID,
+                toolName: toolName,
+                approvalRequestID: approvalRequestID,
+                intent: intent
+            ) {
+                performWindowAction(
+                    action: action,
+                    appName: appName,
+                    windowTitle: windowTitle,
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height
+                )
+            }
+        }
+
+        return performWindowAction(
+            action: action,
+            appName: appName,
+            windowTitle: windowTitle,
+            x: x,
+            y: y,
+            width: width,
+            height: height
+        )
+    }
+
+    private static func performWindowAction(
         action: String,
         appName: String,
         windowTitle: String?,

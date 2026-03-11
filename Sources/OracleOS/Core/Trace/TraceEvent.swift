@@ -31,6 +31,13 @@ public struct TraceEvent: Codable, Sendable {
     public let failureClass: String?
     public let recoveryStrategy: String?
     public let recoverySource: String?
+    public let surface: String?
+    public let policyMode: String?
+    public let protectedOperation: String?
+    public let approvalRequestID: String?
+    public let approvalOutcome: String?
+    public let blockedByPolicy: Bool?
+    public let appProfile: String?
 
     public let elapsedMs: Double
     public let screenshotPath: String?
@@ -62,6 +69,13 @@ public struct TraceEvent: Codable, Sendable {
         failureClass: String? = nil,
         recoveryStrategy: String? = nil,
         recoverySource: String? = nil,
+        surface: String? = nil,
+        policyMode: String? = nil,
+        protectedOperation: String? = nil,
+        approvalRequestID: String? = nil,
+        approvalOutcome: String? = nil,
+        blockedByPolicy: Bool? = nil,
+        appProfile: String? = nil,
         elapsedMs: Double,
         screenshotPath: String? = nil,
         notes: String? = nil
@@ -92,6 +106,13 @@ public struct TraceEvent: Codable, Sendable {
         self.failureClass = failureClass
         self.recoveryStrategy = recoveryStrategy
         self.recoverySource = recoverySource
+        self.surface = surface
+        self.policyMode = policyMode
+        self.protectedOperation = protectedOperation
+        self.approvalRequestID = approvalRequestID
+        self.approvalOutcome = approvalOutcome
+        self.blockedByPolicy = blockedByPolicy
+        self.appProfile = appProfile
         self.elapsedMs = elapsedMs
         self.screenshotPath = screenshotPath
         self.notes = notes
@@ -124,6 +145,13 @@ public struct TraceEvent: Codable, Sendable {
             failureClass: success ? nil : "compat_failure",
             recoveryStrategy: nil,
             recoverySource: nil,
+            surface: nil,
+            policyMode: nil,
+            protectedOperation: nil,
+            approvalRequestID: nil,
+            approvalOutcome: nil,
+            blockedByPolicy: nil,
+            appProfile: nil,
             elapsedMs: 0,
             screenshotPath: nil,
             notes: message
@@ -157,6 +185,13 @@ public struct TraceEvent: Codable, Sendable {
         case failureClass
         case recoveryStrategy
         case recoverySource
+        case surface
+        case policyMode
+        case protectedOperation
+        case approvalRequestID
+        case approvalOutcome
+        case blockedByPolicy
+        case appProfile
         case elapsedMs
         case screenshotPath
         case notes
@@ -201,6 +236,13 @@ public struct TraceEvent: Codable, Sendable {
         self.failureClass = try container.decodeIfPresent(String.self, forKey: .failureClass)
         self.recoveryStrategy = try container.decodeIfPresent(String.self, forKey: .recoveryStrategy)
         self.recoverySource = try container.decodeIfPresent(String.self, forKey: .recoverySource)
+        self.surface = try container.decodeIfPresent(String.self, forKey: .surface)
+        self.policyMode = try container.decodeIfPresent(String.self, forKey: .policyMode)
+        self.protectedOperation = try container.decodeIfPresent(String.self, forKey: .protectedOperation)
+        self.approvalRequestID = try container.decodeIfPresent(String.self, forKey: .approvalRequestID)
+        self.approvalOutcome = try container.decodeIfPresent(String.self, forKey: .approvalOutcome)
+        self.blockedByPolicy = try container.decodeIfPresent(Bool.self, forKey: .blockedByPolicy)
+        self.appProfile = try container.decodeIfPresent(String.self, forKey: .appProfile)
         self.elapsedMs = try container.decodeIfPresent(Double.self, forKey: .elapsedMs) ?? 0
         self.screenshotPath = try container.decodeIfPresent(String.self, forKey: .screenshotPath)
         self.notes = decodedNotes ?? legacyMessage
@@ -234,6 +276,13 @@ public struct TraceEvent: Codable, Sendable {
         try container.encodeIfPresent(failureClass, forKey: .failureClass)
         try container.encodeIfPresent(recoveryStrategy, forKey: .recoveryStrategy)
         try container.encodeIfPresent(recoverySource, forKey: .recoverySource)
+        try container.encodeIfPresent(surface, forKey: .surface)
+        try container.encodeIfPresent(policyMode, forKey: .policyMode)
+        try container.encodeIfPresent(protectedOperation, forKey: .protectedOperation)
+        try container.encodeIfPresent(approvalRequestID, forKey: .approvalRequestID)
+        try container.encodeIfPresent(approvalOutcome, forKey: .approvalOutcome)
+        try container.encodeIfPresent(blockedByPolicy, forKey: .blockedByPolicy)
+        try container.encodeIfPresent(appProfile, forKey: .appProfile)
         try container.encode(elapsedMs, forKey: .elapsedMs)
         try container.encodeIfPresent(screenshotPath, forKey: .screenshotPath)
         try container.encodeIfPresent(notes, forKey: .notes)

@@ -30,6 +30,10 @@ public final class VerifiedActionExecutor {
         selectedElementLabel: String? = nil,
         candidateScore: Double? = nil,
         candidateReasons: [String] = [],
+        surface: RuntimeSurface = .mcp,
+        policyDecision: PolicyDecision? = nil,
+        approvalRequestID: String? = nil,
+        approvalOutcome: String? = nil,
         execute: () -> ToolResult
     ) -> ToolResult {
         let sessionID = traceRecorder?.sessionID ?? "no-session"
@@ -95,7 +99,14 @@ public final class VerifiedActionExecutor {
             method: method,
             verificationStatus: verification.status,
             failureClass: failureClass?.rawValue,
-            elapsedMs: elapsedMs
+            elapsedMs: elapsedMs,
+            policyDecision: policyDecision,
+            protectedOperation: policyDecision?.protectedOperation?.rawValue,
+            approvalRequestID: approvalRequestID,
+            approvalStatus: approvalOutcome,
+            surface: surface.rawValue,
+            appProtectionProfile: policyDecision?.appProtectionProfile.rawValue,
+            blockedByPolicy: policyDecision?.blockedByPolicy ?? false
         )
 
         let event = TraceEvent(
@@ -123,6 +134,13 @@ public final class VerifiedActionExecutor {
             failureClass: failureClass?.rawValue,
             recoveryStrategy: nil,
             recoverySource: nil,
+            surface: surface.rawValue,
+            policyMode: policyDecision?.policyMode.rawValue,
+            protectedOperation: policyDecision?.protectedOperation?.rawValue,
+            approvalRequestID: approvalRequestID,
+            approvalOutcome: approvalOutcome,
+            blockedByPolicy: policyDecision?.blockedByPolicy,
+            appProfile: policyDecision?.appProtectionProfile.rawValue,
             elapsedMs: elapsedMs,
             screenshotPath: artifactSummary.screenshotPath,
             notes: TraceEnricher.mergedNotes(
@@ -159,12 +177,25 @@ public final class VerifiedActionExecutor {
             "planning_state_id": prePlanningState.id.rawValue,
             "action_contract_id": actionContract.id,
             "postcondition_class": postconditionClass.rawValue,
+            "surface": surface.rawValue,
         ]
         if let tracePath = traceURL?.path {
             traceData["file"] = tracePath
         }
         if let failureClass {
             traceData["failure_class"] = failureClass.rawValue
+        }
+        if let policyDecision {
+            traceData["policy_mode"] = policyDecision.policyMode.rawValue
+            traceData["app_profile"] = policyDecision.appProtectionProfile.rawValue
+            traceData["protected_operation"] = policyDecision.protectedOperation?.rawValue as Any
+            traceData["blocked_by_policy"] = policyDecision.blockedByPolicy
+        }
+        if let approvalRequestID {
+            traceData["approval_request_id"] = approvalRequestID
+        }
+        if let approvalOutcome {
+            traceData["approval_outcome"] = approvalOutcome
         }
         data["trace"] = traceData
         data["observations"] = [
@@ -179,6 +210,16 @@ public final class VerifiedActionExecutor {
             actionContract: actionContract,
             transition: verifiedTransition
         )
+        if let policyDecision {
+            data["policy_decision"] = policyDecision.toDict()
+        }
+        if let approvalRequestID {
+            data["approval_request_id"] = approvalRequestID
+        }
+        if let approvalOutcome {
+            data["approval_status"] = approvalOutcome
+        }
+        data["surface"] = surface.rawValue
 
         let finalError: String?
         if raw.success, verification.status == .failed {

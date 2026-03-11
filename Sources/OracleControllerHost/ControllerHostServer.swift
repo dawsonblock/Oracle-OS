@@ -55,7 +55,8 @@ actor ControllerHostServer {
                     snapshot: snapshot,
                     health: health,
                     recipes: bridge.listRecipes(),
-                    traceSessions: bridge.listTraceSessions()
+                    traceSessions: bridge.listTraceSessions(),
+                    approvals: bridge.listApprovalRequests()
                 )
             }
             await output.send(response: ControllerHostResponse(
@@ -100,15 +101,86 @@ actor ControllerHostServer {
             await output.send(event: ControllerHostEvent(kind: .actionStarted, session: session, message: action.displayTitle))
             let actionResult = await MainActor.run { bridge.performAction(action) }
             let newSteps = await MainActor.run { bridge.recordedSteps(since: stepCountBefore) }
+            let approvals = await MainActor.run { bridge.listApprovalRequests() }
 
             await output.send(response: ControllerHostResponse(
                 requestID: request.id,
                 command: request.command,
-                actionResult: actionResult
+                actionResult: actionResult,
+                approvals: approvals
             ))
             await output.send(event: ControllerHostEvent(kind: .actionCompleted, session: session, action: actionResult))
+            await output.send(event: ControllerHostEvent(kind: .approvalsChanged, session: session, approvals: approvals))
             for step in newSteps {
                 await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
+            }
+
+        case .listApprovalRequests:
+            let approvals = await MainActor.run { bridge.listApprovalRequests() }
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                approvals: approvals
+            ))
+
+        case .approveApprovalRequest:
+            guard let approvalRequestID = request.approvalRequestID else {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: "Missing approval request id"
+                ))
+                return
+            }
+
+            do {
+                _ = try await MainActor.run { try bridge.approveApprovalRequest(id: approvalRequestID) }
+                let approvals = await MainActor.run { bridge.listApprovalRequests() }
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: true,
+                    approvals: approvals
+                ))
+                await output.send(event: ControllerHostEvent(kind: .approvalsChanged, approvals: approvals))
+            } catch {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: error.localizedDescription
+                ))
+            }
+
+        case .rejectApprovalRequest:
+            guard let approvalRequestID = request.approvalRequestID else {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: "Missing approval request id"
+                ))
+                return
+            }
+
+            do {
+                try await MainActor.run { try bridge.rejectApprovalRequest(id: approvalRequestID) }
+                let approvals = await MainActor.run { bridge.listApprovalRequests() }
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: true,
+                    approvals: approvals
+                ))
+                await output.send(event: ControllerHostEvent(kind: .approvalsChanged, approvals: approvals))
+            } catch {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: error.localizedDescription
+                ))
             }
 
         case .listRecipes:
@@ -209,11 +281,48 @@ actor ControllerHostServer {
                 bridge.runRecipe(named: recipeName, params: request.recipeParams ?? [:])
             }
             let newSteps = await MainActor.run { bridge.recordedSteps(since: stepCountBefore) }
+            let approvals = await MainActor.run { bridge.listApprovalRequests() }
             await output.send(response: ControllerHostResponse(
                 requestID: request.id,
                 command: request.command,
-                recipeRun: runResult
+                recipeRun: runResult,
+                approvals: approvals
             ))
+            await output.send(event: ControllerHostEvent(kind: .approvalsChanged, session: session, approvals: approvals))
+            for step in newSteps {
+                await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
+            }
+
+        case .resumeRecipeRun:
+            guard let resumeToken = request.resumeToken else {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: "Missing resume token"
+                ))
+                return
+            }
+            let stepCountBefore = await MainActor.run { bridge.recordedStepCount() }
+            let monitoring = monitoringConfiguration
+            let session = await MainActor.run {
+                bridge.currentSession(
+                    autoRefreshEnabled: monitoring.enabled,
+                    appName: monitoring.appName
+                )
+            }
+            let runResult = await MainActor.run {
+                bridge.resumeRecipe(resumeToken: resumeToken, approvalRequestID: request.approvalRequestID)
+            }
+            let approvals = await MainActor.run { bridge.listApprovalRequests() }
+            let newSteps = await MainActor.run { bridge.recordedSteps(since: stepCountBefore) }
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                recipeRun: runResult,
+                approvals: approvals
+            ))
+            await output.send(event: ControllerHostEvent(kind: .approvalsChanged, session: session, approvals: approvals))
             for step in newSteps {
                 await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
             }

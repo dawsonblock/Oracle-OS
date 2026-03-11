@@ -16,11 +16,12 @@ public enum MCPDispatch {
     private static let traceRecorder = TraceRecorder()
     private static let traceStore = TraceStore()
     private static let failureArtifactWriter = FailureArtifactWriter()
-    private static let verifiedActionExecutor = VerifiedActionExecutor(
+    private static let runtimeContext = RuntimeContext.live(
         traceRecorder: traceRecorder,
         traceStore: traceStore,
         artifactWriter: failureArtifactWriter
     )
+    private static let runtime = OracleRuntime(context: runtimeContext)
 
     /// Handle a tools/call request. Returns MCP-formatted result.
     /// Wraps every tool call in a timeout so no single tool can block
@@ -157,7 +158,9 @@ public enum MCPDispatch {
                     y: double(args, "y"),
                     button: str(args, "button"),
                     count: int(args, "count"),
-                    executor: verifiedActionExecutor,
+                    runtime: runtime,
+                    surface: .mcp,
+                    approvalRequestID: str(args, "approval_request_id"),
                     toolName: tool
                 )
             }
@@ -173,7 +176,9 @@ public enum MCPDispatch {
                     domId: str(args, "dom_id"),
                     appName: str(args, "app"),
                     clear: bool(args, "clear") ?? false,
-                    executor: verifiedActionExecutor,
+                    runtime: runtime,
+                    surface: .mcp,
+                    approvalRequestID: str(args, "approval_request_id"),
                     toolName: tool
                 )
             }
@@ -193,7 +198,9 @@ public enum MCPDispatch {
                 key: key,
                 modifiers: modifiers,
                 appName: str(args, "app"),
-                executor: verifiedActionExecutor,
+                runtime: runtime,
+                surface: .mcp,
+                approvalRequestID: str(args, "approval_request_id"),
                 toolName: tool
             )
 
@@ -201,7 +208,14 @@ public enum MCPDispatch {
             guard let keys = args["keys"] as? [String] else {
                 return ToolResult(success: false, error: "Missing required parameter: keys (array of strings)")
             }
-            return Actions.hotkey(keys: keys, appName: str(args, "app"))
+            return Actions.hotkey(
+                keys: keys,
+                appName: str(args, "app"),
+                runtime: runtime,
+                surface: .mcp,
+                approvalRequestID: str(args, "approval_request_id"),
+                toolName: tool
+            )
 
         case "ghost_scroll":
             guard let direction = str(args, "direction") else {
@@ -212,7 +226,11 @@ public enum MCPDispatch {
                 amount: int(args, "amount"),
                 appName: str(args, "app"),
                 x: double(args, "x"),
-                y: double(args, "y")
+                y: double(args, "y"),
+                runtime: runtime,
+                surface: .mcp,
+                approvalRequestID: str(args, "approval_request_id"),
+                toolName: tool
             )
 
         case "ghost_focus":
@@ -222,7 +240,9 @@ public enum MCPDispatch {
             return Actions.focusApp(
                 appName: app,
                 windowTitle: str(args, "window"),
-                executor: verifiedActionExecutor,
+                runtime: runtime,
+                surface: .mcp,
+                approvalRequestID: str(args, "approval_request_id"),
                 toolName: tool
             )
 
@@ -239,7 +259,11 @@ public enum MCPDispatch {
                 x: double(args, "x"),
                 y: double(args, "y"),
                 width: double(args, "width"),
-                height: double(args, "height")
+                height: double(args, "height"),
+                runtime: runtime,
+                surface: .mcp,
+                approvalRequestID: str(args, "approval_request_id"),
+                toolName: tool
             )
 
         // Wait
@@ -275,8 +299,17 @@ public enum MCPDispatch {
             return ToolResult(success: true, data: ["recipes": summaries, "count": summaries.count])
 
         case "ghost_run":
+            if let resumeToken = str(args, "resume_token") {
+                return RecipeEngine.resume(
+                    resumeToken: resumeToken,
+                    approvalRequestID: str(args, "approval_request_id"),
+                    runtime: runtime,
+                    taskID: traceRecorder.sessionID
+                )
+            }
+
             guard let recipeName = str(args, "recipe") else {
-                return ToolResult(success: false, error: "Missing required parameter: recipe")
+                return ToolResult(success: false, error: "Missing required parameter: recipe or resume_token")
             }
             guard let recipe = RecipeStore.loadRecipe(named: recipeName) else {
                 return ToolResult(
@@ -294,7 +327,13 @@ public enum MCPDispatch {
             } else {
                 recipeParams = [:]
             }
-            return RecipeEngine.run(recipe: recipe, params: recipeParams)
+
+            return RecipeEngine.run(
+                recipe: recipe,
+                params: recipeParams,
+                runtime: runtime,
+                taskID: traceRecorder.sessionID
+            )
 
         case "ghost_recipe_show":
             guard let name = str(args, "name") else {
