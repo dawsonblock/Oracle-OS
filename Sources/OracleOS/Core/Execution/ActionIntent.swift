@@ -1,5 +1,5 @@
 public struct ActionIntent: Sendable, Codable {
-
+    public let agentKind: AgentKind
     public let app: String
     public let name: String
     public let action: String
@@ -11,12 +11,19 @@ public struct ActionIntent: Sendable, Codable {
     public let y: Double?
     public let button: String?
     public let count: Int?
+    public let workspaceRoot: String?
+    public let workspaceRelativePath: String?
+    public let codeCommand: CommandSpec?
     public let postconditions: [Postcondition]
 
     public var elementID: String? { domID }
     public var targetQuery: String? { query }
+    public var domain: String { agentKind == .code ? "code" : "os" }
+    public var commandCategory: String? { codeCommand?.category.rawValue }
+    public var commandSummary: String? { codeCommand?.summary }
 
     public init(
+        agentKind: AgentKind = .os,
         app: String,
         name: String? = nil,
         action: String,
@@ -28,8 +35,12 @@ public struct ActionIntent: Sendable, Codable {
         y: Double? = nil,
         button: String? = nil,
         count: Int? = nil,
+        workspaceRoot: String? = nil,
+        workspaceRelativePath: String? = nil,
+        codeCommand: CommandSpec? = nil,
         postconditions: [Postcondition] = []
     ) {
+        self.agentKind = agentKind
         self.app = app
         self.name = name ?? "\(action) \(query ?? "")"
         self.action = action
@@ -41,6 +52,9 @@ public struct ActionIntent: Sendable, Codable {
         self.y = y
         self.button = button
         self.count = count
+        self.workspaceRoot = workspaceRoot ?? codeCommand?.workspaceRoot
+        self.workspaceRelativePath = workspaceRelativePath ?? codeCommand?.workspaceRelativePath
+        self.codeCommand = codeCommand
         self.postconditions = postconditions
     }
     public static func click(
@@ -55,6 +69,7 @@ public struct ActionIntent: Sendable, Codable {
         postconditions: [Postcondition] = []
     ) -> ActionIntent {
         ActionIntent(
+            agentKind: .os,
             app: app ?? "unknown",
             name: "click \(query ?? domID ?? "")",
             action: "click",
@@ -79,6 +94,7 @@ public struct ActionIntent: Sendable, Codable {
         postconditions: [Postcondition] = []
     ) -> ActionIntent {
         ActionIntent(
+            agentKind: .os,
             app: app ?? "unknown",
             name: "type into \(into ?? domID ?? "")",
             action: "type",
@@ -95,6 +111,7 @@ public struct ActionIntent: Sendable, Codable {
         postconditions: [Postcondition] = []
     ) -> ActionIntent {
         ActionIntent(
+            agentKind: .os,
             app: app,
             name: "focus \(app)",
             action: "focus",
@@ -111,12 +128,34 @@ public struct ActionIntent: Sendable, Codable {
         postconditions: [Postcondition] = []
     ) -> ActionIntent {
         ActionIntent(
+            agentKind: .os,
             app: app ?? "unknown",
             name: "press \(modifiers.map { $0.joined(separator: "+") + "+" } ?? "")\(key)",
             action: "press",
             query: key,
             text: nil,
             role: modifiers?.joined(separator: "+"),
+            postconditions: postconditions
+        )
+    }
+
+    public static func code(
+        name: String? = nil,
+        command: CommandSpec,
+        workspaceRelativePath: String? = nil,
+        text: String? = nil,
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            agentKind: .code,
+            app: "Workspace",
+            name: name ?? command.summary,
+            action: command.category.rawValue,
+            query: workspaceRelativePath ?? command.workspaceRelativePath,
+            text: text,
+            workspaceRoot: command.workspaceRoot,
+            workspaceRelativePath: workspaceRelativePath ?? command.workspaceRelativePath,
+            codeCommand: command,
             postconditions: postconditions
         )
     }

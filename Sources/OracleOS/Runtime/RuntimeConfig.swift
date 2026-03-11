@@ -9,6 +9,8 @@ public struct RuntimeConfig: Sendable {
     public let recipesDirectory: URL
     public let controllerApprovalRequiredForRiskyActions: Bool
     public let approvalsDirectory: URL
+    public let projectMemoryDirectory: URL
+    public let experimentsDirectory: URL
 
     public init(
         policyMode: PolicyMode,
@@ -18,7 +20,9 @@ public struct RuntimeConfig: Sendable {
         traceDirectory: URL,
         recipesDirectory: URL,
         controllerApprovalRequiredForRiskyActions: Bool,
-        approvalsDirectory: URL
+        approvalsDirectory: URL,
+        projectMemoryDirectory: URL,
+        experimentsDirectory: URL
     ) {
         self.policyMode = policyMode
         self.approvalRequiredSurfaces = approvalRequiredSurfaces
@@ -28,6 +32,8 @@ public struct RuntimeConfig: Sendable {
         self.recipesDirectory = recipesDirectory
         self.controllerApprovalRequiredForRiskyActions = controllerApprovalRequiredForRiskyActions
         self.approvalsDirectory = approvalsDirectory
+        self.projectMemoryDirectory = projectMemoryDirectory
+        self.experimentsDirectory = experimentsDirectory
     }
 
     public static func live(policyMode: PolicyMode? = nil) -> RuntimeConfig {
@@ -45,7 +51,15 @@ public struct RuntimeConfig: Sendable {
             approvalsDirectory: URL(
                 fileURLWithPath: NSString(string: GhostConstants.approvalsDirectory).expandingTildeInPath,
                 isDirectory: true
-            )
+            ),
+            projectMemoryDirectory: URL(
+                fileURLWithPath: FileManager.default.currentDirectoryPath,
+                isDirectory: true
+            ).appendingPathComponent("ProjectMemory", isDirectory: true),
+            experimentsDirectory: URL(
+                fileURLWithPath: FileManager.default.currentDirectoryPath,
+                isDirectory: true
+            ).appendingPathComponent(".oracle/experiments", isDirectory: true)
         )
     }
 }

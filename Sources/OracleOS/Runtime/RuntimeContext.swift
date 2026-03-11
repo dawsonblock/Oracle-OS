@@ -12,6 +12,11 @@ public final class RuntimeContext {
     public let graphStore: GraphStore
     public let memoryStore: AppMemoryStore
     public let stateAbstraction: StateAbstraction
+    public let recoveryEngine: RecoveryEngine
+    public let workspaceRunner: WorkspaceRunner
+    public let repositoryIndexer: RepositoryIndexer
+    public let architectureEngine: ArchitectureEngine
+    public let experimentManager: ExperimentManager
 
     public init(
         config: RuntimeConfig = .live(),
@@ -23,7 +28,12 @@ public final class RuntimeContext {
         approvalStore: ApprovalStore,
         graphStore: GraphStore = GraphStore(),
         memoryStore: AppMemoryStore = AppMemoryStore(),
-        stateAbstraction: StateAbstraction = StateAbstraction()
+        stateAbstraction: StateAbstraction = StateAbstraction(),
+        recoveryEngine: RecoveryEngine = RecoveryEngine(),
+        workspaceRunner: WorkspaceRunner = WorkspaceRunner(),
+        repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
+        architectureEngine: ArchitectureEngine = ArchitectureEngine(),
+        experimentManager: ExperimentManager = ExperimentManager()
     ) {
         self.config = config
         self.traceRecorder = traceRecorder
@@ -35,6 +45,11 @@ public final class RuntimeContext {
         self.graphStore = graphStore
         self.memoryStore = memoryStore
         self.stateAbstraction = stateAbstraction
+        self.recoveryEngine = recoveryEngine
+        self.workspaceRunner = workspaceRunner
+        self.repositoryIndexer = repositoryIndexer
+        self.architectureEngine = architectureEngine
+        self.experimentManager = experimentManager
     }
 
     public static func live(
@@ -45,6 +60,7 @@ public final class RuntimeContext {
     ) -> RuntimeContext {
         let policyEngine = PolicyEngine(mode: config.policyMode)
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
+        let graphStore = GraphStore()
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
@@ -58,7 +74,13 @@ public final class RuntimeContext {
             artifactWriter: artifactWriter,
             verifiedExecutor: verifiedExecutor,
             policyEngine: policyEngine,
-            approvalStore: approvalStore
+            approvalStore: approvalStore,
+            graphStore: graphStore,
+            recoveryEngine: RecoveryEngine(),
+            workspaceRunner: WorkspaceRunner(),
+            repositoryIndexer: RepositoryIndexer(),
+            architectureEngine: ArchitectureEngine(),
+            experimentManager: ExperimentManager()
         )
     }
 }

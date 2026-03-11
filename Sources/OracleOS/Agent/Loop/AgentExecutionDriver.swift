@@ -1,5 +1,10 @@
 import Foundation
 
+@MainActor
 public protocol AgentExecutionDriver {
-    func execute(_ actionContract: ActionContract) -> ToolResult
+    func execute(
+        intent: ActionIntent,
+        plannerDecision: PlannerDecision,
+        selectedCandidate: ElementCandidate?
+    ) -> ToolResult
 }

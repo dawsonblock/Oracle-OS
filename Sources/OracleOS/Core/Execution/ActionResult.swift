@@ -87,4 +87,34 @@ public struct ActionResult: Sendable, Codable {
 
         return result
     }
+
+    public static func from(dict: [String: Any]) -> ActionResult? {
+        guard let success = dict["success"] as? Bool else {
+            return nil
+        }
+
+        let verificationStatus: VerificationStatus?
+        if let raw = dict["verification_status"] as? String {
+            verificationStatus = VerificationStatus(rawValue: raw)
+        } else {
+            verificationStatus = nil
+        }
+
+        return ActionResult(
+            success: success,
+            verified: dict["verified"] as? Bool ?? success,
+            message: dict["message"] as? String,
+            method: dict["method"] as? String,
+            verificationStatus: verificationStatus,
+            failureClass: dict["failure_class"] as? String,
+            elapsedMs: dict["elapsed_ms"] as? Double ?? 0,
+            policyDecision: nil,
+            protectedOperation: dict["protected_operation"] as? String,
+            approvalRequestID: dict["approval_request_id"] as? String,
+            approvalStatus: dict["approval_status"] as? String,
+            surface: dict["surface"] as? String,
+            appProtectionProfile: dict["app_protection_profile"] as? String,
+            blockedByPolicy: dict["blocked_by_policy"] as? Bool ?? false
+        )
+    }
 }

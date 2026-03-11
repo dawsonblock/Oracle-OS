@@ -14,13 +14,38 @@ public final class OracleRuntime {
         toolName: String? = nil,
         approvalRequestID: String? = nil,
         intent: ActionIntent,
+        selectedElementID: String? = nil,
+        selectedElementLabel: String? = nil,
+        candidateScore: Double? = nil,
+        candidateReasons: [String] = [],
+        candidateAmbiguityScore: Double? = nil,
+        plannerSource: String? = nil,
+        plannerFamily: String? = nil,
+        pathEdgeIDs: [String]? = nil,
+        currentEdgeID: String? = nil,
+        recoveryTagged: Bool = false,
+        recoveryStrategy: String? = nil,
+        recoverySource: String? = nil,
+        projectMemoryRefs: [String] = [],
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String] = [],
+        refactorProposalID: String? = nil,
+        knowledgeTier: KnowledgeTier? = nil,
         execute: () -> ToolResult
     ) -> ToolResult {
         let appName = resolvedAppName(for: intent)
         let policyContext = PolicyEvaluationContext(
             surface: surface,
             toolName: toolName,
-            appName: appName
+            appName: appName,
+            agentKind: intent.agentKind,
+            workspaceRoot: intent.workspaceRoot,
+            workspaceRelativePath: intent.workspaceRelativePath,
+            commandCategory: intent.commandCategory
         )
         let policyDecision = context.policyEngine.evaluate(intent: intent, context: policyContext)
         let fingerprint = PolicyRules.actionFingerprint(intent: intent, toolName: toolName)
@@ -37,9 +62,30 @@ public final class OracleRuntime {
                     taskID: taskID,
                     toolName: toolName,
                     intent: intent,
+                    selectedElementID: selectedElementID,
+                    selectedElementLabel: selectedElementLabel,
+                    candidateScore: candidateScore,
+                    candidateReasons: candidateReasons,
+                    candidateAmbiguityScore: candidateAmbiguityScore,
                     policyDecision: policyDecision,
                     approvalRequestID: approvalRequestID,
                     approvalOutcome: receipt.consumed ? "approved" : "pending",
+                    plannerSource: plannerSource,
+                    plannerFamily: plannerFamily,
+                    pathEdgeIDs: pathEdgeIDs,
+                    currentEdgeID: currentEdgeID,
+                    recoveryTagged: recoveryTagged,
+                    recoveryStrategy: recoveryStrategy,
+                    recoverySource: recoverySource,
+                    projectMemoryRefs: projectMemoryRefs,
+                    experimentID: experimentID,
+                    candidateID: candidateID,
+                    sandboxPath: sandboxPath,
+                    selectedCandidate: selectedCandidate,
+                    experimentOutcome: experimentOutcome,
+                    architectureFindings: architectureFindings,
+                    refactorProposalID: refactorProposalID,
+                    knowledgeTier: knowledgeTier,
                     execute: execute
                 )
             }
@@ -95,7 +141,16 @@ public final class OracleRuntime {
                 policyDecision: pendingDecision,
                 approvalRequestID: request.id,
                 approvalStatus: ApprovalStatus.pending.rawValue,
-                message: "Action pending approval"
+                message: "Action pending approval",
+                projectMemoryRefs: projectMemoryRefs,
+                experimentID: experimentID,
+                candidateID: candidateID,
+                sandboxPath: sandboxPath,
+                selectedCandidate: selectedCandidate,
+                experimentOutcome: experimentOutcome,
+                architectureFindings: architectureFindings,
+                refactorProposalID: refactorProposalID,
+                knowledgeTier: knowledgeTier
             )
         }
 
@@ -108,7 +163,16 @@ public final class OracleRuntime {
                 policyDecision: policyDecision,
                 approvalRequestID: nil,
                 approvalStatus: nil,
-                message: policyDecision.reason ?? "Action blocked by policy"
+                message: policyDecision.reason ?? "Action blocked by policy",
+                projectMemoryRefs: projectMemoryRefs,
+                experimentID: experimentID,
+                candidateID: candidateID,
+                sandboxPath: sandboxPath,
+                selectedCandidate: selectedCandidate,
+                experimentOutcome: experimentOutcome,
+                architectureFindings: architectureFindings,
+                refactorProposalID: refactorProposalID,
+                knowledgeTier: knowledgeTier
             )
         }
 
@@ -117,9 +181,30 @@ public final class OracleRuntime {
             taskID: taskID,
             toolName: toolName,
             intent: intent,
+            selectedElementID: selectedElementID,
+            selectedElementLabel: selectedElementLabel,
+            candidateScore: candidateScore,
+            candidateReasons: candidateReasons,
+            candidateAmbiguityScore: candidateAmbiguityScore,
             policyDecision: policyDecision,
             approvalRequestID: nil,
             approvalOutcome: nil,
+            plannerSource: plannerSource,
+            plannerFamily: plannerFamily,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
+            recoveryTagged: recoveryTagged,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource,
+            projectMemoryRefs: projectMemoryRefs,
+            experimentID: experimentID,
+            candidateID: candidateID,
+            sandboxPath: sandboxPath,
+            selectedCandidate: selectedCandidate,
+            experimentOutcome: experimentOutcome,
+            architectureFindings: architectureFindings,
+            refactorProposalID: refactorProposalID,
+            knowledgeTier: knowledgeTier,
             execute: execute
         )
     }
@@ -129,24 +214,66 @@ public final class OracleRuntime {
         taskID: String?,
         toolName: String?,
         intent: ActionIntent,
+        selectedElementID: String?,
+        selectedElementLabel: String?,
+        candidateScore: Double?,
+        candidateReasons: [String],
+        candidateAmbiguityScore: Double?,
         policyDecision: PolicyDecision,
         approvalRequestID: String?,
         approvalOutcome: String?,
+        plannerSource: String?,
+        plannerFamily: String?,
+        pathEdgeIDs: [String]?,
+        currentEdgeID: String?,
+        recoveryTagged: Bool,
+        recoveryStrategy: String?,
+        recoverySource: String?,
+        projectMemoryRefs: [String],
+        experimentID: String?,
+        candidateID: String?,
+        sandboxPath: String?,
+        selectedCandidate: Bool?,
+        experimentOutcome: String?,
+        architectureFindings: [String],
+        refactorProposalID: String?,
+        knowledgeTier: KnowledgeTier?,
         execute: () -> ToolResult
     ) -> ToolResult {
         var result = context.verifiedExecutor.run(
             taskID: taskID,
             toolName: toolName,
             intent: intent,
+            selectedElementID: selectedElementID,
+            selectedElementLabel: selectedElementLabel,
+            candidateScore: candidateScore,
+            candidateReasons: candidateReasons,
+            candidateAmbiguityScore: candidateAmbiguityScore,
             surface: surface,
             policyDecision: policyDecision,
             approvalRequestID: approvalRequestID,
             approvalOutcome: approvalOutcome,
+            plannerSource: plannerSource,
+            plannerFamily: plannerFamily,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
+            recoveryTagged: recoveryTagged,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource,
+            projectMemoryRefs: projectMemoryRefs,
+            experimentID: experimentID,
+            candidateID: candidateID,
+            sandboxPath: sandboxPath,
+            selectedCandidate: selectedCandidate,
+            experimentOutcome: experimentOutcome,
+            architectureFindings: architectureFindings,
+            refactorProposalID: refactorProposalID,
+            knowledgeTier: knowledgeTier,
             execute: execute
         )
 
-        if shouldLearn(from: result, policyDecision: policyDecision) {
-            recordLearning(from: result, policyDecision: policyDecision)
+        if shouldRecordOutcome(from: result, policyDecision: policyDecision) {
+            recordExecutionOutcome(from: result, policyDecision: policyDecision)
         }
 
         result = mergingPolicy(
@@ -167,12 +294,23 @@ public final class OracleRuntime {
         policyDecision: PolicyDecision,
         approvalRequestID: String?,
         approvalStatus: String?,
-        message: String
+        message: String,
+        projectMemoryRefs: [String] = [],
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String] = [],
+        refactorProposalID: String? = nil,
+        knowledgeTier: KnowledgeTier? = nil
     ) -> ToolResult {
         let preObservation = ObservationBuilder.capture(appName: resolvedAppName(for: intent))
         let preHash = ObservationHash.hash(preObservation)
+        let repositorySnapshot = repositorySnapshot(for: intent)
         let planningState = context.stateAbstraction.abstract(
             observation: preObservation,
+            repositorySnapshot: repositorySnapshot,
             observationHash: preHash
         )
         let stepID = context.traceRecorder.makeStepID()
@@ -190,6 +328,7 @@ public final class OracleRuntime {
             selectedElementLabel: nil,
             candidateScore: nil,
             candidateReasons: [],
+            ambiguityScore: nil,
             preObservationHash: preHash,
             postObservationHash: preHash,
             planningStateID: planningState.id.rawValue,
@@ -198,11 +337,15 @@ public final class OracleRuntime {
             postconditionClass: nil,
             actionContractID: nil,
             executionMode: "policy-\(approvalStatus == ApprovalStatus.pending.rawValue ? "pending" : "blocked")",
+            plannerSource: nil,
+            pathEdgeIDs: nil,
+            currentEdgeID: nil,
             verified: false,
             success: false,
             failureClass: "policyBlocked",
             recoveryStrategy: nil,
             recoverySource: nil,
+            recoveryTagged: nil,
             surface: surface.rawValue,
             policyMode: policyDecision.policyMode.rawValue,
             protectedOperation: policyDecision.protectedOperation?.rawValue,
@@ -210,6 +353,25 @@ public final class OracleRuntime {
             approvalOutcome: approvalStatus,
             blockedByPolicy: true,
             appProfile: policyDecision.appProtectionProfile.rawValue,
+            agentKind: intent.agentKind.rawValue,
+            domain: intent.domain,
+            plannerFamily: nil,
+            workspaceRelativePath: intent.workspaceRelativePath,
+            commandCategory: intent.commandCategory,
+            commandSummary: intent.commandSummary,
+            repositorySnapshotID: repositorySnapshot?.id,
+            buildResultSummary: nil,
+            testResultSummary: nil,
+            patchID: nil,
+            projectMemoryRefs: projectMemoryRefs.isEmpty ? nil : projectMemoryRefs,
+            experimentID: experimentID,
+            candidateID: candidateID,
+            sandboxPath: sandboxPath,
+            selectedCandidate: selectedCandidate,
+            experimentOutcome: experimentOutcome,
+            architectureFindings: architectureFindings.isEmpty ? nil : architectureFindings,
+            refactorProposalID: refactorProposalID,
+            knowledgeTier: knowledgeTier?.rawValue,
             elapsedMs: 0,
             screenshotPath: nil,
             notes: message
@@ -305,53 +467,302 @@ public final class OracleRuntime {
         return ObservationBuilder.capture(appName: nil).app
     }
 
-    private func shouldLearn(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
-        guard result.success,
-              (result.data?["action_result"] as? [String: Any])?["verified"] as? Bool == true
+    private func shouldRecordOutcome(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
+        guard policyDecision.blockedByPolicy == false else {
+            return false
+        }
+        guard let actionResultDict = result.data?["action_result"] as? [String: Any],
+              let actionResult = ActionResult.from(dict: actionResultDict)
         else {
             return false
         }
-
-        guard let protectedOperation = policyDecision.protectedOperation else {
-            return true
+        if actionResult.blockedByPolicy {
+            return false
         }
-
-        return policyDecision.requiresApproval == false || protectedOperation == .send
+        if actionResult.approvalStatus == ApprovalStatus.pending.rawValue {
+            return false
+        }
+        return true
     }
 
-    private func recordLearning(from result: ToolResult, policyDecision: PolicyDecision) {
+    private func recordExecutionOutcome(from result: ToolResult, policyDecision: PolicyDecision) {
         guard let data = result.data,
               let executionSemantics = data["execution_semantics"] as? [String: Any],
               let actionContractDict = executionSemantics["action_contract"] as? [String: Any],
               let transitionDict = executionSemantics["verified_transition"] as? [String: Any],
               let actionContract = ExecutionSemanticsEncoder.decodeActionContract(from: actionContractDict),
-              let transition = ExecutionSemanticsEncoder.decodeTransition(from: transitionDict)
+              let transition = ExecutionSemanticsEncoder.decodeTransition(from: transitionDict),
+              let actionResultDict = data["action_result"] as? [String: Any],
+              let actionResult = ActionResult.from(dict: actionResultDict)
         else {
             return
         }
 
-        context.graphStore.recordTransition(transition, actionContract: actionContract)
+        let planningDict = data["planning"] as? [String: Any]
+        let preState = (planningDict?["pre_state"] as? [String: Any]).flatMap(PlanningState.from(dict:))
+        let postState = (planningDict?["post_state"] as? [String: Any]).flatMap(PlanningState.from(dict:))
+        let ambiguityScore = (data["ranking"] as? [String: Any])?["ambiguity_score"] as? Double
 
-        if let observationDict = data["observations"] as? [String: Any],
-           let observationHash = observationDict["post_hash"] as? String
-        {
-            let observation = ObservationBuilder.capture(appName: nil)
-            let worldState = WorldState(
-                observationHash: observationHash,
-                planningState: context.stateAbstraction.abstract(observation: observation, observationHash: observationHash),
-                observation: observation
+        if actionResult.success, actionResult.verified {
+            context.graphStore.recordTransition(
+                transition,
+                actionContract: actionContract,
+                fromState: preState,
+                toState: postState
             )
+        } else if let preState,
+                  let failureRaw = actionResult.failureClass,
+                  let failure = FailureClass(rawValue: failureRaw)
+        {
+            context.graphStore.recordFailure(
+                state: preState,
+                actionContract: actionContract,
+                failure: failure,
+                ambiguityScore: ambiguityScore,
+                recoveryTagged: transition.recoveryTagged
+            )
+        }
 
-            if let protectedOperation = policyDecision.protectedOperation {
-                context.memoryStore.recordProtectedOperation(
-                    app: observation.app ?? "unknown",
-                    operation: protectedOperation.rawValue
-                )
-            }
+        _ = context.graphStore.promoteEligibleEdges()
+        _ = context.graphStore.pruneOrDemoteEdges()
 
-            if let focused = observation.focusedElement {
+        let observation = ObservationBuilder.capture(appName: nil)
+        let observationHash = ObservationHash.hash(observation)
+        let repositorySnapshot = transition.domain == "code"
+            ? repositorySnapshot(forWorkspaceRoot: actionContract.workspaceRelativePath == nil ? (data["code_execution"] as? [String: Any])?["workspace_root"] as? String : intentWorkspaceRoot(from: data))
+            : nil
+        let worldState = WorldState(
+            observationHash: observationHash,
+            planningState: context.stateAbstraction.abstract(
+                observation: observation,
+                repositorySnapshot: repositorySnapshot,
+                observationHash: observationHash
+            ),
+            observation: observation,
+            repositorySnapshot: repositorySnapshot
+        )
+
+        if let protectedOperation = policyDecision.protectedOperation {
+            context.memoryStore.recordProtectedOperation(
+                app: observation.app ?? "unknown",
+                operation: protectedOperation.rawValue
+            )
+        }
+
+        if let protectedOperation = policyDecision.protectedOperation,
+           actionResult.approvalStatus == "approved"
+        {
+            context.memoryStore.recordApproval(
+                app: observation.app ?? "unknown",
+                operation: protectedOperation.rawValue
+            )
+        }
+
+        if actionResult.success, let focused = observation.focusedElement {
+            if transition.domain == "code", let commandCategory = transition.commandCategory, let workspaceRoot = repositorySnapshot?.workspaceRoot {
+                context.memoryStore.recordCommandResult(category: commandCategory, workspaceRoot: workspaceRoot, success: true)
+            } else {
                 MemoryUpdater.recordSuccess(element: focused, state: worldState, store: context.memoryStore)
             }
+        } else if let failureRaw = actionResult.failureClass,
+                  let failure = FailureClass(rawValue: failureRaw)
+        {
+            if transition.domain == "code", let commandCategory = transition.commandCategory, let workspaceRoot = repositorySnapshot?.workspaceRoot {
+                context.memoryStore.recordCommandResult(category: commandCategory, workspaceRoot: workspaceRoot, success: false)
+            }
+            MemoryUpdater.recordFailure(failure: failure, state: worldState, store: context.memoryStore)
         }
+    }
+
+    public func executeCodeIntent(_ intent: ActionIntent) -> ToolResult {
+        guard let command = intent.codeCommand else {
+            return ToolResult(success: false, error: "Missing structured code command")
+        }
+
+        do {
+            switch command.category {
+            case .indexRepository:
+                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                return ToolResult(
+                    success: true,
+                    data: [
+                        "method": "repository-index",
+                        "code_execution": [
+                            "workspace_root": snapshot.workspaceRoot,
+                            "repository_snapshot_id": snapshot.id,
+                            "build_tool": snapshot.buildTool.rawValue,
+                            "file_count": snapshot.files.count,
+                        ],
+                    ]
+                )
+            case .searchCode:
+                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let matches = RepositoryQuery.files(matching: intent.text ?? intent.query ?? "", in: snapshot)
+                return ToolResult(
+                    success: true,
+                    data: [
+                        "method": "repository-search",
+                        "matches": matches,
+                        "code_execution": [
+                            "workspace_root": snapshot.workspaceRoot,
+                            "repository_snapshot_id": snapshot.id,
+                            "match_count": matches.count,
+                        ],
+                    ]
+                )
+            case .openFile:
+                guard let relativePath = command.workspaceRelativePath else {
+                    return ToolResult(success: false, error: "Missing file path")
+                }
+                let scope = try WorkspaceScope(rootURL: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let fileURL = try scope.resolve(relativePath: relativePath)
+                guard let fileURL,
+                      let data = FileManager.default.contents(atPath: fileURL.path),
+                      let text = String(data: data, encoding: .utf8)
+                else {
+                    return ToolResult(success: false, error: "Unable to read \(relativePath)")
+                }
+                return ToolResult(
+                    success: true,
+                    data: [
+                        "method": "workspace-read",
+                        "content": text,
+                        "code_execution": [
+                            "workspace_root": command.workspaceRoot,
+                            "workspace_relative_path": relativePath,
+                        ],
+                    ]
+                )
+            case .editFile, .writeFile, .generatePatch:
+                guard let relativePath = command.workspaceRelativePath else {
+                    return ToolResult(success: false, error: "Missing file path")
+                }
+                let scope = try WorkspaceScope(rootURL: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let fileURL = try scope.resolve(relativePath: relativePath)
+                guard let fileURL else {
+                    return ToolResult(success: false, error: "Unable to resolve \(relativePath)")
+                }
+                let existing = FileManager.default.contents(atPath: fileURL.path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                let content = intent.text ?? existing
+                try content.write(to: fileURL, atomically: true, encoding: .utf8)
+                return ToolResult(
+                    success: true,
+                    data: [
+                        "method": "workspace-write",
+                        "patch_id": UUID().uuidString,
+                        "code_execution": [
+                            "workspace_root": command.workspaceRoot,
+                            "workspace_relative_path": relativePath,
+                            "previous_length": existing.count,
+                            "new_length": content.count,
+                        ],
+                    ]
+                )
+            case .parseBuildFailure, .parseTestFailure:
+                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let output = intent.text ?? ""
+                let likelyFiles = RepositoryQuery.likelyFiles(for: output, in: snapshot)
+                return ToolResult(
+                    success: !likelyFiles.isEmpty,
+                    data: [
+                        "method": "failure-parser",
+                        "likely_files": likelyFiles,
+                        "code_execution": [
+                            "workspace_root": snapshot.workspaceRoot,
+                            "repository_snapshot_id": snapshot.id,
+                        ],
+                    ],
+                    error: likelyFiles.isEmpty ? "No relevant files found" : nil
+                )
+            case .build, .test, .formatter, .linter, .gitStatus, .gitBranch, .gitCommit, .gitPush:
+                let commandResult = try context.workspaceRunner.execute(spec: command)
+                let summary = summarize(commandResult.stderr.isEmpty ? commandResult.stdout : commandResult.stderr)
+                var codeExecution: [String: Any] = [
+                    "workspace_root": command.workspaceRoot,
+                    "command_category": command.category.rawValue,
+                    "summary": command.summary,
+                    "stdout": commandResult.stdout,
+                    "stderr": commandResult.stderr,
+                    "exit_code": commandResult.exitCode,
+                    "elapsed_ms": commandResult.elapsedMs,
+                ]
+                if command.category == .build {
+                    codeExecution["build_result_summary"] = summary
+                }
+                if command.category == .test {
+                    codeExecution["test_result_summary"] = summary
+                }
+                return ToolResult(
+                    success: commandResult.succeeded,
+                    data: [
+                        "method": "workspace-runner",
+                        "code_execution": codeExecution,
+                    ],
+                    error: commandResult.succeeded ? nil : summary
+                )
+            }
+        } catch {
+            return ToolResult(success: false, error: error.localizedDescription)
+        }
+    }
+
+    public func makeExecutionDriver(
+        surface: RuntimeSurface = .recipe,
+        rawActionExecutor: @escaping @MainActor (ActionIntent) -> ToolResult
+    ) -> RuntimeExecutionDriver {
+        RuntimeExecutionDriver(
+            runtime: self,
+            surface: surface,
+            rawActionExecutor: rawActionExecutor
+        )
+    }
+
+    public func runAutonomous(
+        goal: Goal,
+        observationProvider: any ObservationProvider,
+        surface: RuntimeSurface = .recipe,
+        budget: LoopBudget = LoopBudget(),
+        rawActionExecutor: @escaping @MainActor (ActionIntent) -> ToolResult
+    ) async -> LoopOutcome {
+        let loop = AgentLoop(
+            observationProvider: observationProvider,
+            executionDriver: makeExecutionDriver(
+                surface: surface,
+                rawActionExecutor: rawActionExecutor
+            ),
+            stateAbstraction: context.stateAbstraction,
+            planner: Planner(),
+            graphStore: context.graphStore,
+            policyEngine: context.policyEngine,
+            recoveryEngine: context.recoveryEngine,
+            memoryStore: context.memoryStore
+        )
+        return await loop.run(goal: goal, budget: budget, surface: surface)
+    }
+
+    private func repositorySnapshot(for intent: ActionIntent) -> RepositorySnapshot? {
+        guard intent.agentKind == .code,
+              let workspaceRoot = intent.workspaceRoot
+        else {
+            return nil
+        }
+        return repositorySnapshot(forWorkspaceRoot: workspaceRoot)
+    }
+
+    private func repositorySnapshot(forWorkspaceRoot workspaceRoot: String?) -> RepositorySnapshot? {
+        guard let workspaceRoot else { return nil }
+        return context.repositoryIndexer.index(
+            workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
+        )
+    }
+
+    private func intentWorkspaceRoot(from data: [String: Any]) -> String? {
+        (data["code_execution"] as? [String: Any])?["workspace_root"] as? String
+    }
+
+    private func summarize(_ output: String) -> String {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "No output" }
+        return trimmed.split(separator: "\n").prefix(3).joined(separator: " ")
     }
 }

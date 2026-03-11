@@ -475,6 +475,30 @@ private struct ControlInspectorView: View {
                         KVRow(key: "Request", value: result.request.displayTitle)
                         KVRow(key: "Message", value: result.message ?? "No message")
                         KVRow(key: "Elapsed", value: "\(Int(result.elapsedMs)) ms", monospaced: true)
+                        if let agentKind = result.agentKind {
+                            KVRow(key: "Agent", value: agentKind)
+                        }
+                        if let plannerFamily = result.plannerFamily {
+                            KVRow(key: "Planner", value: plannerFamily)
+                        }
+                        if let commandCategory = result.commandCategory {
+                            KVRow(key: "Command", value: commandCategory)
+                        }
+                        if let commandSummary = result.commandSummary {
+                            KVRow(key: "Summary", value: commandSummary)
+                        }
+                        if let workspaceRelativePath = result.workspaceRelativePath {
+                            KVRow(key: "Path", value: workspaceRelativePath, monospaced: true)
+                        }
+                        if let buildResultSummary = result.buildResultSummary {
+                            KVRow(key: "Build", value: buildResultSummary)
+                        }
+                        if let testResultSummary = result.testResultSummary {
+                            KVRow(key: "Tests", value: testResultSummary)
+                        }
+                        if let patchID = result.patchID {
+                            KVRow(key: "Patch", value: patchID, monospaced: true)
+                        }
                         if let protectedOperation = result.protectedOperation {
                             KVRow(key: "Protected Op", value: protectedOperation)
                         }
@@ -934,6 +958,24 @@ private struct TraceInspectorView: View {
                         KVRow(key: "Action", value: step.actionName)
                         KVRow(key: "Target", value: step.actionTarget ?? "None")
                         KVRow(key: "Surface", value: step.surface ?? "Unknown")
+                        if let agentKind = step.agentKind {
+                            KVRow(key: "Agent", value: agentKind)
+                        }
+                        if let plannerFamily = step.plannerFamily {
+                            KVRow(key: "Planner", value: plannerFamily)
+                        }
+                        if let domain = step.domain {
+                            KVRow(key: "Domain", value: domain)
+                        }
+                        if let commandCategory = step.commandCategory {
+                            KVRow(key: "Command", value: commandCategory)
+                        }
+                        if let commandSummary = step.commandSummary {
+                            KVRow(key: "Summary", value: commandSummary)
+                        }
+                        if let workspaceRelativePath = step.workspaceRelativePath {
+                            KVRow(key: "Path", value: workspaceRelativePath, monospaced: true)
+                        }
                         if let protectedOperation = step.protectedOperation {
                             KVRow(key: "Protected Op", value: protectedOperation)
                         }
@@ -950,7 +992,65 @@ private struct TraceInspectorView: View {
                         KVRow(key: "Postcondition", value: step.postcondition ?? "None")
                         KVRow(key: "Pre Hash", value: step.preObservationHash ?? "Unavailable", monospaced: true)
                         KVRow(key: "Post Hash", value: step.postObservationHash ?? "Unavailable", monospaced: true)
+                        if let buildResultSummary = step.buildResultSummary {
+                            KVRow(key: "Build", value: buildResultSummary)
+                        }
+                        if let testResultSummary = step.testResultSummary {
+                            KVRow(key: "Tests", value: testResultSummary)
+                        }
+                        if let patchID = step.patchID {
+                            KVRow(key: "Patch", value: patchID, monospaced: true)
+                        }
+                        if let repositorySnapshotID = step.repositorySnapshotID {
+                            KVRow(key: "Repo Snapshot", value: repositorySnapshotID, monospaced: true)
+                        }
+                        if let knowledgeTier = step.knowledgeTier {
+                            KVRow(key: "Knowledge Tier", value: knowledgeTier)
+                        }
+                        if let experimentID = step.experimentID {
+                            KVRow(key: "Experiment", value: experimentID, monospaced: true)
+                        }
+                        if let candidateID = step.candidateID {
+                            KVRow(key: "Candidate", value: candidateID, monospaced: true)
+                        }
+                        if let selectedCandidate = step.selectedCandidate {
+                            KVRow(key: "Selected", value: selectedCandidate ? "Yes" : "No")
+                        }
+                        if let experimentOutcome = step.experimentOutcome {
+                            KVRow(key: "Experiment Outcome", value: experimentOutcome)
+                        }
+                        if let sandboxPath = step.sandboxPath {
+                            KVRow(key: "Sandbox", value: sandboxPath, monospaced: true)
+                        }
+                        if let refactorProposalID = step.refactorProposalID {
+                            KVRow(key: "Refactor Proposal", value: refactorProposalID, monospaced: true)
+                        }
                         KVRow(key: "Elapsed", value: "\(Int(step.elapsedMs)) ms", monospaced: true)
+                        if !step.projectMemoryRefs.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Project Memory")
+                                    .font(.system(size: 12, weight: .semibold))
+                                ForEach(step.projectMemoryRefs, id: \.self) { ref in
+                                    Text(ref)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                        if !step.architectureFindings.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Architecture Findings")
+                                    .font(.system(size: 12, weight: .semibold))
+                                ForEach(step.architectureFindings, id: \.self) { finding in
+                                    Text(finding)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
                         if let notes = step.notes, !notes.isEmpty {
                             Divider()
                             Text(notes)

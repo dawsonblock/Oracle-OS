@@ -5,11 +5,27 @@ public struct PolicyEvaluationContext: Sendable {
     public let surface: RuntimeSurface
     public let toolName: String?
     public let appName: String?
+    public let agentKind: AgentKind?
+    public let workspaceRoot: String?
+    public let workspaceRelativePath: String?
+    public let commandCategory: String?
 
-    public init(surface: RuntimeSurface, toolName: String?, appName: String?) {
+    public init(
+        surface: RuntimeSurface,
+        toolName: String?,
+        appName: String?,
+        agentKind: AgentKind? = nil,
+        workspaceRoot: String? = nil,
+        workspaceRelativePath: String? = nil,
+        commandCategory: String? = nil
+    ) {
         self.surface = surface
         self.toolName = toolName
         self.appName = appName
+        self.agentKind = agentKind
+        self.workspaceRoot = workspaceRoot
+        self.workspaceRelativePath = workspaceRelativePath
+        self.commandCategory = commandCategory
     }
 }
 
@@ -26,6 +42,33 @@ public enum PolicyRules {
         }
 
         return .lowRiskAllowed
+    }
+
+    public static func classification(
+        for intent: ActionIntent,
+        context: PolicyEvaluationContext,
+        appProtectionProfile: AppProtectionProfile
+    ) -> (protectedOperation: ProtectedOperation?, riskLevel: RiskLevel, reason: String?) {
+        if intent.agentKind == .code || context.agentKind == .code {
+            return codeClassification(for: intent, context: context)
+        }
+
+        let protectedOperation = protectedOperation(
+            for: intent,
+            context: context,
+            appProtectionProfile: appProtectionProfile
+        )
+        let riskLevel: RiskLevel = switch protectedOperation {
+        case .credentialEntry, .settingsChange, .terminalControl, .clipboardExfiltration:
+            .blocked
+        case .send, .purchase, .delete, .uploadShare:
+            .risky
+        case .workspaceWrite, .gitPush, .destructiveVCS, .externalNetworkFetch:
+            .risky
+        case nil:
+            .low
+        }
+        return (protectedOperation, riskLevel, nil)
     }
 
     public static func protectedOperation(
@@ -101,11 +144,16 @@ public enum PolicyRules {
     public static func actionFingerprint(intent: ActionIntent, toolName: String?) -> String {
         let seed = [
             toolName ?? "runtime",
+            intent.agentKind.rawValue,
             intent.app,
             intent.action,
             intent.query ?? "",
             intent.role ?? "",
             intent.domID ?? "",
+            intent.workspaceRoot ?? "",
+            intent.workspaceRelativePath ?? "",
+            intent.commandCategory ?? "",
+            intent.commandSummary ?? "",
             coordinateFragment(x: intent.x, y: intent.y),
             redactedTextFragment(intent.text),
         ].joined(separator: "|")
@@ -156,6 +204,79 @@ public enum PolicyRules {
         value?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
+    }
+
+    private static func codeClassification(
+        for intent: ActionIntent,
+        context: PolicyEvaluationContext
+    ) -> (protectedOperation: ProtectedOperation?, riskLevel: RiskLevel, reason: String?) {
+        guard let command = intent.codeCommand else {
+            return (.workspaceWrite, .blocked, "Arbitrary shell execution is blocked")
+        }
+
+        guard let workspaceRoot = context.workspaceRoot ?? intent.workspaceRoot, !workspaceRoot.isEmpty else {
+            return (.workspaceWrite, .blocked, "Workspace root is required for code actions")
+        }
+
+        if let relativePath = context.workspaceRelativePath ?? intent.workspaceRelativePath {
+            if relativePath.hasPrefix("/") || relativePath.contains("../") {
+                return (.workspaceWrite, .blocked, "Workspace path escapes the active workspace")
+            }
+        }
+
+        if command.touchesNetwork {
+            return (.externalNetworkFetch, .risky, "Remote network actions require approval")
+        }
+
+        switch command.category {
+        case .indexRepository, .searchCode, .openFile, .parseBuildFailure, .parseTestFailure, .build, .test, .formatter, .linter, .gitStatus, .gitBranch, .gitCommit:
+            return (nil, .low, nil)
+        case .gitPush:
+            let summary = command.summary.lowercased()
+            if summary.contains("--force") || summary.contains("force") || summary.contains("delete") || summary.contains(" rebase ") || summary.contains(" merge ") {
+                return (.destructiveVCS, .blocked, "Destructive VCS actions are blocked by policy")
+            }
+            return (.gitPush, .risky, "Git push requires approval")
+        case .editFile, .writeFile, .generatePatch:
+            let path = intent.workspaceRelativePath ?? command.workspaceRelativePath ?? ""
+            if path.isEmpty {
+                return (.workspaceWrite, .blocked, "Workspace write target is missing")
+            }
+            if isSensitiveWorkspacePath(path) {
+                return (.workspaceWrite, .risky, "Sensitive workspace writes require approval")
+            }
+            if isSafeSourcePath(path) {
+                return (nil, .low, nil)
+            }
+            return (.workspaceWrite, .risky, "Writes outside source/test paths require approval")
+        }
+    }
+
+    private static func isSafeSourcePath(_ path: String) -> Bool {
+        let normalized = normalize(path)
+        return normalized.hasPrefix("sources/")
+            || normalized.hasPrefix("tests/")
+            || normalized == "package.swift"
+            || normalized.hasPrefix("src/")
+            || normalized.hasPrefix("lib/")
+    }
+
+    private static func isSensitiveWorkspacePath(_ path: String) -> Bool {
+        let normalized = normalize(path)
+        let sensitiveFragments = [
+            ".github/",
+            ".circleci/",
+            "ci/",
+            "release",
+            "deploy",
+            "secret",
+            "token",
+            ".env",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "podfile.lock",
+        ]
+        return sensitiveFragments.contains(where: normalized.contains)
     }
 
     private static let blockedApplicationPatterns = [

@@ -152,4 +152,5 @@ public enum GhostConstants {
     public static let recipesDirectory = "~/.ghost-os/recipes"
     public static let logsDirectory = "~/.ghost-os/logs"
     public static let approvalsDirectory = "~/.ghost-os/approvals"
+    public static let graphDirectory = "~/.ghost-os/graph"
 }

@@ -1,3 +1,4 @@
+@MainActor
 public protocol RecoveryStrategy {
 
     var name: String { get }

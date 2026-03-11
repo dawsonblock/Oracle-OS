@@ -1,8 +1,8 @@
 import Foundation
 
 public final class CandidateGraph: @unchecked Sendable {
-    public private(set) var nodes: [PlanningStateID: StateNode]
-    public private(set) var edges: [String: EdgeTransition]
+    public var nodes: [PlanningStateID: StateNode]
+    public var edges: [String: EdgeTransition]
 
     public init(
         nodes: [PlanningStateID: StateNode] = [:],
@@ -27,7 +27,13 @@ public final class CandidateGraph: @unchecked Sendable {
             fromPlanningStateID: transition.fromPlanningStateID,
             toPlanningStateID: transition.toPlanningStateID,
             actionContractID: transition.actionContractID,
-            postconditionClass: transition.postconditionClass
+            agentKind: transition.agentKind,
+            domain: transition.domain,
+            workspaceRelativePath: transition.workspaceRelativePath,
+            commandCategory: transition.commandCategory,
+            plannerFamily: transition.plannerFamily,
+            postconditionClass: transition.postconditionClass,
+            knowledgeTier: transition.knowledgeTier
         )
 
         edge.record(transition)

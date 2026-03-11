@@ -30,7 +30,10 @@ let package = Package(
             ],
             path: "Sources/OracleOS",
             swiftSettings: concurrencySettings,
-            linkerSettings: [.linkedFramework("ScreenCaptureKit")]
+            linkerSettings: [
+                .linkedFramework("ScreenCaptureKit"),
+                .linkedLibrary("sqlite3"),
+            ]
         ),
         .target(
             name: "OracleControllerShared",

@@ -5,9 +5,10 @@ public final class StateAbstraction {
 
     public func abstract(
         observation: Observation,
+        repositorySnapshot: RepositorySnapshot? = nil,
         observationHash: String
     ) -> PlanningState {
-        let features = extractFeatures(from: observation)
+        let features = extractFeatures(from: observation, repositorySnapshot: repositorySnapshot)
         let clusterKey = StateClusterKey(rawValue: buildClusterKey(from: features))
         let stateID = PlanningStateID(rawValue: clusterKey.rawValue)
 
@@ -25,7 +26,11 @@ public final class StateAbstraction {
         )
     }
 
-    private func extractFeatures(from observation: Observation) -> StateFeatures {
+    private func extractFeatures(from observation: Observation, repositorySnapshot: RepositorySnapshot?) -> StateFeatures {
+        if let repositorySnapshot {
+            return extractCodeFeatures(from: observation, repositorySnapshot: repositorySnapshot)
+        }
+
         let appID = normalizedAppID(from: observation)
         let domain = normalizedDomain(from: observation.url)
         let windowClass = normalizedWindowClass(from: observation.windowTitle, appID: appID)
@@ -43,6 +48,31 @@ public final class StateAbstraction {
             focusedRole: focusedRole,
             modalClass: modalClass,
             navigationClass: navigationClass,
+            controlContext: controlContext
+        )
+    }
+
+    private func extractCodeFeatures(
+        from observation: Observation,
+        repositorySnapshot: RepositorySnapshot
+    ) -> StateFeatures {
+        let branch = repositorySnapshot.activeBranch ?? "detached"
+        let taskPhase = repositorySnapshot.isGitDirty ? "code-dirty" : "code-clean"
+        let focusedRole = observation.focusedElement?.role ?? "repository"
+        let controlContext = [
+            "tool:\(repositorySnapshot.buildTool.rawValue)",
+            "tests:\(repositorySnapshot.testGraph.tests.count)",
+            "files:\(repositorySnapshot.files.count)",
+        ].joined(separator: "|")
+
+        return StateFeatures(
+            appID: "Workspace",
+            domain: repositorySnapshot.buildTool.rawValue,
+            windowClass: branch,
+            taskPhase: taskPhase,
+            focusedRole: focusedRole,
+            modalClass: nil,
+            navigationClass: "code",
             controlContext: controlContext
         )
     }
