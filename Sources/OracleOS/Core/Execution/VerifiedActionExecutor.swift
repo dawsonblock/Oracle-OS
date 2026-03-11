@@ -3,17 +3,20 @@ import Foundation
 @MainActor
 public final class VerifiedActionExecutor {
     private let verificationTimeout: TimeInterval
+    private let stateAbstraction: StateAbstraction
     private let traceRecorder: TraceRecorder?
     private let traceStore: TraceStore?
     private let artifactWriter: FailureArtifactWriter?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
+        stateAbstraction: StateAbstraction = StateAbstraction(),
         traceRecorder: TraceRecorder? = nil,
         traceStore: TraceStore? = nil,
         artifactWriter: FailureArtifactWriter? = nil
     ) {
         self.verificationTimeout = verificationTimeout
+        self.stateAbstraction = stateAbstraction
         self.traceRecorder = traceRecorder
         self.traceStore = traceStore
         self.artifactWriter = artifactWriter
@@ -34,6 +37,10 @@ public final class VerifiedActionExecutor {
         let start = Date()
         let preObservation = ObservationBuilder.capture(appName: intent.app)
         let preHash = ObservationHash.hash(preObservation)
+        let prePlanningState = stateAbstraction.abstract(
+            observation: preObservation,
+            observationHash: preHash
+        )
 
         let raw = execute()
         let (postObservation, verification, timedOut) = captureVerifiedPostObservation(
@@ -41,9 +48,34 @@ public final class VerifiedActionExecutor {
             conditions: intent.postconditions
         )
         let postHash = ObservationHash.hash(postObservation)
+        let postPlanningState = stateAbstraction.abstract(
+            observation: postObservation,
+            observationHash: postHash
+        )
         let failureClass = classifyFailure(raw: raw, verification: verification, timedOut: timedOut)
         let verified = raw.success && verification.status != .failed
         let elapsedMs = Date().timeIntervalSince(start) * 1000.0
+        let method = raw.data?["method"] as? String
+        let actionContract = ActionContract.from(
+            intent: intent,
+            method: method,
+            selectedElementLabel: selectedElementLabel
+        )
+        let postconditionClass = classifyPostconditionClass(
+            intent: intent,
+            verification: verification,
+            raw: raw,
+            failureClass: failureClass
+        )
+        let verifiedTransition = VerifiedTransition(
+            fromPlanningStateID: prePlanningState.id,
+            toPlanningStateID: postPlanningState.id,
+            actionContractID: actionContract.id,
+            postconditionClass: postconditionClass,
+            verified: verified,
+            failureClass: failureClass?.rawValue,
+            latencyMs: Int(elapsedMs.rounded())
+        )
 
         let artifactSummary = failureArtifacts(
             sessionID: sessionID,
@@ -60,7 +92,7 @@ public final class VerifiedActionExecutor {
             success: verified,
             verified: verified,
             message: raw.error ?? raw.suggestion,
-            method: raw.data?["method"] as? String,
+            method: method,
             verificationStatus: verification.status,
             failureClass: failureClass?.rawValue,
             elapsedMs: elapsedMs
@@ -80,14 +112,27 @@ public final class VerifiedActionExecutor {
             candidateReasons: candidateReasons,
             preObservationHash: preHash,
             postObservationHash: postHash,
+            planningStateID: prePlanningState.id.rawValue,
+            beliefSnapshotID: nil,
             postcondition: describe(postconditions: intent.postconditions),
+            postconditionClass: postconditionClass.rawValue,
+            actionContractID: actionContract.id,
+            executionMode: "verified-execution",
             verified: verified,
             success: verified,
             failureClass: failureClass?.rawValue,
             recoveryStrategy: nil,
+            recoverySource: nil,
             elapsedMs: elapsedMs,
             screenshotPath: artifactSummary.screenshotPath,
-            notes: artifactSummary.notes
+            notes: TraceEnricher.mergedNotes(
+                existing: artifactSummary.notes,
+                planningStateID: prePlanningState.id,
+                actionContractID: actionContract.id,
+                postconditionClass: postconditionClass,
+                executionMode: "verified-execution",
+                recoverySource: nil
+            )
         )
 
         traceRecorder?.record(event)
@@ -107,16 +152,33 @@ public final class VerifiedActionExecutor {
                 ] as [String: Any]
             },
         ]
-        data["trace"] = [
+        var traceData: [String: Any] = [
+            "schema_version": TraceSchemaVersion.current,
             "session_id": sessionID,
             "step_id": stepID,
-            "file": traceURL?.path as Any,
-            "failure_class": failureClass?.rawValue as Any,
+            "planning_state_id": prePlanningState.id.rawValue,
+            "action_contract_id": actionContract.id,
+            "postcondition_class": postconditionClass.rawValue,
         ]
+        if let tracePath = traceURL?.path {
+            traceData["file"] = tracePath
+        }
+        if let failureClass {
+            traceData["failure_class"] = failureClass.rawValue
+        }
+        data["trace"] = traceData
         data["observations"] = [
             "pre_hash": preHash,
             "post_hash": postHash,
         ]
+        data["planning"] = [
+            "pre_state_id": prePlanningState.id.rawValue,
+            "post_state_id": postPlanningState.id.rawValue,
+        ]
+        data["execution_semantics"] = ExecutionSemanticsEncoder.encode(
+            actionContract: actionContract,
+            transition: verifiedTransition
+        )
 
         let finalError: String?
         if raw.success, verification.status == .failed {
@@ -212,6 +274,51 @@ public final class VerifiedActionExecutor {
             }
             return "\($0.kind.rawValue):\($0.target)"
         }.joined(separator: ", ")
+    }
+
+    private func classifyPostconditionClass(
+        intent: ActionIntent,
+        verification: VerificationSummary,
+        raw: ToolResult,
+        failureClass: FailureClass?
+    ) -> PostconditionClass {
+        if failureClass != nil || !raw.success {
+            return .actionFailed
+        }
+
+        if verification.checks.contains(where: { $0.passed && $0.condition.kind == .urlContains }) {
+            return .navigationOccurred
+        }
+        if verification.checks.contains(where: { $0.passed && $0.condition.kind == .elementAppeared }) {
+            return .elementAppeared
+        }
+        if verification.checks.contains(where: { $0.passed && $0.condition.kind == .elementDisappeared }) {
+            return .elementDisappeared
+        }
+        if verification.checks.contains(where: { $0.passed && $0.condition.kind == .elementValueEquals }) {
+            return .textChanged
+        }
+        if verification.checks.contains(where: { $0.passed && $0.condition.kind == .elementFocused }) {
+            return .focusChanged
+        }
+
+        if intent.postconditions.contains(where: { $0.kind == .elementAppeared }) {
+            return .elementAppeared
+        }
+        if intent.postconditions.contains(where: { $0.kind == .elementDisappeared }) {
+            return .elementDisappeared
+        }
+        if intent.postconditions.contains(where: { $0.kind == .urlContains }) {
+            return .navigationOccurred
+        }
+        if intent.postconditions.contains(where: { $0.kind == .elementValueEquals }) {
+            return .textChanged
+        }
+        if intent.postconditions.contains(where: { $0.kind == .elementFocused || $0.kind == .appFrontmost }) {
+            return .focusChanged
+        }
+
+        return .unknown
     }
 
     private func failureArtifacts(
