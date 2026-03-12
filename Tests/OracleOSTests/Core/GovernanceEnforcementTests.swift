@@ -319,10 +319,23 @@ struct GovernanceEnforcementTests {
     }
 
     private func repositoryRoot() -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let fileManager = FileManager.default
+
+        while true {
+            let packageManifestURL = url.appendingPathComponent("Package.swift")
+            if fileManager.fileExists(atPath: packageManifestURL.path) {
+                return url
+            }
+
+            let parent = url.deletingLastPathComponent()
+            if parent.path == url.path {
+                // Reached filesystem root without finding Package.swift; return the current directory.
+                return url
+            }
+
+            url = parent
+        }
     }
 
     private func makeTempGraphURL() -> URL {
