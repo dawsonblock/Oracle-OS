@@ -72,6 +72,15 @@ struct EvalMetrics {
         if ambiguityFailureCount > baseline.ambiguityFailureCount + thresholds.ambiguityFailureIncrease {
             regressions.append("ambiguity_failure_count increased from \(baseline.ambiguityFailureCount) to \(ambiguityFailureCount)")
         }
+        if patchSelectionSuccessRate < baseline.patchSelectionSuccessRate - thresholds.patchSelectionDrop {
+            regressions.append("patch_selection_success_rate regressed from \(percent(baseline.patchSelectionSuccessRate)) to \(percent(patchSelectionSuccessRate))")
+        }
+        if graphReuseRatio < baseline.graphReuseRatio - thresholds.graphReuseDrop {
+            regressions.append("graph_reuse_ratio regressed from \(percent(baseline.graphReuseRatio)) to \(percent(graphReuseRatio))")
+        }
+        if recoveryReuseRatio < baseline.recoveryReuseRatio - thresholds.recoveryReuseDrop {
+            regressions.append("recovery_reuse_ratio regressed from \(percent(baseline.recoveryReuseRatio)) to \(percent(recoveryReuseRatio))")
+        }
         return regressions
     }
 
@@ -85,16 +94,25 @@ struct RegressionThresholds {
     let recoveryRateDrop: Double
     let workflowReuseDrop: Double
     let ambiguityFailureIncrease: Int
+    let patchSelectionDrop: Double
+    let graphReuseDrop: Double
+    let recoveryReuseDrop: Double
 
     init(
         successRateDrop: Double = 0.05,
         recoveryRateDrop: Double = 0.1,
         workflowReuseDrop: Double = 0.1,
-        ambiguityFailureIncrease: Int = 2
+        ambiguityFailureIncrease: Int = 2,
+        patchSelectionDrop: Double = 0.1,
+        graphReuseDrop: Double = 0.1,
+        recoveryReuseDrop: Double = 0.15
     ) {
         self.successRateDrop = successRateDrop
         self.recoveryRateDrop = recoveryRateDrop
         self.workflowReuseDrop = workflowReuseDrop
         self.ambiguityFailureIncrease = ambiguityFailureIncrease
+        self.patchSelectionDrop = patchSelectionDrop
+        self.graphReuseDrop = graphReuseDrop
+        self.recoveryReuseDrop = recoveryReuseDrop
     }
 }

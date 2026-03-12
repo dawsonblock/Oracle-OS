@@ -115,7 +115,7 @@ public final class Planner: @unchecked Sendable {
 
         // Deliberate plan comparison:
         // 1. Gather candidates from family planner (workflow, graph, exploration)
-        // 2. Gather candidates from reasoning engine in parallel
+        // 2. Gather candidates from reasoning engine
         // 3. Score all candidates and pick the best deliberate plan
         // 4. Escalate to experiment when confidence is low
         let familyDecision = familyPlannerDecision(
@@ -125,8 +125,8 @@ public final class Planner: @unchecked Sendable {
             memoryStore: memoryStore
         )
 
-        // For workflow and stable graph sources, reasoning runs in parallel
-        // to allow deliberate comparison rather than blind fallthrough.
+        // Reasoning runs sequentially after the family planner to allow
+        // deliberate comparison rather than blind fallthrough.
         let reasoning = reasoningDecision(
             taskContext: taskContext,
             worldState: worldState,
@@ -158,11 +158,13 @@ public final class Planner: @unchecked Sendable {
 
         switch (familyDecision, reasoningDecision) {
         case let (family?, reasoning?):
+            // Memory bias applies only to the family score — it reflects historical
+            // confidence in familiar sources (graph, workflow). Reasoning scores
+            // are already memory-aware via the ReasoningPlanningState input.
             let familyScore = sourceConfidence(family.source) + memoryBias
             // When reasoning has no plan diagnostics (e.g. no viable plans generated),
             // score defaults to 0 so the family decision is preferred.
-            let reasoningScore = (reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0)
-                + memoryBias
+            let reasoningScore = reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0
             if family.source == .workflow || family.source == .stableGraph {
                 return familyScore >= reasoningScore ? family : reasoning
             }

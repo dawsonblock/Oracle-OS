@@ -4,26 +4,17 @@ public struct RuntimeInspectorSnapshot: Sendable {
     public let chosenPlan: ScoredPlanSummary?
     public let rejectedPlans: [ScoredPlanSummary]
     public let memoryInfluences: [MemoryEvidence]
-    public let rootCauseCandidates: [String]
-    public let recoveryStrategySelection: [String]
-    public let workflowInductionCandidates: [String]
     public let notes: [String]
 
     public init(
         chosenPlan: ScoredPlanSummary? = nil,
         rejectedPlans: [ScoredPlanSummary] = [],
         memoryInfluences: [MemoryEvidence] = [],
-        rootCauseCandidates: [String] = [],
-        recoveryStrategySelection: [String] = [],
-        workflowInductionCandidates: [String] = [],
         notes: [String] = []
     ) {
         self.chosenPlan = chosenPlan
         self.rejectedPlans = rejectedPlans
         self.memoryInfluences = memoryInfluences
-        self.rootCauseCandidates = rootCauseCandidates
-        self.recoveryStrategySelection = recoveryStrategySelection
-        self.workflowInductionCandidates = workflowInductionCandidates
         self.notes = notes
     }
 }

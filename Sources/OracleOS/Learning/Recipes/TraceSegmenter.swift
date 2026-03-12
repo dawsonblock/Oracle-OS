@@ -91,7 +91,16 @@ public enum TraceSegmenter {
     }
 
     public static func repeatedRecoverySegments(events: [TraceEvent]) -> [RepeatedTraceSegment] {
-        let grouped = Dictionary(grouping: segmentIncludingRecovery(events: events), by: \.fingerprint)
+        let allSegments = segmentIncludingRecovery(events: events)
+        // Only include segments that contain at least one recovery-tagged event,
+        // so non-recovery segments are not misclassified as recovery patterns.
+        let recoveryOnly = allSegments.filter { segment in
+            segment.events.contains { event in
+                event.recoveryTagged == true
+                    || event.knowledgeTier == KnowledgeTier.recovery.rawValue
+            }
+        }
+        let grouped = Dictionary(grouping: recoveryOnly, by: \.fingerprint)
         return grouped
             .compactMap { fingerprint, segments in
                 let uniqueEpisodes = Set(
