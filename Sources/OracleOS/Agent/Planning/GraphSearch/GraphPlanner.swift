@@ -43,24 +43,27 @@ public final class GraphPlanner: @unchecked Sendable {
             goal: goal,
             graphStore: graphStore
         ) { edge, actionContract in
+            let router = memoryStore.map { MemoryRouter(memoryStore: $0) }
             if let commandCategory = edge.commandCategory,
                let workspaceRoot = worldState?.repositorySnapshot?.workspaceRoot,
-               let memoryStore
+               let router
             {
-                return MemoryQuery.commandBias(
+                return router.commandBias(
                     category: commandCategory,
                     workspaceRoot: workspaceRoot,
-                    store: memoryStore
+                    repositorySnapshot: worldState?.repositorySnapshot
                 )
             }
 
-            guard let memoryStore else {
+            guard let router else {
                 return 0
             }
-            return MemoryQuery.rankingBias(
+            return router.rankingBias(
                 label: actionContract?.targetLabel,
                 app: worldState?.observation.app,
-                store: memoryStore
+                goalDescription: goal.description,
+                repositorySnapshot: worldState?.repositorySnapshot,
+                planningState: worldState?.planningState
             )
         } riskPenaltyProvider: { _, _ in
             riskPenalty
@@ -89,21 +92,24 @@ public final class GraphPlanner: @unchecked Sendable {
 
         let scored = candidateEdges.map { edge -> GraphEdgeSelection in
             let actionContract = graphStore.actionContract(for: edge.actionContractID)
+            let router = memoryStore.map { MemoryRouter(memoryStore: $0) }
             let memoryBias: Double
             if let commandCategory = edge.commandCategory,
                let workspaceRoot = worldState?.repositorySnapshot?.workspaceRoot,
-               let memoryStore
+               let router
             {
-                memoryBias = MemoryQuery.commandBias(
+                memoryBias = router.commandBias(
                     category: commandCategory,
                     workspaceRoot: workspaceRoot,
-                    store: memoryStore
+                    repositorySnapshot: worldState?.repositorySnapshot
                 )
-            } else if let memoryStore {
-                memoryBias = MemoryQuery.rankingBias(
+            } else if let router {
+                memoryBias = router.rankingBias(
                     label: actionContract?.targetLabel,
                     app: worldState?.observation.app,
-                    store: memoryStore
+                    goalDescription: goal.description,
+                    repositorySnapshot: worldState?.repositorySnapshot,
+                    planningState: worldState?.planningState
                 )
             } else {
                 memoryBias = 0

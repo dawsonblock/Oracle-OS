@@ -14,7 +14,9 @@ public struct RecoveryStrategySelector {
         memoryStore: AppMemoryStore?
     ) -> [any RecoveryStrategy] {
         let preferredStrategy = memoryStore.flatMap {
-            MemoryQuery.preferredRecoveryStrategy(app: state.observation.app ?? "unknown", store: $0)
+            MemoryRouter(memoryStore: $0).preferredRecoveryStrategy(
+                app: state.observation.app ?? "unknown"
+            )
         }
         let strategies = registry.strategies(for: failure)
         guard let preferredStrategy else { return strategies }

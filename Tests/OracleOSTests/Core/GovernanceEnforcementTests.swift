@@ -97,6 +97,55 @@ struct GovernanceEnforcementTests {
         #expect(store.allCandidateEdges().first?.knowledgeTier == .recovery)
     }
 
+    @Test("Workflow promotion rejects obvious episode residue")
+    func workflowPromotionRejectsEpisodeResidue() {
+        let policy = WorkflowPromotionPolicy()
+        let plan = WorkflowPlan(
+            agentKind: .code,
+            goalPattern: "fix parser",
+            steps: [
+                WorkflowStep(
+                    agentKind: .code,
+                    stepPhase: .engineering,
+                    actionContract: ActionContract(
+                        id: "edit|parser",
+                        agentKind: .code,
+                        skillName: "edit_file",
+                        targetRole: nil,
+                        targetLabel: "Parser.swift",
+                        locatorStrategy: "path",
+                        workspaceRelativePath: "/tmp/oracle-run-123/.oracle/experiments/exp-1/candidate-a/Sources/Parser.swift"
+                    )
+                ),
+            ],
+            successRate: 0.95,
+            sourceTraceRefs: ["s1:1", "s2:1", "s3:1"],
+            evidenceTiers: [.candidate],
+            repeatedTraceSegmentCount: 3,
+            replayValidationSuccess: 1,
+            promotionStatus: .candidate
+        )
+
+        #expect(policy.shouldPromote(plan) == false)
+    }
+
+    @Test("Workflow promotion rejects single-episode repeated evidence")
+    func workflowPromotionRejectsSingleEpisodeEvidence() {
+        let events = [
+            workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/1", actionContractID: "open|url", postconditionClass: "urlChanged", planningStateID: "browser|report"),
+            workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared", planningStateID: "browser|download"),
+            workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 3, actionName: "navigate_url", actionTarget: "https://example.com/report/2", actionContractID: "open|url", postconditionClass: "urlChanged", planningStateID: "browser|report"),
+            workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 4, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared", planningStateID: "browser|download"),
+        ]
+
+        let synthesized = WorkflowSynthesizer().synthesize(
+            goalPattern: "download report",
+            events: events
+        )
+
+        #expect(synthesized.isEmpty)
+    }
+
     @Test("Architecture-expanding changes without eval coverage produce a hard governance failure")
     func architectureGrowthRequiresCoverage() {
         let engine = ArchitectureEngine()
@@ -235,5 +284,76 @@ struct GovernanceEnforcementTests {
 
     private func makeTempGraphURL() -> URL {
         makeTempDirectory().appendingPathComponent("graph.sqlite3", isDirectory: false)
+    }
+
+    private func workflowEvent(
+        sessionID: String,
+        taskID: String,
+        stepID: Int,
+        actionName: String,
+        actionTarget: String,
+        actionContractID: String,
+        postconditionClass: String,
+        planningStateID: String
+    ) -> TraceEvent {
+        TraceEvent(
+            sessionID: sessionID,
+            taskID: taskID,
+            stepID: stepID,
+            toolName: "agent_loop",
+            actionName: actionName,
+            actionTarget: actionTarget,
+            actionText: nil,
+            selectedElementID: nil,
+            selectedElementLabel: actionTarget,
+            candidateScore: 0.95,
+            candidateReasons: ["governance"],
+            ambiguityScore: 0.05,
+            preObservationHash: "pre-\(sessionID)-\(stepID)",
+            postObservationHash: "post-\(sessionID)-\(stepID)",
+            planningStateID: planningStateID,
+            beliefSnapshotID: nil,
+            postcondition: postconditionClass,
+            postconditionClass: postconditionClass,
+            actionContractID: actionContractID,
+            executionMode: "direct",
+            plannerSource: PlannerSource.workflow.rawValue,
+            pathEdgeIDs: ["edge-\(actionContractID)"],
+            currentEdgeID: "edge-\(actionContractID)",
+            verified: true,
+            success: true,
+            failureClass: nil,
+            recoveryStrategy: nil,
+            recoverySource: nil,
+            recoveryTagged: false,
+            surface: RuntimeSurface.recipe.rawValue,
+            policyMode: "confirm-risky",
+            protectedOperation: nil,
+            approvalRequestID: nil,
+            approvalOutcome: nil,
+            blockedByPolicy: false,
+            appProfile: nil,
+            agentKind: AgentKind.os.rawValue,
+            domain: "os",
+            plannerFamily: PlannerFamily.os.rawValue,
+            workspaceRelativePath: nil,
+            commandCategory: nil,
+            commandSummary: nil,
+            repositorySnapshotID: nil,
+            buildResultSummary: nil,
+            testResultSummary: nil,
+            patchID: nil,
+            projectMemoryRefs: nil,
+            experimentID: nil,
+            candidateID: nil,
+            sandboxPath: nil,
+            selectedCandidate: nil,
+            experimentOutcome: nil,
+            architectureFindings: nil,
+            refactorProposalID: nil,
+            knowledgeTier: KnowledgeTier.candidate.rawValue,
+            elapsedMs: 15,
+            notes: nil
+        )
     }
 }

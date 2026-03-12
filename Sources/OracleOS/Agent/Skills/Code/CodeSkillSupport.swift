@@ -44,9 +44,15 @@ enum CodeSkillSupport {
     ) throws -> String {
         let workspaceRoot = try workspaceRoot(taskContext: taskContext, state: state)
         let snapshot = try repositorySnapshot(state: state, workspaceRoot: workspaceRoot)
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(
+                taskContext: taskContext,
+                worldState: state,
+                errorSignature: failureOutput
+            )
+        )
 
-        if let failureOutput,
-           let preferredPath = MemoryQuery.preferredFixPath(errorSignature: failureOutput, store: memoryStore) {
+        if let preferredPath = memoryInfluence.preferredFixPath {
             return preferredPath
         }
 
