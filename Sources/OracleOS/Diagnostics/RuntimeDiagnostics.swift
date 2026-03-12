@@ -288,6 +288,68 @@ public struct DiagnosticsRepositoryIndex: Codable, Sendable, Equatable, Identifi
     }
 }
 
+public struct DiagnosticsHostWindow: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let appName: String
+    public let title: String?
+    public let elementCount: Int
+    public let focused: Bool
+
+    public init(window: HostWindowSnapshot) {
+        id = window.id
+        appName = window.appName
+        title = window.title
+        elementCount = window.elementCount
+        focused = window.focused
+    }
+}
+
+public struct DiagnosticsHostSnapshot: Codable, Sendable, Equatable {
+    public let snapshotID: String
+    public let activeApplication: String?
+    public let accessibilityGranted: Bool
+    public let screenRecordingGranted: Bool
+    public let windowCount: Int
+    public let menuCount: Int
+    public let dialogTitle: String?
+    public let capturedWindowTitle: String?
+    public let windows: [DiagnosticsHostWindow]
+
+    public init(snapshot: HostSnapshot) {
+        snapshotID = snapshot.snapshotID
+        activeApplication = snapshot.activeApplication?.localizedName
+        accessibilityGranted = snapshot.permissions.accessibilityGranted
+        screenRecordingGranted = snapshot.permissions.screenRecordingGranted
+        windowCount = snapshot.windows.count
+        menuCount = snapshot.menus.count
+        dialogTitle = snapshot.dialog?.title
+        capturedWindowTitle = snapshot.capture?.windowTitle
+        windows = snapshot.windows.map(DiagnosticsHostWindow.init)
+    }
+}
+
+public struct DiagnosticsBrowserSnapshot: Codable, Sendable, Equatable {
+    public let appName: String
+    public let available: Bool
+    public let url: String?
+    public let title: String?
+    public let domain: String?
+    public let indexedElementCount: Int
+    public let topIndexedLabels: [String]
+    public let simplifiedTextPreview: String?
+
+    public init(session: BrowserSession) {
+        appName = session.appName
+        available = session.available
+        url = session.page?.url
+        title = session.page?.title
+        domain = session.page?.domain
+        indexedElementCount = session.page?.indexedElements.count ?? 0
+        topIndexedLabels = session.page?.indexedElements.prefix(8).compactMap(\.label) ?? []
+        simplifiedTextPreview = session.page?.simplifiedText
+    }
+}
+
 public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let generatedAt: Date
     public let graph: DiagnosticsGraphSnapshot
@@ -297,6 +359,8 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let projectMemory: [DiagnosticsProjectMemoryRecord]
     public let architectureFindings: [DiagnosticsArchitectureFinding]
     public let repositoryIndexes: [DiagnosticsRepositoryIndex]
+    public let host: DiagnosticsHostSnapshot?
+    public let browser: DiagnosticsBrowserSnapshot?
 
     public init(
         generatedAt: Date = Date(),
@@ -306,7 +370,9 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
         recovery: DiagnosticsRecoverySnapshot,
         projectMemory: [DiagnosticsProjectMemoryRecord],
         architectureFindings: [DiagnosticsArchitectureFinding],
-        repositoryIndexes: [DiagnosticsRepositoryIndex]
+        repositoryIndexes: [DiagnosticsRepositoryIndex],
+        host: DiagnosticsHostSnapshot? = nil,
+        browser: DiagnosticsBrowserSnapshot? = nil
     ) {
         self.generatedAt = generatedAt
         self.graph = graph
@@ -316,6 +382,8 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
         self.projectMemory = projectMemory
         self.architectureFindings = architectureFindings
         self.repositoryIndexes = repositoryIndexes
+        self.host = host
+        self.browser = browser
     }
 }
 
@@ -364,7 +432,9 @@ public struct RuntimeDiagnosticsBuilder: Sendable {
 
     public func build(
         graphStore: GraphStore,
-        traceEvents: [TraceEvent]
+        traceEvents: [TraceEvent],
+        hostSnapshot: HostSnapshot? = nil,
+        browserSession: BrowserSession? = nil
     ) -> RuntimeDiagnosticsSnapshot {
         let graph = buildGraphSnapshot(graphStore: graphStore)
         let workflows = buildWorkflowSummaries(traceEvents: traceEvents)
@@ -384,7 +454,9 @@ public struct RuntimeDiagnosticsBuilder: Sendable {
             recovery: recovery,
             projectMemory: projectMemory,
             architectureFindings: architectureFindings,
-            repositoryIndexes: repositoryIndexes
+            repositoryIndexes: repositoryIndexes,
+            host: hostSnapshot.map(DiagnosticsHostSnapshot.init),
+            browser: browserSession.map(DiagnosticsBrowserSnapshot.init)
         )
     }
 

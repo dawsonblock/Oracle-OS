@@ -215,7 +215,10 @@ public final class Planner: @unchecked Sendable {
                 ScoredPlanSummary(
                     operatorNames: $0.operators.map(\.name),
                     score: $0.score,
-                    reasons: $0.reasons
+                    reasons: $0.reasons,
+                    simulatedSuccessProbability: $0.simulatedOutcome?.successProbability,
+                    simulatedRiskScore: $0.simulatedOutcome?.riskScore,
+                    simulatedFailureMode: $0.simulatedOutcome?.likelyFailureMode
                 )
             },
             fallbackReason: fallbackReason
@@ -229,7 +232,10 @@ public final class Planner: @unchecked Sendable {
                 ScoredPlanSummary(
                     operatorNames: $0.operators.map(\.name),
                     score: $0.score,
-                    reasons: $0.reasons
+                    reasons: $0.reasons,
+                    simulatedSuccessProbability: $0.simulatedOutcome?.successProbability,
+                    simulatedRiskScore: $0.simulatedOutcome?.riskScore,
+                    simulatedFailureMode: $0.simulatedOutcome?.likelyFailureMode
                 )
             },
             fallbackReason: fallbackReason,

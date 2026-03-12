@@ -2,9 +2,11 @@ import Foundation
 
 public final class PlanEvaluator: @unchecked Sendable {
     private let workflowRetriever: WorkflowRetriever
+    private let planSimulator: PlanSimulator
 
     public init(workflowRetriever: WorkflowRetriever) {
         self.workflowRetriever = workflowRetriever
+        self.planSimulator = PlanSimulator(workflowRetriever: workflowRetriever)
     }
 
     public func evaluate(
@@ -62,13 +64,32 @@ public final class PlanEvaluator: @unchecked Sendable {
                 memoryRouter: memoryRouter,
                 reasons: &reasons
             )
+            let simulatedOutcome = planSimulator.simulate(
+                plan: plan,
+                taskContext: taskContext,
+                goal: goal,
+                worldState: worldState,
+                graphStore: graphStore,
+                workflowIndex: workflowIndex,
+                memoryStore: memoryStore
+            )
+            if let simulatedOutcome {
+                score += simulatedOutcome.successProbability * 0.32
+                score -= simulatedOutcome.riskScore * 0.16
+                reasons.append("simulated success \(String(format: "%.2f", simulatedOutcome.successProbability))")
+                if let likelyFailureMode = simulatedOutcome.likelyFailureMode {
+                    reasons.append("simulated failure mode \(likelyFailureMode)")
+                }
+                reasons.append(contentsOf: simulatedOutcome.reasons)
+            }
             score -= costPenalty(plan, reasons: &reasons)
 
             return PlanCandidate(
                 operators: plan.operators,
                 projectedState: plan.projectedState,
                 score: score,
-                reasons: reasons
+                reasons: reasons,
+                simulatedOutcome: simulatedOutcome
             )
         }
         .sorted { lhs, rhs in

@@ -4,15 +4,24 @@ public struct ScoredPlanSummary: Sendable, Equatable {
     public let operatorNames: [String]
     public let score: Double
     public let reasons: [String]
+    public let simulatedSuccessProbability: Double?
+    public let simulatedRiskScore: Double?
+    public let simulatedFailureMode: String?
 
     public init(
         operatorNames: [String],
         score: Double,
-        reasons: [String] = []
+        reasons: [String] = [],
+        simulatedSuccessProbability: Double? = nil,
+        simulatedRiskScore: Double? = nil,
+        simulatedFailureMode: String? = nil
     ) {
         self.operatorNames = operatorNames
         self.score = score
         self.reasons = reasons
+        self.simulatedSuccessProbability = simulatedSuccessProbability
+        self.simulatedRiskScore = simulatedRiskScore
+        self.simulatedFailureMode = simulatedFailureMode
     }
 }
 

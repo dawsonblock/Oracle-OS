@@ -263,22 +263,37 @@ public struct ContextAssembler {
     }
 
     private func baseContext(taskContext: TaskContext, worldState: WorldState) -> [String] {
-        [
+        var context = [
             "Task family: \(taskContext.agentKind.rawValue)",
             "Planning state: \(worldState.planningState.id.rawValue)",
             "Current app: \(worldState.observation.app ?? "unknown")",
             "Task phases: \(taskContext.phases.map(\.rawValue).joined(separator: ", "))",
         ]
+        if let windowTitle = worldState.observation.windowTitle {
+            context.append("Window title: \(windowTitle)")
+        }
+        if let url = worldState.observation.url {
+            context.append("Current URL: \(url)")
+            if let domain = URL(string: url)?.host {
+                context.append("Current domain: \(domain)")
+            }
+        }
+        return context
     }
 
     private func currentState(worldState: WorldState) -> [String] {
-        [
+        var state = [
             "Observation hash: \(worldState.observationHash)",
             "Planning state cluster: \(worldState.planningState.clusterKey.rawValue)",
             "Task phase: \(worldState.planningState.taskPhase ?? "unknown")",
             "Modal class: \(worldState.planningState.modalClass ?? "none")",
             "Last action: \(worldState.lastAction?.action ?? "none")",
         ]
+        if let focusedElementID = worldState.observation.focusedElementID {
+            state.append("Focused element: \(focusedElementID)")
+        }
+        state.append("Visible elements: \(worldState.observation.elements.count)")
+        return state
     }
 
     private func repositoryKnowledge(

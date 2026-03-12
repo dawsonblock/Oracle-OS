@@ -6,21 +6,24 @@ import Foundation
 public struct WorkflowSynthesizer: Sendable {
     private let replayValidator: WorkflowReplayValidator
     private let promotionPolicy: WorkflowPromotionPolicy
+    private let patternMiner: WorkflowPatternMiner
 
     public init(
         replayValidator: WorkflowReplayValidator = WorkflowReplayValidator(),
-        promotionPolicy: WorkflowPromotionPolicy = WorkflowPromotionPolicy()
+        promotionPolicy: WorkflowPromotionPolicy = WorkflowPromotionPolicy(),
+        patternMiner: WorkflowPatternMiner = WorkflowPatternMiner()
     ) {
         self.replayValidator = replayValidator
         self.promotionPolicy = promotionPolicy
+        self.patternMiner = patternMiner
     }
 
     public func synthesize(
         goalPattern: String,
         events: [TraceEvent]
     ) -> [WorkflowPlan] {
-        TraceSegmenter.repeatedSegments(events: events)
-            .map { candidatePlan(goalPattern: goalPattern, group: $0) }
+        patternMiner.mine(events: events)
+            .map { candidatePlan(goalPattern: goalPattern, pattern: $0) }
             .sorted { lhs, rhs in
                 if lhs.successRate == rhs.successRate {
                     return lhs.goalPattern < rhs.goalPattern
@@ -31,8 +34,12 @@ public struct WorkflowSynthesizer: Sendable {
 
     private func candidatePlan(
         goalPattern: String,
-        group: RepeatedTraceSegment
+        pattern: WorkflowPattern
     ) -> WorkflowPlan {
+        let group = RepeatedTraceSegment(
+            fingerprint: pattern.fingerprint,
+            segments: pattern.segments
+        )
         let representative = group.segments[0]
         let parameters = ParameterExtractor.extract(from: group.segments)
         let steps = representative.events.enumerated().map { index, event in

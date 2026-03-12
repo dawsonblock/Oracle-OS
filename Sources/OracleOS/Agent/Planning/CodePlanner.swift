@@ -540,7 +540,9 @@ public final class CodePlanner: @unchecked Sendable {
 
         let likelyRootCauses = codeQueryEngine.findLikelyRootCause(
             failureDescription: taskContext.goal.description,
-            in: snapshot
+            in: snapshot,
+            preferredPaths: Set(memoryInfluence.preferredPaths),
+            avoidedPaths: Set(memoryInfluence.avoidedPaths)
         )
         candidates.append(contentsOf: likelyRootCauses.map(\.path))
         candidates.append(contentsOf: memoryInfluence.preferredPaths)

@@ -1,0 +1,71 @@
+import Foundation
+
+@MainActor
+public final class LearningCoordinator {
+    private let memoryStore: AppMemoryStore
+    private let projectMemoryCoordinator: LoopProjectMemoryCoordinator
+
+    public var appMemoryStore: AppMemoryStore { memoryStore }
+
+    public init(
+        memoryStore: AppMemoryStore = AppMemoryStore(),
+        projectMemoryCoordinator: LoopProjectMemoryCoordinator
+    ) {
+        self.memoryStore = memoryStore
+        self.projectMemoryCoordinator = projectMemoryCoordinator
+    }
+
+    public func recordSuccess(
+        decision: PlannerDecision,
+        intent: ActionIntent,
+        taskContext: TaskContext
+    ) {
+        projectMemoryCoordinator.recordKnownGoodPattern(
+            decision: decision,
+            intent: intent,
+            taskContext: taskContext
+        )
+        projectMemoryCoordinator.recordArchitectureDecision(
+            decision: decision,
+            taskContext: taskContext
+        )
+    }
+
+    public func recordFailure(
+        failure: FailureClass,
+        stateBundle: LoopStateBundle
+    ) {
+        MemoryUpdater.recordFailure(
+            failure: failure,
+            state: stateBundle.worldState,
+            store: memoryStore
+        )
+    }
+
+    public func recordStrategy(
+        app: String,
+        strategy: String,
+        success: Bool
+    ) {
+        memoryStore.recordStrategy(
+            StrategyRecord(
+                app: app,
+                strategy: strategy,
+                success: success
+            )
+        )
+    }
+
+    public func finalize(
+        outcome: LoopOutcome,
+        taskContext: TaskContext,
+        decision: PlannerDecision?
+    ) {
+        guard outcome.reason != .goalAchieved else { return }
+        projectMemoryCoordinator.recordOpenProblem(
+            outcome: outcome,
+            taskContext: taskContext,
+            decision: decision
+        )
+    }
+}
