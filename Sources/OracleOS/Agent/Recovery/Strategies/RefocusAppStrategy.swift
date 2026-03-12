@@ -2,18 +2,19 @@ public struct RefocusAppStrategy: RecoveryStrategy {
 
     public let name = "refocus_app"
 
-    public func attempt(
+    public func prepare(
         failure: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
+        state: WorldState,
+        memoryStore _: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
+        guard let app = state.observation.app, !app.isEmpty else {
+            return nil
+        }
 
-        let app = state.observation.app ?? "unknown"
-
-        print("Refocusing:", app)
-
-        return ActionResult(
-            success: true,
-            message: "App refocused"
+        return RecoveryPreparation(
+            strategyName: name,
+            resolution: SkillResolution(intent: .focus(app: app)),
+            notes: ["refocusing \(app) after \(failure.rawValue)"]
         )
     }
 }

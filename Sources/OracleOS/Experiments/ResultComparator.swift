@@ -8,6 +8,14 @@ public struct ResultComparator: Sendable {
             if lhs.succeeded != rhs.succeeded {
                 return lhs.succeeded && !rhs.succeeded
             }
+            if lhs.architectureRiskScore != rhs.architectureRiskScore {
+                return lhs.architectureRiskScore < rhs.architectureRiskScore
+            }
+            let lhsCriticalFindings = criticalFindingCount(lhs.architectureFindings)
+            let rhsCriticalFindings = criticalFindingCount(rhs.architectureFindings)
+            if lhsCriticalFindings != rhsCriticalFindings {
+                return lhsCriticalFindings < rhsCriticalFindings
+            }
             let lhsTouched = touchedFileCount(lhs.diffSummary)
             let rhsTouched = touchedFileCount(rhs.diffSummary)
             if lhsTouched != rhsTouched {
@@ -18,9 +26,6 @@ public struct ResultComparator: Sendable {
             if lhsDiff != rhsDiff {
                 return lhsDiff < rhsDiff
             }
-            if lhs.architectureRiskScore != rhs.architectureRiskScore {
-                return lhs.architectureRiskScore < rhs.architectureRiskScore
-            }
             return lhs.elapsedMs < rhs.elapsedMs
         }
     }
@@ -30,5 +35,9 @@ public struct ResultComparator: Sendable {
             .split(separator: "\n")
             .filter { $0.contains("|") }
             .count
+    }
+
+    private func criticalFindingCount(_ findings: [ArchitectureFinding]) -> Int {
+        findings.filter { $0.severity == .critical }.count
     }
 }

@@ -342,6 +342,51 @@ struct GraphAwareLoopTests {
         #expect(driver.decisions.first?.source == .exploration)
     }
 
+    @Test("AgentLoop terminates when exploration budget is exhausted")
+    func agentLoopStopsWhenExplorationBudgetExhausted() async {
+        let observation = Observation(
+            app: "Finder",
+            windowTitle: "Finder",
+            url: nil,
+            focusedElementID: "rename",
+            elements: [
+                UnifiedElement(id: "rename", source: .ax, role: "AXButton", label: "Rename", focused: true, confidence: 0.96),
+            ]
+        )
+        let provider = StubObservationProvider([observation, observation, observation])
+        let driver = RecordingExecutionDriver { _, _, _ in
+            Issue.record("Exploration budget should terminate before execution")
+            return ToolResult(success: true)
+        }
+        let loop = AgentLoop(
+            observationProvider: provider,
+            executionDriver: driver,
+            stateAbstraction: StateAbstraction(),
+            planner: Planner(),
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            policyEngine: PolicyEngine(mode: .confirmRisky),
+            recoveryEngine: RecoveryEngine(),
+            memoryStore: AppMemoryStore()
+        )
+
+        let outcome = await loop.run(
+            goal: Goal(
+                description: "rename file in finder",
+                targetApp: "Finder",
+                targetTaskPhase: "save"
+            ),
+            budget: LoopBudget(
+                maxSteps: 5,
+                maxRecoveries: 1,
+                maxConsecutiveExplorationSteps: 0
+            )
+        )
+
+        #expect(outcome.reason == .explorationBudgetExceeded)
+        #expect(driver.intents.isEmpty)
+        #expect(outcome.diagnostics.stepSummaries.last?.notes.contains("exploration budget exceeded") == true)
+    }
+
     @Test("AgentLoop blocks risky actions before execution")
     func agentLoopBlocksRiskyActionsBeforeExecution() async {
         let composeObservation = Observation(
@@ -469,8 +514,17 @@ struct GraphAwareLoopTests {
         _ = store.promoteEligibleEdges()
 
         let provider = StubObservationProvider([inboxObservation, inboxObservation, composeObservation])
-        let driver = RecordingExecutionDriver { _, _, _ in
-            ToolResult(success: false, data: [
+        let driver = RecordingExecutionDriver { _, decision, _ in
+            if decision.source == .recovery {
+                return ToolResult(success: true, data: [
+                    "action_result": ActionResult(
+                        success: true,
+                        verified: true,
+                        message: "recovery succeeded"
+                    ).toDict(),
+                ])
+            }
+            return ToolResult(success: false, data: [
                 "action_result": ActionResult(
                     success: false,
                     verified: false,
@@ -500,7 +554,99 @@ struct GraphAwareLoopTests {
 
         #expect(outcome.reason == .goalAchieved)
         #expect(outcome.recoveries == 1)
-        #expect(driver.intents.count == 1)
+        #expect(driver.intents.count == 2)
+        #expect(driver.decisions.last?.source == .recovery)
+        #expect(outcome.diagnostics.stepSummaries.contains(where: { $0.source == .recovery && $0.success }))
+    }
+
+    @Test("AgentLoop bounds recovery attempts and terminates after failed recovery")
+    func agentLoopBoundsRecoveryAttempts() async {
+        let abstraction = StateAbstraction()
+        let inboxObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Inbox - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox",
+            focusedElementID: "compose",
+            elements: [
+                UnifiedElement(id: "compose", source: .ax, role: "AXButton", label: "Compose", focused: true, confidence: 0.98),
+            ]
+        )
+        let composeObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Compose - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+            focusedElementID: "body",
+            elements: [
+                UnifiedElement(id: "body", source: .ax, role: "AXTextArea", label: "Message Body", focused: true, confidence: 0.95),
+            ]
+        )
+        let fromState = abstraction.abstract(
+            observation: inboxObservation,
+            observationHash: ObservationHash.hash(inboxObservation)
+        )
+        let toState = abstraction.abstract(
+            observation: composeObservation,
+            observationHash: ObservationHash.hash(composeObservation)
+        )
+        let store = GraphStore(databaseURL: makeTempGraphURL())
+        let contract = ActionContract(
+            id: "click|AXButton|Compose|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose",
+            locatorStrategy: "query"
+        )
+        for _ in 0..<5 {
+            store.recordTransition(
+                transition(
+                    from: fromState.id,
+                    to: toState.id,
+                    actionContractID: contract.id,
+                    verified: true
+                ),
+                actionContract: contract,
+                fromState: fromState,
+                toState: toState
+            )
+        }
+        _ = store.promoteEligibleEdges()
+
+        let provider = StubObservationProvider([inboxObservation, inboxObservation, composeObservation, composeObservation])
+        let driver = RecordingExecutionDriver { _, _, _ in
+            ToolResult(success: false, data: [
+                "action_result": ActionResult(
+                    success: false,
+                    verified: false,
+                    failureClass: FailureClass.wrongFocus.rawValue
+                ).toDict(),
+            ], error: "wrong focus")
+        }
+        let loop = AgentLoop(
+            observationProvider: provider,
+            executionDriver: driver,
+            stateAbstraction: abstraction,
+            planner: Planner(),
+            graphStore: store,
+            policyEngine: PolicyEngine(mode: .confirmRisky),
+            recoveryEngine: RecoveryEngine(),
+            memoryStore: AppMemoryStore()
+        )
+
+        let outcome = await loop.run(
+            goal: Goal(
+                description: "open gmail compose",
+                targetApp: "Google Chrome",
+                targetDomain: "mail.google.com",
+                targetTaskPhase: "compose"
+            ),
+            budget: LoopBudget(maxRecoveries: 1)
+        )
+
+        #expect(outcome.reason == .unrecoverableFailure)
+        #expect(outcome.recoveries == 1)
+        #expect(driver.intents.count == 2)
+        #expect(driver.decisions.last?.source == .recovery)
+        #expect(outcome.diagnostics.stepSummaries.contains(where: { $0.source == .recovery && $0.success == false }))
     }
 
     @Test("Blocked runtime actions do not create graph edges")
@@ -519,7 +665,8 @@ struct GraphAwareLoopTests {
             verifiedExecutor: VerifiedActionExecutor(
                 traceRecorder: traceRecorder,
                 traceStore: traceStore,
-                artifactWriter: artifactWriter
+                artifactWriter: artifactWriter,
+                graphStore: graphStore
             ),
             policyEngine: PolicyEngine(mode: .confirmRisky),
             approvalStore: approvalStore,
@@ -637,6 +784,150 @@ struct GraphAwareLoopTests {
 
         #expect(decision?.source == .workflow)
         #expect(decision?.workflowID != nil)
+    }
+
+    @Test("Planner reuses candidate graph edge before exploration")
+    func plannerReusesCandidateGraphEdgeBeforeExploration() {
+        let abstraction = StateAbstraction()
+        let inboxObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Inbox - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox",
+            focusedElementID: "compose",
+            elements: [
+                UnifiedElement(id: "compose", source: .ax, role: "AXButton", label: "Compose", focused: true, confidence: 0.98),
+            ]
+        )
+        let composeObservation = Observation(
+            app: "Google Chrome",
+            windowTitle: "Compose - Gmail",
+            url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+            focusedElementID: "body",
+            elements: [
+                UnifiedElement(id: "body", source: .ax, role: "AXTextArea", label: "Message Body", focused: true, confidence: 0.95),
+            ]
+        )
+        let fromState = abstraction.abstract(
+            observation: inboxObservation,
+            observationHash: ObservationHash.hash(inboxObservation)
+        )
+        let toState = abstraction.abstract(
+            observation: composeObservation,
+            observationHash: ObservationHash.hash(composeObservation)
+        )
+        let store = GraphStore(databaseURL: makeTempGraphURL())
+        let contract = ActionContract(
+            id: "click|AXButton|Compose|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose",
+            locatorStrategy: "query"
+        )
+        for _ in 0..<2 {
+            store.recordTransition(
+                transition(
+                    from: fromState.id,
+                    to: toState.id,
+                    actionContractID: contract.id,
+                    verified: true
+                ),
+                actionContract: contract,
+                fromState: fromState,
+                toState: toState
+            )
+        }
+
+        let planner = Planner()
+        planner.setGoal(
+            Goal(
+                description: "open gmail compose",
+                targetApp: "Google Chrome",
+                targetDomain: "mail.google.com",
+                targetTaskPhase: "compose"
+            )
+        )
+
+        let decision = planner.nextStep(
+            worldState: WorldState(observation: inboxObservation),
+            graphStore: store,
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(decision?.source == .candidateGraph)
+        #expect(decision?.currentEdgeID == store.allCandidateEdges().first?.edgeID)
+        #expect(decision?.graphSearchDiagnostics?.chosenPathEdgeIDs.count == 1)
+    }
+
+    @Test("Graph planner returns multi-step stable path before exploration")
+    func graphPlannerReturnsMultiStepStablePath() {
+        let store = GraphStore(databaseURL: makeTempGraphURL())
+        let start = planningState(id: "gmail|inbox", appID: "Google Chrome", domain: "mail.google.com", taskPhase: "browse")
+        let middle = planningState(id: "gmail|menu", appID: "Google Chrome", domain: "mail.google.com", taskPhase: "menu")
+        let end = planningState(id: "gmail|compose", appID: "Google Chrome", domain: "mail.google.com", taskPhase: "compose")
+        let firstContract = ActionContract(
+            id: "click|AXButton|ComposeMenu|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose Menu",
+            locatorStrategy: "query"
+        )
+        let secondContract = ActionContract(
+            id: "click|AXButton|Compose|query",
+            skillName: "click",
+            targetRole: "AXButton",
+            targetLabel: "Compose",
+            locatorStrategy: "query"
+        )
+
+        for _ in 0..<5 {
+            store.recordTransition(
+                transition(
+                    from: start.id,
+                    to: middle.id,
+                    actionContractID: firstContract.id,
+                    verified: true
+                ),
+                actionContract: firstContract,
+                fromState: start,
+                toState: middle
+            )
+            store.recordTransition(
+                transition(
+                    from: middle.id,
+                    to: end.id,
+                    actionContractID: secondContract.id,
+                    verified: true
+                ),
+                actionContract: secondContract,
+                fromState: middle,
+                toState: end
+            )
+        }
+        _ = store.promoteEligibleEdges()
+
+        let planner = GraphPlanner(maxDepth: 6, beamWidth: 5)
+        let result = planner.search(
+            from: start,
+            goal: Goal(
+                description: "open gmail compose",
+                targetApp: "Google Chrome",
+                targetDomain: "mail.google.com",
+                targetTaskPhase: "compose",
+                preferredAgentKind: .os
+            ),
+            graphStore: store,
+            memoryStore: AppMemoryStore(),
+            worldState: WorldState(
+                observationHash: "start-hash",
+                planningState: start,
+                observation: Observation(app: "Google Chrome", windowTitle: "Inbox", url: "https://mail.google.com/mail/u/0/#inbox"),
+                repositorySnapshot: nil
+            )
+        )
+
+        #expect(result?.edges.count == 2)
+        #expect(result?.diagnostics.chosenPathEdgeIDs.count == 2)
+        #expect(result?.exploredEdgeIDs.isEmpty == false)
     }
 
     @Test("Workflow promotion policy rejects experiment and recovery evidence")

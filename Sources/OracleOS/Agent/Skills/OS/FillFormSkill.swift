@@ -10,24 +10,11 @@ public final class FillFormSkill: Skill {
         state: WorldState,
         memoryStore: AppMemoryStore
     ) throws -> SkillResolution {
-        let candidate: ElementCandidate
-        do {
-            candidate = try state.resolve(
-                query: query,
-                memoryStore: memoryStore,
-                minimumScore: 0.6,
-                maximumAmbiguity: 0.2
-            )
-        } catch let error as WorldQueryResolutionError {
-            switch error {
-            case let .notFound(label):
-                throw SkillResolutionError.noCandidate(label)
-            case let .ambiguous(label, ambiguity):
-                throw SkillResolutionError.ambiguousTarget(label, ambiguity)
-            case let .lowConfidence(label, score):
-                throw SkillResolutionError.ambiguousTarget(label, score)
-            }
-        }
+        let candidate = try OSTargetResolver.resolve(
+            query: query,
+            state: state,
+            memoryStore: memoryStore
+        )
         let intent = ActionIntent.type(
             app: state.observation.app,
             into: candidate.element.label ?? query.text,

@@ -45,6 +45,55 @@ struct DigitalEngineerLayerTests {
         #expect(refs.contains(where: { $0.affectedModules.contains("Agent/Planning") }))
     }
 
+    @Test("Project memory query exposes typed planning records")
+    func projectMemoryQueryExposesTypedRecords() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+
+        _ = try store.writeKnownGoodPatternDraft(
+            title: "Known good calculator fix",
+            summary: "Restoring Sources/Example/Calculator.swift is a reliable fix.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Prefer Sources/Example/Calculator.swift for repeated repair tasks."
+        )
+        _ = try store.writeRejectedApproachDraft(
+            title: "Do not rewrite CalculatorTests first",
+            summary: "Editing Tests/ExampleTests/CalculatorTests.swift first delayed repair.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Tests/ExampleTests"],
+            body: "Avoid touching Tests/ExampleTests/CalculatorTests.swift before the source fix."
+        )
+        _ = try store.writeArchitectureDecisionDraft(
+            title: "Keep calculator logic in source target",
+            summary: "Architecture keeps business logic in Sources/Example/Calculator.swift.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Do not move this behavior into tests."
+        )
+        _ = try store.writeRiskDraft(
+            title: "Release operations require extra care",
+            summary: "Release and push operations are risky in this workspace.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Treat push and release steps as risky."
+        )
+
+        let signals = ProjectMemoryQuery.planningSignals(
+            goalDescription: "fix failing build in Sources/Example/Calculator.swift and avoid risky release",
+            snapshot: snapshot,
+            store: store
+        )
+
+        #expect(signals.knownGoodPatterns.count == 1)
+        #expect(signals.rejectedApproaches.count == 1)
+        #expect(signals.architectureDecisions.count == 1)
+        #expect(signals.risks.count == 1)
+        #expect(signals.preferredPaths(in: snapshot).contains("Sources/Example/Calculator.swift"))
+        #expect(signals.avoidedPaths(in: snapshot).contains("Tests/ExampleTests/CalculatorTests.swift"))
+    }
+
     @Test("Architecture engine emits cycle and boundary findings")
     func architectureEngineEmitsFindings() {
         let engine = ArchitectureEngine()
@@ -89,56 +138,294 @@ struct DigitalEngineerLayerTests {
         #expect(affectedModules.contains("Agent/Planning"))
     }
 
+    @Test("Architecture engine flags test-only repair candidates")
+    func architectureEngineFlagsTestOnlyRepairCandidates() throws {
+        let workspace = try makeArchitectureRankingWorkspace()
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let engine = ArchitectureEngine()
+
+        let review = engine.reviewCandidatePatch(
+            goalDescription: "fix failing calculator behavior",
+            snapshot: snapshot,
+            candidate: workspace.candidates[1],
+            diffSummary: " Tests/ExampleTests/CalculatorTests.swift | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+        )
+
+        #expect(review.triggered)
+        #expect(review.findings.contains(where: { $0.title == "Test-only repair path" }))
+        #expect(review.riskScore >= 0.65)
+    }
+
     @Test("Experiment manager isolates candidate worktrees and keeps main workspace unchanged")
     func experimentManagerIsolatesCandidates() async throws {
-        let workspaceRoot = try makeCommittedGitWorkspace()
-        let filePath = workspaceRoot.appendingPathComponent("Sources/Parser.swift", isDirectory: false)
+        let workspace = try makeCodePlannerWorkspace()
+        let workspaceRoot = workspace.root
+        let filePath = workspaceRoot.appendingPathComponent("Sources/Example/Calculator.swift", isDirectory: false)
         let baseline = try String(contentsOf: filePath, encoding: .utf8)
 
         let spec = ExperimentSpec(
             id: "parser-fix",
             goalDescription: "fix parser edge case",
             workspaceRoot: workspaceRoot.path,
-            candidates: [
-                CandidatePatch(
-                    id: "minimal",
-                    title: "Minimal parser fix",
-                    summary: "Adjust one branch condition.",
-                    workspaceRelativePath: "Sources/Parser.swift",
-                    content: "struct Parser {\n    let mode = 2\n}\n"
-                ),
-                CandidatePatch(
-                    id: "rewrite",
-                    title: "Tokenizer rewrite",
-                    summary: "Rewrite parser branch with more changes.",
-                    workspaceRelativePath: "Sources/Parser.swift",
-                    content: "struct Parser {\n    let mode = 2\n    let normalize = true\n    func parse() -> Int {\n        mode + (normalize ? 1 : 0)\n    }\n}\n"
-                ),
-                CandidatePatch(
-                    id: "normalization",
-                    title: "Normalization fix",
-                    summary: "Add normalization helper before parse.",
-                    workspaceRelativePath: "Sources/Parser.swift",
-                    content: "struct Parser {\n    let mode = 2\n    func normalized() -> Int {\n        mode + 1\n    }\n\n    func parse() -> Int {\n        normalized()\n    }\n}\n"
-                ),
-            ]
+            candidates: workspace.candidates
         )
 
         let manager = ExperimentManager()
         let results = try await manager.run(spec: spec, architectureRiskScore: 0.2)
 
-        #expect(results.count == 3)
+        #expect(results.count == workspace.candidates.count)
         let selectedResults = results.filter { $0.selected }
         #expect(selectedResults.count == 1)
-        let allSucceeded = results.allSatisfy { $0.succeeded }
-        #expect(allSucceeded)
+        #expect(results.contains(where: { $0.succeeded }))
 
         let selected = try #require(selectedResults.first)
         let replay = manager.replaySelected(from: results)
 
         #expect(replay?.id == selected.candidate.id)
+        #expect(selected.succeeded)
         #expect(FileManager.default.fileExists(atPath: selected.sandboxPath))
+        #expect(FileManager.default.fileExists(atPath: manager.resultsURL(for: spec).path))
+        #expect(try manager.loadResults(for: spec).count == results.count)
         #expect((try String(contentsOf: filePath, encoding: .utf8)) == baseline)
+    }
+
+    @Test("Experiment manager prefers structurally safer passing patch")
+    func experimentManagerPrefersStructurallySaferPatch() async throws {
+        let workspace = try makeArchitectureRankingWorkspace()
+        let spec = ExperimentSpec(
+            id: "architecture-ranking",
+            goalDescription: "fix failing calculator behavior",
+            workspaceRoot: workspace.root.path,
+            candidates: workspace.candidates
+        )
+
+        let manager = ExperimentManager()
+        let results = try await manager.run(spec: spec)
+
+        #expect(results.first?.candidate.id == "source-fix")
+        #expect(results.first?.selected == true)
+        #expect(results.first?.succeeded == true)
+        #expect(results.last?.candidate.id == "test-fix")
+        #expect(results.last?.architectureFindings.contains(where: { $0.title == "Test-only repair path" }) == true)
+    }
+
+    @Test("CodePlanner keeps direct repair when confidence is high")
+    func codePlannerKeepsDirectRepairWhenConfidenceIsHigh() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let planner = CodePlanner()
+        let graphStore = GraphStore(databaseURL: makeTempGraphURL())
+        let memoryStore = AppMemoryStore()
+        let goalDescription = "fix failing build in Sources/Example/Calculator.swift"
+        for _ in 0..<3 {
+            memoryStore.recordFixPattern(
+                FixPattern(
+                    errorSignature: goalDescription,
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    commandCategory: CodeCommandCategory.editFile.rawValue
+                ),
+                success: true
+            )
+        }
+        let observation = Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: [])
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: goalDescription,
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code,
+                experimentCandidates: workspace.candidates
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observation: observation,
+            repositorySnapshot: snapshot
+        )
+
+        let decision = planner.nextStep(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
+
+        #expect(decision?.executionMode == .direct)
+        #expect(decision?.skillName == "edit_file")
+        #expect(decision?.experimentSpec == nil)
+    }
+
+    @Test("CodePlanner escalates uncertain repair into experiments")
+    func codePlannerEscalatesUncertainRepairIntoExperiments() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let planner = CodePlanner()
+        let graphStore = GraphStore(databaseURL: makeTempGraphURL())
+        let memoryStore = AppMemoryStore()
+        let observation = Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: [])
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix failing build in Sources/Example/Calculator.swift\nTests/ExampleTests/CalculatorTests.swift",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code,
+                experimentCandidates: workspace.candidates
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observation: observation,
+            repositorySnapshot: snapshot
+        )
+
+        let decision = planner.nextStep(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
+
+        #expect(decision?.executionMode == .experiment)
+        #expect(decision?.skillName == "generate_patch")
+        #expect(decision?.experimentSpec?.candidates.count == 2)
+        #expect(decision?.experimentDecision?.reason == "ambiguous edit target")
+    }
+
+    @Test("Rejected approaches bias CodePlanner toward experiments")
+    func rejectedApproachesBiasPlannerTowardExperiments() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
+        _ = try store.writeRejectedApproachDraft(
+            title: "Do not single-path edit calculator directly",
+            summary: "Editing Sources/Example/Calculator.swift directly was previously rejected.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Avoid direct single-path repair on Sources/Example/Calculator.swift."
+        )
+
+        let planner = CodePlanner()
+        let graphStore = GraphStore(databaseURL: makeTempGraphURL())
+        let memoryStore = AppMemoryStore()
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix failing build in Sources/Example/Calculator.swift",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code,
+                experimentCandidates: workspace.candidates
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            repositorySnapshot: RepositoryIndexer().index(workspaceRoot: workspace.root)
+        )
+
+        let decision = planner.nextStep(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
+
+        #expect(decision?.executionMode == .experiment)
+        #expect(decision?.experimentDecision?.reason == "previous approaches were rejected")
+    }
+
+    @Test("Known-good patterns can narrow an ambiguous repair back to direct execution")
+    func knownGoodPatternsNarrowAmbiguousRepair() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
+        _ = try store.writeKnownGoodPatternDraft(
+            title: "Calculator source repair is reliable",
+            summary: "Fixes usually land in Sources/Example/Calculator.swift.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Prefer Sources/Example/Calculator.swift when this task mentions both source and tests."
+        )
+
+        let planner = CodePlanner()
+        let graphStore = GraphStore(databaseURL: makeTempGraphURL())
+        let memoryStore = AppMemoryStore()
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix failing build in Sources/Example/Calculator.swift\nTests/ExampleTests/CalculatorTests.swift",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code,
+                experimentCandidates: workspace.candidates
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            repositorySnapshot: RepositoryIndexer().index(workspaceRoot: workspace.root)
+        )
+
+        let decision = planner.nextStep(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
+
+        #expect(decision?.executionMode == .direct)
+        #expect(decision?.skillName == "edit_file")
+        #expect(decision?.actionContract.workspaceRelativePath == "Sources/Example/Calculator.swift")
+    }
+
+    @Test("Major architecture findings are drafted into project memory")
+    func majorArchitectureFindingsAreDraftedIntoProjectMemory() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let coordinator = LoopProjectMemoryCoordinator(memoryStore: AppMemoryStore())
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "refactor calculator boundary",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code
+            ),
+            workspaceRoot: workspace.root
+        )
+        let decision = PlannerDecision(
+            agentKind: .code,
+            skillName: "edit_file",
+            plannerFamily: .code,
+            stepPhase: .engineering,
+            actionContract: ActionContract(
+                id: "code|edit_file|Sources/Example/Calculator.swift",
+                agentKind: .code,
+                skillName: "edit_file",
+                targetRole: nil,
+                targetLabel: nil,
+                locatorStrategy: "code-planner",
+                workspaceRelativePath: "Sources/Example/Calculator.swift",
+                commandCategory: CodeCommandCategory.editFile.rawValue,
+                plannerFamily: PlannerFamily.code.rawValue
+            ),
+            source: .exploration,
+            architectureFindings: [
+                ArchitectureFinding(
+                    title: "Dependency cycle detected",
+                    summary: "Cycle found across Agent/Planning -> Core/Execution.",
+                    severity: .warning,
+                    affectedModules: ["Agent/Planning", "Core/Execution"],
+                    riskScore: 0.75
+                ),
+                ArchitectureFinding(
+                    title: "Minor note",
+                    summary: "Low-priority observation.",
+                    severity: .info,
+                    affectedModules: ["Sources/Example"],
+                    riskScore: 0.1
+                ),
+            ],
+            refactorProposalID: "proposal-1"
+        )
+
+        coordinator.recordArchitectureDecision(decision: decision, taskContext: taskContext)
+
+        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
+        let records = store.allRecords()
+        let draft = try #require(records.first(where: { $0.kind == .architectureDecision }))
+
+        #expect(draft.body.contains("Dependency cycle detected"))
+        #expect(!draft.body.contains("Minor note"))
     }
 
     @Test("Experiment results rank smaller passing patches ahead of larger ones")
@@ -290,6 +577,185 @@ struct DigitalEngineerLayerTests {
         return root
     }
 
+    private func makeCodePlannerWorkspace() throws -> BrokenCodePlannerWorkspace {
+        let root = makeTempDirectory()
+        let sources = root.appendingPathComponent("Sources/Example", isDirectory: true)
+        let tests = root.appendingPathComponent("Tests/ExampleTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+
+        let package = """
+        // swift-tools-version: 6.2
+        import PackageDescription
+
+        let package = Package(
+            name: "Example",
+            products: [
+                .library(name: "Example", targets: ["Example"]),
+            ],
+            targets: [
+                .target(name: "Example"),
+                .testTarget(name: "ExampleTests", dependencies: ["Example"]),
+            ]
+        )
+        """
+
+        let brokenSource = """
+        public struct Calculator {
+            public static func double(_ value: Int) -> Int {
+                value *
+            }
+        }
+        """
+
+        let goodSource = """
+        public struct Calculator {
+            public static func double(_ value: Int) -> Int {
+                value * 2
+            }
+        }
+        """
+
+        let failingTestSource = """
+        public struct Calculator {
+            public static func double(_ value: Int) -> Int {
+                value * 3
+            }
+        }
+        """
+
+        let testSource = """
+        import Testing
+        @testable import Example
+
+        @Test func doublesInput() {
+            #expect(Calculator.double(2) == 4)
+        }
+        """
+
+        try package.write(to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try brokenSource.write(to: sources.appendingPathComponent("Calculator.swift"), atomically: true, encoding: .utf8)
+        try testSource.write(to: tests.appendingPathComponent("CalculatorTests.swift"), atomically: true, encoding: .utf8)
+
+        try runGit(["init"], in: root)
+        try runGit(["config", "user.email", "codex@example.com"], in: root)
+        try runGit(["config", "user.name", "Codex"], in: root)
+        try runGit(["add", "."], in: root)
+        try runGit(["commit", "-m", "Initial commit"], in: root)
+
+        return BrokenCodePlannerWorkspace(
+            root: root,
+            candidates: [
+                CandidatePatch(
+                    id: "restore",
+                    title: "Restore valid calculator implementation",
+                    summary: "Restore the known-good implementation so build and tests pass.",
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    content: goodSource,
+                    hypothesis: "Revert the broken edit."
+                ),
+                CandidatePatch(
+                    id: "compile-first",
+                    title: "Replace build failure with test failure",
+                    summary: "Compile first, then inspect the remaining test failure.",
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    content: failingTestSource,
+                    hypothesis: "Compile first, then inspect the failing assertion."
+                ),
+            ]
+        )
+    }
+
+    private func makeArchitectureRankingWorkspace() throws -> BrokenCodePlannerWorkspace {
+        let root = makeTempDirectory()
+        let sources = root.appendingPathComponent("Sources/Example", isDirectory: true)
+        let tests = root.appendingPathComponent("Tests/ExampleTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+
+        let package = """
+        // swift-tools-version: 6.2
+        import PackageDescription
+
+        let package = Package(
+            name: "Example",
+            products: [
+                .library(name: "Example", targets: ["Example"]),
+            ],
+            targets: [
+                .target(name: "Example"),
+                .testTarget(name: "ExampleTests", dependencies: ["Example"]),
+            ]
+        )
+        """
+
+        let wrongSource = """
+        public struct Calculator {
+            public static func double(_ value: Int) -> Int {
+                value * 3
+            }
+        }
+        """
+
+        let goodSource = """
+        public struct Calculator {
+            public static func double(_ value: Int) -> Int {
+                value * 2
+            }
+        }
+        """
+
+        let permissiveTest = """
+        import Testing
+        @testable import Example
+
+        @Test func doublesInput() {
+            #expect(Calculator.double(2) == 6)
+        }
+        """
+
+        let strictTest = """
+        import Testing
+        @testable import Example
+
+        @Test func doublesInput() {
+            #expect(Calculator.double(2) == 4)
+        }
+        """
+
+        try package.write(to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try wrongSource.write(to: sources.appendingPathComponent("Calculator.swift"), atomically: true, encoding: .utf8)
+        try strictTest.write(to: tests.appendingPathComponent("CalculatorTests.swift"), atomically: true, encoding: .utf8)
+
+        try runGit(["init"], in: root)
+        try runGit(["config", "user.email", "codex@example.com"], in: root)
+        try runGit(["config", "user.name", "Codex"], in: root)
+        try runGit(["add", "."], in: root)
+        try runGit(["commit", "-m", "Initial commit"], in: root)
+
+        return BrokenCodePlannerWorkspace(
+            root: root,
+            candidates: [
+                CandidatePatch(
+                    id: "source-fix",
+                    title: "Fix source implementation",
+                    summary: "Restore the correct calculator logic in source.",
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    content: goodSource,
+                    hypothesis: "The bug belongs in production code."
+                ),
+                CandidatePatch(
+                    id: "test-fix",
+                    title: "Relax the test expectation",
+                    summary: "Make the test accept the current wrong behavior.",
+                    workspaceRelativePath: "Tests/ExampleTests/CalculatorTests.swift",
+                    content: permissiveTest,
+                    hypothesis: "Silence the failing test instead of fixing production behavior."
+                ),
+            ]
+        )
+    }
+
     private func runGit(_ arguments: [String], in root: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -310,4 +776,9 @@ struct DigitalEngineerLayerTests {
             )
         }
     }
+}
+
+private struct BrokenCodePlannerWorkspace {
+    let root: URL
+    let candidates: [CandidatePatch]
 }

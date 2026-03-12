@@ -2,47 +2,71 @@ public struct AlternateElementStrategy: RecoveryStrategy {
 
     public let name = "alternate_element"
 
-    public func attempt(
+    public func prepare(
         failure: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
+        state: WorldState,
+        memoryStore: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
+        let fallbackLabel = state.observation.focusedElement?.label
+        let query = ElementQuery(
+            text: state.lastAction?.targetQuery ?? fallbackLabel,
+            role: state.lastAction?.role ?? state.observation.focusedElement?.role,
+            editable: state.lastAction?.action == "type" || state.lastAction?.action == "fill_form",
+            clickable: (state.lastAction?.action == "click" || state.lastAction?.action == "read-file") || state.lastAction == nil,
+            visibleOnly: true,
+            app: state.observation.app
+        )
+        guard query.text != nil || query.role != nil else {
+            return nil
+        }
 
-        guard let label =
-            state.observation.elements.first(where: { $0.id == state.observation.focusedElementID })?.label else {
+        let alternate = state.rankedCandidates(query: query, memoryStore: memoryStore)
+            .first {
+                $0.element.id != state.lastAction?.elementID
+                    && $0.element.id != state.observation.focusedElementID
+                    && $0.score >= OSTargetResolver.minimumScore
+            }
 
-            return ActionResult(
-                success: false,
-                message: "No alternate element"
+        guard let alternate else {
+            return nil
+        }
+
+        let intent: ActionIntent
+        switch state.lastAction?.action {
+        case "type", "fill_form":
+            intent = .type(
+                app: state.observation.app,
+                into: alternate.element.label ?? query.text,
+                domID: alternate.element.id,
+                text: state.lastAction?.text ?? ""
+            )
+        case "read-file":
+            intent = ActionIntent(
+                agentKind: .os,
+                app: state.observation.app ?? "Finder",
+                name: "read file \(alternate.element.label ?? query.text ?? "")",
+                action: "read-file",
+                query: alternate.element.label ?? query.text,
+                role: alternate.element.role,
+                domID: alternate.element.id
+            )
+        default:
+            intent = .click(
+                app: state.observation.app,
+                query: alternate.element.label ?? query.text,
+                role: alternate.element.role,
+                domID: alternate.element.id
             )
         }
 
-        let query =
-            ElementQuery(
-                text: label,
-                clickable: true
-            )
-
-        let ranked =
-            ElementRanker.rank(
-                elements: state.observation.elements,
-                query: query
-            )
-
-        if ranked.count > 1 {
-
-            let alt = ranked[1]
-
-            print("Using alternate:", alt.element.id)
-
-            return ActionResult(
-                success: true,
-                message: "Alternate element chosen"
-            )
-        }
-
-        return ActionResult(
-            success: false,
-            message: "No alternate candidate"
+        return RecoveryPreparation(
+            strategyName: name,
+            resolution: SkillResolution(
+                intent: intent,
+                selectedCandidate: alternate,
+                semanticQuery: query
+            ),
+            notes: ["switching to alternate candidate after \(failure.rawValue)"]
         )
     }
 }

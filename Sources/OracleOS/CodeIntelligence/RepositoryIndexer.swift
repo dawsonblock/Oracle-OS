@@ -32,6 +32,7 @@ public final class RepositoryIndexer: @unchecked Sendable {
     }
 
     private func enumerateFiles(workspaceRoot: URL) -> [RepositoryFile] {
+        let resolvedRootPath = workspaceRoot.resolvingSymlinksInPath().path
         guard let enumerator = FileManager.default.enumerator(
             at: workspaceRoot,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -42,7 +43,8 @@ public final class RepositoryIndexer: @unchecked Sendable {
 
         var files: [RepositoryFile] = []
         for case let fileURL as URL in enumerator {
-            let relative = fileURL.path.replacingOccurrences(of: workspaceRoot.path + "/", with: "")
+            let resolvedFilePath = fileURL.resolvingSymlinksInPath().path
+            let relative = resolvedFilePath.replacingOccurrences(of: resolvedRootPath + "/", with: "")
             if relative.hasPrefix(".build/") || relative.hasPrefix(".git/") || relative.hasPrefix("node_modules/") {
                 continue
             }

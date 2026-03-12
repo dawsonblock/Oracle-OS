@@ -8,6 +8,8 @@ public struct ExperimentResult: Codable, Sendable, Equatable, Identifiable {
     public let commandResults: [CommandResult]
     public let diffSummary: String
     public let architectureRiskScore: Double
+    public let architectureFindings: [ArchitectureFinding]
+    public let refactorProposalID: String?
     public let selected: Bool
 
     public init(
@@ -18,6 +20,8 @@ public struct ExperimentResult: Codable, Sendable, Equatable, Identifiable {
         commandResults: [CommandResult],
         diffSummary: String,
         architectureRiskScore: Double,
+        architectureFindings: [ArchitectureFinding] = [],
+        refactorProposalID: String? = nil,
         selected: Bool = false
     ) {
         self.id = id
@@ -27,6 +31,8 @@ public struct ExperimentResult: Codable, Sendable, Equatable, Identifiable {
         self.commandResults = commandResults
         self.diffSummary = diffSummary
         self.architectureRiskScore = architectureRiskScore
+        self.architectureFindings = architectureFindings
+        self.refactorProposalID = refactorProposalID
         self.selected = selected
     }
 

@@ -4,6 +4,7 @@ public final class CodePlanner: @unchecked Sendable {
     public let maxPatchIterations: Int
     public let maxBuildAttempts: Int
     public let maxTestAttempts: Int
+    public let directRepairThreshold: Double
     private let repositoryIndexer: RepositoryIndexer
     private let architectureEngine: ArchitectureEngine
     private let graphPlanner: GraphPlanner
@@ -15,6 +16,7 @@ public final class CodePlanner: @unchecked Sendable {
         maxPatchIterations: Int = 5,
         maxBuildAttempts: Int = 5,
         maxTestAttempts: Int = 5,
+        directRepairThreshold: Double = 0.7,
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         architectureEngine: ArchitectureEngine = ArchitectureEngine(),
         graphPlanner: GraphPlanner = GraphPlanner(),
@@ -25,6 +27,7 @@ public final class CodePlanner: @unchecked Sendable {
         self.maxPatchIterations = maxPatchIterations
         self.maxBuildAttempts = maxBuildAttempts
         self.maxTestAttempts = maxTestAttempts
+        self.directRepairThreshold = directRepairThreshold
         self.repositoryIndexer = repositoryIndexer
         self.architectureEngine = architectureEngine
         self.graphPlanner = graphPlanner
@@ -43,12 +46,15 @@ public final class CodePlanner: @unchecked Sendable {
         let snapshot = worldState.repositorySnapshot
             ?? repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
         let description = taskContext.goal.description.lowercased()
+        let projectMemorySignals = projectMemorySignals(taskContext: taskContext, snapshot: snapshot)
         let candidatePaths = likelyCandidatePaths(
             taskContext: taskContext,
             snapshot: snapshot,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            projectMemorySignals: projectMemorySignals
         )
-        let projectMemoryRefs = projectMemoryRefs(taskContext: taskContext, snapshot: snapshot)
+        let isRepairGoal = repairGoal(description)
+        let projectMemoryRefs = projectMemorySignals.refs
         let projectMemoryContext = ProjectMemoryPlanningContext(refs: projectMemoryRefs)
         let architectureReview = architectureEngine.review(
             goalDescription: taskContext.goal.description,
@@ -75,28 +81,17 @@ public final class CodePlanner: @unchecked Sendable {
             return graphDecision
         }
 
-        if let experimentSpec = experimentSpec(
-            taskContext: taskContext,
-            snapshot: snapshot,
-            architectureReview: architectureReview,
-            projectMemoryContext: projectMemoryContext,
-            candidatePaths: candidatePaths
-        ) {
-            let primaryPath = experimentSpec.candidates.first?.workspaceRelativePath
-            return decision(
-                for: "generate_patch",
-                snapshot: snapshot,
-                workspaceRelativePath: primaryPath,
-                projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview,
-                executionMode: .experiment,
-                experimentSpec: experimentSpec,
-                notes: [
-                    "parallel experiment fanout requested",
-                    "candidate count \(experimentSpec.candidates.count)",
-                    projectMemoryContext.experimentBiasNote,
-                ]
-            )
+        if isRepairGoal,
+           let repairDecision = repairDecision(
+               taskContext: taskContext,
+               snapshot: snapshot,
+               projectMemoryRefs: projectMemoryRefs,
+               projectMemoryContext: projectMemoryContext,
+               projectMemorySignals: projectMemorySignals,
+               architectureReview: architectureReview,
+               candidatePaths: candidatePaths
+           ) {
+            return repairDecision
         }
 
         if description.contains("push") {
@@ -104,7 +99,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "git_push",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                notes: ["git push requested"] + projectMemorySignals.riskSummaries
             )
         }
         if description.contains("commit") {
@@ -155,29 +151,12 @@ public final class CodePlanner: @unchecked Sendable {
                 architectureReview: architectureReview
             )
         }
-        if description.contains("fix") || description.contains("patch") || description.contains("refactor") {
-            let preferredPath = candidatePaths.first
-            let note = preferredPath.map { "memory/query-biased target \($0)" } ?? "code exploration fallback"
-            let constrainedRefactor = description.contains("refactor")
-                && architectureReview.triggered
-                && projectMemoryContext.hasArchitectureDecisions
-            let skillName = constrainedRefactor ? "search_code" : (preferredPath == nil ? "search_code" : "edit_file")
-            return decision(
-                for: skillName,
-                snapshot: snapshot,
-                workspaceRelativePath: preferredPath,
-                projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview,
-                notes: [note, projectMemoryContext.planningBiasNote]
-            )
-        }
-
         return decision(
             for: "read_repository",
             snapshot: snapshot,
             projectMemoryRefs: projectMemoryRefs,
             architectureReview: architectureReview,
-            notes: ["default repository inspection"]
+            notes: ["default repository inspection"] + projectMemorySignals.riskSummaries
         )
     }
 
@@ -207,7 +186,14 @@ public final class CodePlanner: @unchecked Sendable {
               let edge = searchResult.edges.first,
               let contract = graphStore.actionContract(for: edge.actionContractID)
         else {
-            return nil
+            return candidateGraphDecision(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore,
+                projectMemoryRefs: projectMemoryRefs,
+                architectureReview: architectureReview
+            )
         }
 
         return PlannerDecision(
@@ -219,12 +205,63 @@ public final class CodePlanner: @unchecked Sendable {
             source: .stableGraph,
             pathEdgeIDs: searchResult.edges.map(\.edgeID),
             currentEdgeID: edge.edgeID,
+            graphSearchDiagnostics: searchResult.diagnostics,
             projectMemoryRefs: projectMemoryRefs,
             architectureFindings: architectureReview.findings,
             refactorProposalID: architectureReview.refactorProposal?.id,
-            notes: [
-                searchResult.reachedGoal ? "graph path reaches engineering goal" : "graph-backed engineering path",
-            ]
+            notes: graphNotes(
+                prefix: searchResult.reachedGoal ? "stable graph path reaches engineering goal" : "stable graph path improves engineering state",
+                diagnostics: searchResult.diagnostics
+            )
+        )
+    }
+
+    private func candidateGraphDecision(
+        taskContext: TaskContext,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: AppMemoryStore,
+        projectMemoryRefs: [ProjectMemoryRef],
+        architectureReview: ArchitectureReview
+    ) -> PlannerDecision? {
+        let graphGoal = Goal(
+            description: taskContext.goal.description,
+            targetApp: taskContext.goal.targetApp,
+            targetDomain: taskContext.goal.targetDomain,
+            targetTaskPhase: taskContext.goal.targetTaskPhase,
+            workspaceRoot: taskContext.goal.workspaceRoot,
+            preferredAgentKind: .code
+        )
+
+        guard let selection = graphPlanner.bestCandidateEdge(
+            from: worldState.planningState,
+            goal: graphGoal,
+            graphStore: graphStore,
+            memoryStore: memoryStore,
+            worldState: worldState
+        ),
+        let contract = selection.actionContract
+        else {
+            return nil
+        }
+
+        return PlannerDecision(
+            agentKind: .code,
+            plannerFamily: .code,
+            stepPhase: .engineering,
+            executionMode: .direct,
+            actionContract: contract,
+            source: .candidateGraph,
+            pathEdgeIDs: [selection.edge.edgeID],
+            currentEdgeID: selection.edge.edgeID,
+            graphSearchDiagnostics: selection.diagnostics,
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureReview.findings,
+            refactorProposalID: architectureReview.refactorProposal?.id,
+            notes: graphNotes(
+                prefix: "candidate graph edge reuse",
+                diagnostics: selection.diagnostics
+            ) + ["candidate score \(String(format: "%.2f", selection.score))"]
         )
     }
 
@@ -262,6 +299,7 @@ public final class CodePlanner: @unchecked Sendable {
         ),
         executionMode: PlannerExecutionMode = .direct,
         experimentSpec: ExperimentSpec? = nil,
+        experimentDecision: ExperimentDecision? = nil,
         notes: [String] = ["bounded code exploration"]
     ) -> PlannerDecision? {
         let contract = ActionContract(
@@ -293,72 +331,166 @@ public final class CodePlanner: @unchecked Sendable {
             architectureFindings: architectureReview.findings,
             refactorProposalID: architectureReview.refactorProposal?.id,
             experimentSpec: experimentSpec,
+            experimentDecision: experimentDecision,
             notes: notes
+        )
+    }
+
+    private func repairDecision(
+        taskContext: TaskContext,
+        snapshot: RepositorySnapshot,
+        projectMemoryRefs: [ProjectMemoryRef],
+        projectMemoryContext: ProjectMemoryPlanningContext,
+        projectMemorySignals: ProjectMemoryPlanningSignals,
+        architectureReview: ArchitectureReview,
+        candidatePaths: [String]
+    ) -> PlannerDecision? {
+        let assessment = assessRepairRouting(
+            taskContext: taskContext,
+            snapshot: snapshot,
+            architectureReview: architectureReview,
+            projectMemoryContext: projectMemoryContext,
+            projectMemorySignals: projectMemorySignals,
+            candidatePaths: candidatePaths
+        )
+
+        if assessment.shouldUseExperiments,
+           let experimentSpec = experimentSpec(
+               taskContext: taskContext,
+               snapshot: snapshot,
+               architectureReview: architectureReview,
+               candidatePaths: candidatePaths,
+               assessment: assessment
+           ) {
+            let primaryPath = experimentSpec.candidates.first?.workspaceRelativePath
+            let experimentDecision = ExperimentDecision(
+                reason: assessment.experimentReason ?? "low-confidence repair path",
+                candidateCount: experimentSpec.candidates.count,
+                architectureRiskScore: architectureReview.riskScore
+            )
+            return decision(
+                for: "generate_patch",
+                snapshot: snapshot,
+                workspaceRelativePath: primaryPath,
+                projectMemoryRefs: projectMemoryRefs,
+                architectureReview: architectureReview,
+                executionMode: .experiment,
+                experimentSpec: experimentSpec,
+                experimentDecision: experimentDecision,
+                notes: [
+                    "parallel experiment fanout requested",
+                    "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
+                    "candidate count \(experimentSpec.candidates.count)",
+                ] + assessment.reasons + projectMemorySignals.riskSummaries
+            )
+        }
+
+        let preferredPath = candidatePaths.first
+        let constrainedRefactor = taskContext.goal.description.lowercased().contains("refactor")
+            && architectureReview.triggered
+            && projectMemoryContext.hasArchitectureDecisions
+        let skillName = constrainedRefactor ? "search_code" : (preferredPath == nil ? "search_code" : "edit_file")
+        let targetNote = preferredPath.map { "memory/query-biased target \($0)" } ?? "code exploration fallback"
+        return decision(
+            for: skillName,
+            snapshot: snapshot,
+            workspaceRelativePath: preferredPath,
+            projectMemoryRefs: projectMemoryRefs,
+            architectureReview: architectureReview,
+            notes: [
+                targetNote,
+                "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
+            ] + assessment.reasons + projectMemorySignals.riskSummaries
         )
     }
 
     private func likelyCandidatePaths(
         taskContext: TaskContext,
         snapshot: RepositorySnapshot,
-        memoryStore: AppMemoryStore
+        memoryStore: AppMemoryStore,
+        projectMemorySignals: ProjectMemoryPlanningSignals
     ) -> [String] {
+        var candidates: [String] = []
         if let preferredPath = MemoryQuery.preferredFixPath(
             errorSignature: taskContext.goal.description,
             store: memoryStore
         ) {
-            return [preferredPath]
+            candidates.append(preferredPath)
         }
 
-        let files = RepositoryQuery.likelyFiles(for: taskContext.goal.description, in: snapshot)
-        if !files.isEmpty {
-            return files
+        candidates.append(contentsOf: RepositoryQuery.likelyFiles(for: taskContext.goal.description, in: snapshot))
+        candidates.append(contentsOf: projectMemorySignals.preferredPaths(in: snapshot))
+
+        if candidates.isEmpty {
+            candidates.append(contentsOf: snapshot.files
+                .filter { !$0.isDirectory && $0.path.hasSuffix(".swift") }
+                .map(\.path)
+                .prefix(3))
         }
 
-        return snapshot.files
-            .filter { !$0.isDirectory && $0.path.hasSuffix(".swift") }
-            .map(\.path)
-            .prefix(3)
-            .map { $0 }
+        let preferredPaths = Set(projectMemorySignals.preferredPaths(in: snapshot))
+        let avoidedPaths = Set(projectMemorySignals.avoidedPaths(in: snapshot))
+
+        return orderedUnique(candidates).sorted { lhs, rhs in
+            let lhsScore = candidatePathScore(
+                path: lhs,
+                preferredPaths: preferredPaths,
+                avoidedPaths: avoidedPaths
+            )
+            let rhsScore = candidatePathScore(
+                path: rhs,
+                preferredPaths: preferredPaths,
+                avoidedPaths: avoidedPaths
+            )
+            if lhsScore == rhsScore {
+                return lhs < rhs
+            }
+            return lhsScore > rhsScore
+        }
     }
 
-    private func projectMemoryRefs(
+    private func projectMemorySignals(
         taskContext: TaskContext,
         snapshot: RepositorySnapshot
-    ) -> [ProjectMemoryRef] {
+    ) -> ProjectMemoryPlanningSignals {
         guard let workspaceRoot = taskContext.workspaceRoot else {
-            return []
+            return ProjectMemoryPlanningSignals()
         }
         do {
             let store = try ProjectMemoryStore(projectRootURL: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
-            return ProjectMemoryQuery.relevantRecords(
+            return ProjectMemoryQuery.planningSignals(
                 goalDescription: taskContext.goal.description,
                 snapshot: snapshot,
                 store: store
             )
         } catch {
-            return []
+            return ProjectMemoryPlanningSignals()
         }
+    }
+
+    private func graphNotes(prefix: String, diagnostics: GraphSearchDiagnostics) -> [String] {
+        var notes = [prefix, "explored \(diagnostics.exploredEdgeIDs.count) graph edges"]
+        if !diagnostics.rejectedEdgeIDs.isEmpty {
+            notes.append("rejected \(diagnostics.rejectedEdgeIDs.count) alternatives")
+        }
+        if let fallbackReason = diagnostics.fallbackReason {
+            notes.append(fallbackReason)
+        }
+        return notes
     }
 
     private func experimentSpec(
         taskContext: TaskContext,
         snapshot: RepositorySnapshot,
         architectureReview: ArchitectureReview,
-        projectMemoryContext: ProjectMemoryPlanningContext,
-        candidatePaths: [String]
+        candidatePaths: [String],
+        assessment: RepairRoutingAssessment
     ) -> ExperimentSpec? {
         guard !taskContext.experimentCandidates.isEmpty else {
             return nil
         }
 
-        let shouldFanOut = architectureReview.triggered
-            || projectMemoryContext.shouldEscalateToExperiment
-            || taskContext.goal.description.lowercased().contains("experiment")
-            || taskContext.goal.description.lowercased().contains("compare")
-            || taskContext.goal.description.lowercased().contains("fix")
-            || candidatePaths.count > 1
-
-        guard shouldFanOut,
+        guard assessment.shouldUseExperiments,
               let workspaceRoot = taskContext.workspaceRoot
         else {
             return nil
@@ -372,6 +504,138 @@ public final class CodePlanner: @unchecked Sendable {
             buildCommand: BuildToolDetector.defaultBuildCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL),
             testCommand: BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL)
         )
+    }
+
+    private func assessRepairRouting(
+        taskContext: TaskContext,
+        snapshot: RepositorySnapshot,
+        architectureReview: ArchitectureReview,
+        projectMemoryContext: ProjectMemoryPlanningContext,
+        projectMemorySignals: ProjectMemoryPlanningSignals,
+        candidatePaths: [String]
+    ) -> RepairRoutingAssessment {
+        var confidence = 0.45
+        var reasons: [String] = []
+        let description = taskContext.goal.description.lowercased()
+        let preferredPaths = Set(projectMemorySignals.preferredPaths(in: snapshot))
+        let avoidedPaths = Set(projectMemorySignals.avoidedPaths(in: snapshot))
+        let preferredCandidateCount = candidatePaths.filter { preferredPaths.contains($0) }.count
+        let effectiveCandidateCount = preferredCandidateCount == 1 ? 1 : candidatePaths.count
+
+        if effectiveCandidateCount == 1 {
+            confidence += 0.25
+            reasons.append(preferredCandidateCount == 1 ? "project memory narrowed to one likely target path" : "single likely target path")
+        } else if effectiveCandidateCount > 1 {
+            confidence -= 0.25
+            reasons.append("multiple plausible target paths")
+        } else {
+            confidence -= 0.15
+            reasons.append("no strong target path")
+        }
+
+        if projectMemoryContext.hasKnownGoodPatterns {
+            confidence += 0.15
+            reasons.append("known-good patterns favor direct repair")
+        }
+        if projectMemoryContext.hasArchitectureDecisions {
+            confidence += 0.05
+            reasons.append("architecture decisions constrain repair shape")
+        }
+        if candidatePaths.contains(where: { preferredPaths.contains($0) }) {
+            confidence += 0.25
+            reasons.append("known-good project memory narrowed the target path")
+        }
+        if description.contains(".swift") || description.contains(".ts") || description.contains(".js") || description.contains(".py") {
+            confidence += 0.1
+            reasons.append("goal names an explicit code file")
+        }
+        if projectMemoryContext.hasRejectedApproaches {
+            confidence -= 0.2
+            reasons.append("rejected approaches discourage single-path repair")
+        }
+        if candidatePaths.contains(where: { avoidedPaths.contains($0) }) {
+            confidence -= 0.2
+            reasons.append("project memory marks this repair path as previously rejected")
+        }
+        if projectMemoryContext.hasOpenProblems {
+            confidence -= 0.15
+            reasons.append("open problems suggest unresolved prior attempts")
+        }
+        if projectMemorySignals.hasRisks,
+           description.contains("push") || description.contains("delete") || description.contains("release") {
+            confidence -= 0.1
+            reasons.append("risk register warns about this operation class")
+        }
+        if architectureReview.triggered || architectureReview.riskScore >= 0.5 {
+            confidence -= 0.2
+            reasons.append("architecture review raises repair risk")
+        }
+        if description.contains("compare") || description.contains("experiment") {
+            confidence -= 0.1
+            reasons.append("goal explicitly requests comparison")
+        }
+
+        confidence = min(max(confidence, 0), 1)
+
+        let hasExperimentCandidates = !taskContext.experimentCandidates.isEmpty
+        let architectureRequiresExperiment = architectureReview.riskScore >= 0.5 && preferredCandidateCount == 0
+        let shouldUseExperiments = hasExperimentCandidates && (
+            confidence < directRepairThreshold
+                || effectiveCandidateCount > 1
+                || projectMemoryContext.shouldEscalateToExperiment
+                || architectureRequiresExperiment
+                || description.contains("compare")
+                || description.contains("experiment")
+        )
+
+        let experimentReason: String?
+        if shouldUseExperiments {
+            if projectMemoryContext.hasRejectedApproaches {
+                experimentReason = "previous approaches were rejected"
+            } else if effectiveCandidateCount > 1 {
+                experimentReason = "ambiguous edit target"
+            } else if projectMemoryContext.hasOpenProblems {
+                experimentReason = "open problem remains unresolved"
+            } else if architectureRequiresExperiment {
+                experimentReason = "architecture impact is high enough to compare fixes"
+            } else {
+                experimentReason = "direct repair confidence fell below threshold"
+            }
+        } else {
+            experimentReason = nil
+        }
+
+        return RepairRoutingAssessment(
+            directRepairConfidence: confidence,
+            shouldUseExperiments: shouldUseExperiments,
+            experimentReason: experimentReason,
+            reasons: reasons
+        )
+    }
+
+    private func repairGoal(_ description: String) -> Bool {
+        description.contains("fix")
+            || description.contains("patch")
+            || description.contains("repair")
+            || description.contains("refactor")
+            || description.contains("failing")
+            || description.contains("broken")
+            || description.contains("error")
+    }
+
+    private func candidatePathScore(
+        path: String,
+        preferredPaths: Set<String>,
+        avoidedPaths: Set<String>
+    ) -> Int {
+        var score = 0
+        if preferredPaths.contains(path) {
+            score += 2
+        }
+        if avoidedPaths.contains(path) {
+            score -= 2
+        }
+        return score
     }
 
     private func commandCategory(for skillName: String) -> CodeCommandCategory? {
@@ -408,6 +672,13 @@ public final class CodePlanner: @unchecked Sendable {
             nil
         }
     }
+}
+
+private struct RepairRoutingAssessment {
+    let directRepairConfidence: Double
+    let shouldUseExperiments: Bool
+    let experimentReason: String?
+    let reasons: [String]
 }
 
 private struct ProjectMemoryPlanningContext {
@@ -452,4 +723,9 @@ private struct ProjectMemoryPlanningContext {
         }
         return "project memory context available"
     }
+}
+
+private func orderedUnique(_ values: [String]) -> [String] {
+    var seen: Set<String> = []
+    return values.filter { seen.insert($0).inserted }
 }

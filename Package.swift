@@ -73,6 +73,7 @@ let package = Package(
             name: "OracleOSEvals",
             dependencies: ["OracleOS"],
             path: "Tests/OracleOSEvals",
+            exclude: ["README.md"],
             swiftSettings: concurrencySettings
         ),
         .testTarget(

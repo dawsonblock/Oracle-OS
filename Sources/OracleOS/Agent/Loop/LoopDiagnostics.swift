@@ -48,5 +48,48 @@ public struct LoopDiagnostics: Sendable, Equatable {
         stepSummaries.append(summary)
     }
 
+    public mutating func recordDecision(
+        stepIndex: Int,
+        decision: PlannerDecision,
+        success: Bool,
+        failure: FailureClass? = nil,
+        recoveryStrategy: String? = nil,
+        notes: [String] = []
+    ) {
+        append(
+            LoopStepSummary(
+                stepIndex: stepIndex,
+                source: decision.source,
+                skillName: decision.skillName,
+                workflowID: decision.workflowID,
+                experimentID: decision.experimentSpec?.id,
+                success: success,
+                failure: failure,
+                recoveryStrategy: recoveryStrategy,
+                notes: notes
+            )
+        )
+    }
+
+    public mutating func recordRecovery(
+        stepIndex: Int,
+        strategyName: String?,
+        success: Bool,
+        failure: FailureClass? = nil,
+        notes: [String] = []
+    ) {
+        append(
+            LoopStepSummary(
+                stepIndex: stepIndex,
+                source: .recovery,
+                skillName: strategyName ?? "recovery",
+                success: success,
+                failure: failure,
+                recoveryStrategy: strategyName,
+                notes: notes
+            )
+        )
+    }
+
     public static let empty = LoopDiagnostics()
 }

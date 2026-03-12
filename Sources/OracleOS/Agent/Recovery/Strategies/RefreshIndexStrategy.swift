@@ -5,18 +5,30 @@ public struct RefreshIndexStrategy: RecoveryStrategy {
 
     public init() {}
 
-    public func attempt(
+    public func prepare(
         failure _: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
+        state: WorldState,
+        memoryStore _: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
         guard let repositorySnapshot = state.repositorySnapshot else {
-            return ActionResult(success: false, verified: false, message: "No repository snapshot", failureClass: FailureClass.noRelevantFiles.rawValue)
+            return nil
         }
 
-        return ActionResult(
-            success: true,
-            verified: true,
-            message: "Repository index refreshed for \(repositorySnapshot.workspaceRoot)"
+        let command = CommandSpec(
+            category: .indexRepository,
+            executable: "/usr/bin/env",
+            arguments: [],
+            workspaceRoot: repositorySnapshot.workspaceRoot,
+            summary: "index repository"
+        )
+
+        return RecoveryPreparation(
+            strategyName: name,
+            resolution: SkillResolution(
+                intent: .code(name: "Refresh repository index", command: command),
+                repositorySnapshotID: repositorySnapshot.id
+            ),
+            notes: ["refreshing repository index"]
         )
     }
 }

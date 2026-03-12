@@ -1,12 +1,160 @@
 import Foundation
 
-public struct TraceSegmenter {
+public struct TraceSegment: Sendable, Identifiable {
+    public let id: String
+    public let taskID: String?
+    public let sessionID: String
+    public let agentKind: AgentKind
+    public let events: [TraceEvent]
 
-    public static func segment(
+    public init(
+        id: String,
+        taskID: String?,
+        sessionID: String,
+        agentKind: AgentKind,
         events: [TraceEvent]
-    ) -> [TraceEvent] {
+    ) {
+        self.id = id
+        self.taskID = taskID
+        self.sessionID = sessionID
+        self.agentKind = agentKind
+        self.events = events
+    }
 
-        // simple version: keep successful actions
-        return events.filter(\.success)
+    public var fingerprint: String {
+        events.map {
+            [
+                $0.agentKind ?? "unknown",
+                $0.actionContractID ?? $0.actionName,
+                $0.postconditionClass ?? "none",
+                $0.workspaceRelativePath ?? "none",
+                $0.commandCategory ?? "none",
+            ].joined(separator: "|")
+        }
+        .joined(separator: "->")
+    }
+
+    public var evidenceTiers: [KnowledgeTier] {
+        Array(
+            Set(
+                events.compactMap { $0.knowledgeTier }.compactMap(KnowledgeTier.init(rawValue:))
+            )
+        ).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    public var planningStateDeltas: [String] {
+        events.compactMap(\.planningStateID)
+    }
+}
+
+public struct RepeatedTraceSegment: Sendable {
+    public let fingerprint: String
+    public let segments: [TraceSegment]
+
+    public init(fingerprint: String, segments: [TraceSegment]) {
+        self.fingerprint = fingerprint
+        self.segments = segments
+    }
+}
+
+public enum TraceSegmenter {
+    public static func segment(events: [TraceEvent]) -> [TraceSegment] {
+        var segments: [TraceSegment] = []
+        var current: [TraceEvent] = []
+        var currentTaskID: String?
+        var currentSessionID: String?
+        var currentAgentKind: AgentKind?
+
+        func flush() {
+            guard let first = current.first,
+                  let agentKind = currentAgentKind,
+                  !current.isEmpty
+            else {
+                current = []
+                currentTaskID = nil
+                currentSessionID = nil
+                currentAgentKind = nil
+                return
+            }
+
+            let id = [
+                first.sessionID,
+                first.taskID ?? "none",
+                "\(first.stepID)",
+                "\(current.count)",
+            ].joined(separator: "|")
+            segments.append(
+                TraceSegment(
+                    id: id,
+                    taskID: currentTaskID,
+                    sessionID: currentSessionID ?? first.sessionID,
+                    agentKind: agentKind,
+                    events: current
+                )
+            )
+            current = []
+            currentTaskID = nil
+            currentSessionID = nil
+            currentAgentKind = nil
+        }
+
+        for event in events.sorted(by: traceSortOrder) {
+            guard event.success,
+                  event.verified,
+                  event.blockedByPolicy != true,
+                  event.recoveryTagged != true,
+                  event.knowledgeTier != KnowledgeTier.recovery.rawValue,
+                  event.knowledgeTier != KnowledgeTier.experiment.rawValue,
+                  let agentKind = AgentKind(rawValue: event.agentKind ?? AgentKind.os.rawValue)
+            else {
+                flush()
+                continue
+            }
+
+            let startsNewSegment =
+                current.isEmpty == false && (
+                    currentTaskID != event.taskID
+                        || currentSessionID != event.sessionID
+                        || currentAgentKind != agentKind
+                        || (current.last.map { event.stepID <= $0.stepID } ?? false)
+                )
+
+            if startsNewSegment {
+                flush()
+            }
+
+            current.append(event)
+            currentTaskID = event.taskID
+            currentSessionID = event.sessionID
+            currentAgentKind = agentKind
+        }
+
+        flush()
+        return segments.filter { !$0.events.isEmpty }
+    }
+
+    public static func repeatedSegments(events: [TraceEvent]) -> [RepeatedTraceSegment] {
+        let grouped = Dictionary(grouping: segment(events: events), by: \.fingerprint)
+        return grouped
+            .compactMap { fingerprint, segments in
+                guard segments.count >= 2 else { return nil }
+                return RepeatedTraceSegment(fingerprint: fingerprint, segments: segments)
+            }
+            .sorted { lhs, rhs in
+                if lhs.segments.count == rhs.segments.count {
+                    return lhs.fingerprint < rhs.fingerprint
+                }
+                return lhs.segments.count > rhs.segments.count
+            }
+    }
+
+    private static func traceSortOrder(lhs: TraceEvent, rhs: TraceEvent) -> Bool {
+        if lhs.sessionID == rhs.sessionID {
+            if lhs.taskID == rhs.taskID {
+                return lhs.stepID < rhs.stepID
+            }
+            return (lhs.taskID ?? "") < (rhs.taskID ?? "")
+        }
+        return lhs.sessionID < rhs.sessionID
     }
 }

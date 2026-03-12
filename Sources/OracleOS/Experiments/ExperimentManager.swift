@@ -17,6 +17,13 @@ public final class ExperimentManager: @unchecked Sendable {
         workspaceRoot.appendingPathComponent(".oracle/experiments", isDirectory: true)
     }
 
+    public func resultsURL(for spec: ExperimentSpec) -> URL {
+        let experimentsRoot = defaultExperimentsRoot(
+            for: URL(fileURLWithPath: spec.workspaceRoot, isDirectory: true)
+        )
+        return resultsURL(for: spec, experimentsRoot: experimentsRoot)
+    }
+
     public func run(
         spec: ExperimentSpec,
         architectureRiskScore: Double = 0
@@ -43,6 +50,8 @@ public final class ExperimentManager: @unchecked Sendable {
                 commandResults: result.commandResults,
                 diffSummary: result.diffSummary,
                 architectureRiskScore: result.architectureRiskScore,
+                architectureFindings: result.architectureFindings,
+                refactorProposalID: result.refactorProposalID,
                 selected: result.candidate.id == selectedID
             )
         }
@@ -56,16 +65,26 @@ public final class ExperimentManager: @unchecked Sendable {
         results.first(where: \.selected)?.candidate
     }
 
+    public func loadResults(for spec: ExperimentSpec) throws -> [ExperimentResult] {
+        let url = resultsURL(for: spec)
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode([ExperimentResult].self, from: data)
+    }
+
     private func persistResults(
         _ results: [ExperimentResult],
         spec: ExperimentSpec,
         experimentsRoot: URL
     ) throws {
-        let resultURL = experimentsRoot
-            .appendingPathComponent(spec.id, isDirectory: true)
-            .appendingPathComponent("results.json", isDirectory: false)
+        let resultURL = resultsURL(for: spec, experimentsRoot: experimentsRoot)
         try fileManager.createDirectory(at: resultURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(results)
         try data.write(to: resultURL)
+    }
+
+    private func resultsURL(for spec: ExperimentSpec, experimentsRoot: URL) -> URL {
+        experimentsRoot
+            .appendingPathComponent(spec.id, isDirectory: true)
+            .appendingPathComponent("results.json", isDirectory: false)
     }
 }

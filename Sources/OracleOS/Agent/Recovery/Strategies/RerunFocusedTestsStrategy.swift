@@ -5,18 +5,29 @@ public struct RerunFocusedTestsStrategy: RecoveryStrategy {
 
     public init() {}
 
-    public func attempt(
+    public func prepare(
         failure _: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
-        guard let snapshot = state.repositorySnapshot, !snapshot.testGraph.tests.isEmpty else {
-            return ActionResult(success: false, verified: false, message: "No focused tests available", failureClass: FailureClass.testFailed.rawValue)
+        state: WorldState,
+        memoryStore _: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
+        guard let snapshot = state.repositorySnapshot,
+              !snapshot.testGraph.tests.isEmpty
+        else {
+            return nil
         }
 
-        return ActionResult(
-            success: true,
-            verified: true,
-            message: "Focused tests rerun scheduled"
+        let workspaceRoot = URL(fileURLWithPath: snapshot.workspaceRoot, isDirectory: true)
+        guard let command = BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceRoot) else {
+            return nil
+        }
+
+        return RecoveryPreparation(
+            strategyName: name,
+            resolution: SkillResolution(
+                intent: .code(name: "Rerun focused tests", command: command),
+                repositorySnapshotID: snapshot.id
+            ),
+            notes: ["rerunning focused tests"]
         )
     }
 }

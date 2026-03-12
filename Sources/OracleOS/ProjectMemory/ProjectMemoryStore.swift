@@ -178,6 +178,29 @@ public final class ProjectMemoryStore: @unchecked Sendable {
         )
     }
 
+    public func writeRiskDraft(
+        title: String,
+        summary: String,
+        knowledgeClass: KnowledgeClass,
+        affectedModules: [String] = [],
+        evidenceRefs: [String] = [],
+        sourceTraceIDs: [String] = [],
+        body: String
+    ) throws -> ProjectMemoryRef {
+        try writeDraft(
+            ProjectMemoryDraft(
+                kind: .risk,
+                knowledgeClass: knowledgeClass,
+                title: title,
+                summary: summary,
+                affectedModules: affectedModules,
+                evidenceRefs: evidenceRefs,
+                sourceTraceIDs: sourceTraceIDs,
+                body: body
+            )
+        )
+    }
+
     public func query(
         text: String,
         modules: [String] = [],
@@ -185,6 +208,41 @@ public final class ProjectMemoryStore: @unchecked Sendable {
         limit: Int = 10
     ) -> [ProjectMemoryRef] {
         indexer.query(text: text, modules: modules, kinds: kinds, limit: limit)
+    }
+
+    public func allRecords(includeEpisodeResidue: Bool = false) -> [ProjectMemoryRecord] {
+        let roots = includeEpisodeResidue ? [rootURL, draftsURL, residueURL] : [rootURL, draftsURL]
+        let fileManager = FileManager.default
+        var records: [ProjectMemoryRecord] = []
+
+        for root in roots {
+            guard fileManager.fileExists(atPath: root.path),
+                  let enumerator = fileManager.enumerator(
+                      at: root,
+                      includingPropertiesForKeys: [.isRegularFileKey],
+                      options: [.skipsHiddenFiles]
+                  )
+            else {
+                continue
+            }
+
+            for case let fileURL as URL in enumerator where fileURL.pathExtension == "md" {
+                guard let record = ProjectMemoryIndexer.parseRecord(fileURL: fileURL) else {
+                    continue
+                }
+                if includeEpisodeResidue == false, record.knowledgeClass == .episode {
+                    continue
+                }
+                records.append(record)
+            }
+        }
+
+        return records.sorted { lhs, rhs in
+            if lhs.updatedAt == rhs.updatedAt {
+                return lhs.id < rhs.id
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }
     }
 
     private func fileURL(for draft: ProjectMemoryDraft) -> URL {

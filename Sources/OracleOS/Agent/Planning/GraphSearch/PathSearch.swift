@@ -28,6 +28,8 @@ public struct PathSearch: Sendable {
         memoryBiasProvider: (EdgeTransition, ActionContract?) -> Double = { _, _ in 0 }
     ) -> GraphSearchResult? {
         var exploredEdgeIDs: [String] = []
+        var exploredStateIDs: [String] = [startState.id.rawValue]
+        var rejectedEdgeIDs: [String] = []
         var frontier: [ScoredPath] = [ScoredPath(stateID: startState.id, edges: [], score: 0)]
         var bestPath: ScoredPath?
 
@@ -35,12 +37,19 @@ public struct PathSearch: Sendable {
             var nextFrontier: [ScoredPath] = []
 
             for path in frontier {
+                exploredStateIDs.append(path.stateID.rawValue)
                 if let currentState = graphStore.planningState(for: path.stateID),
                    Planner.goalMatchScore(state: currentState, goal: goal) >= 1 {
                     return GraphSearchResult(
                         edges: path.edges,
                         reachedGoal: true,
-                        exploredEdgeIDs: exploredEdgeIDs
+                        exploredEdgeIDs: exploredEdgeIDs,
+                        diagnostics: GraphSearchDiagnostics(
+                            exploredStateIDs: Array(Set(exploredStateIDs)).sorted(),
+                            exploredEdgeIDs: exploredEdgeIDs,
+                            chosenPathEdgeIDs: path.edges.map(\.edgeID),
+                            rejectedEdgeIDs: rejectedEdgeIDs
+                        )
                     )
                 }
 
@@ -84,6 +93,14 @@ public struct PathSearch: Sendable {
                 .prefix(beamWidth)
                 .map { $0 }
 
+            let keptEdgeIDs = Set(frontier.compactMap { $0.edges.last?.edgeID })
+            rejectedEdgeIDs.append(contentsOf: nextFrontier.compactMap { candidate in
+                guard let edgeID = candidate.edges.last?.edgeID else {
+                    return nil
+                }
+                return keptEdgeIDs.contains(edgeID) ? nil : edgeID
+            })
+
             if frontier.isEmpty {
                 break
             }
@@ -96,7 +113,14 @@ public struct PathSearch: Sendable {
         return GraphSearchResult(
             edges: bestPath.edges,
             reachedGoal: false,
-            exploredEdgeIDs: exploredEdgeIDs
+            exploredEdgeIDs: exploredEdgeIDs,
+            diagnostics: GraphSearchDiagnostics(
+                exploredStateIDs: Array(Set(exploredStateIDs)).sorted(),
+                exploredEdgeIDs: exploredEdgeIDs,
+                chosenPathEdgeIDs: bestPath.edges.map(\.edgeID),
+                rejectedEdgeIDs: rejectedEdgeIDs,
+                fallbackReason: "no stable path reached the goal within depth \(maxDepth)"
+            )
         )
     }
 }

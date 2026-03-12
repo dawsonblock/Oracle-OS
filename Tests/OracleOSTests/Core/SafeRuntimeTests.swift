@@ -108,12 +108,54 @@ struct SafeRuntimeTests {
         #expect((result.data?["approval_request_id"] as? String)?.isEmpty == false)
     }
 
+    @Test("Verified runtime action records graph transition")
+    func verifiedRuntimeActionRecordsGraphTransition() {
+        let (runtime, graphStore) = makeRuntimeWithGraph()
+
+        let result = runtime.performAction(
+            surface: .mcp,
+            taskID: "test-task",
+            toolName: "ghost_focus",
+            intent: .focus(app: "Finder")
+        ) {
+            ToolResult(success: true, data: ["method": "synthetic-focus"])
+        }
+
+        #expect(result.success)
+        #expect(graphStore.allCandidateEdges().count == 1)
+        #expect(graphStore.allCandidateEdges().first?.attempts == 1)
+        #expect(graphStore.allCandidateEdges().first?.successes == 1)
+    }
+
+    @Test("Failed verified runtime action records graph failure")
+    func failedRuntimeActionRecordsGraphFailure() {
+        let (runtime, graphStore) = makeRuntimeWithGraph()
+
+        let result = runtime.performAction(
+            surface: .mcp,
+            taskID: "test-task",
+            toolName: "ghost_click",
+            intent: .click(app: "Finder", query: "Missing")
+        ) {
+            ToolResult(success: false, error: "not found")
+        }
+
+        #expect(result.success == false)
+        #expect(graphStore.allCandidateEdges().count == 1)
+        #expect(graphStore.allCandidateEdges().first?.failureHistogram[FailureClass.elementNotFound.rawValue] == 1)
+    }
+
     private func makeRuntime(controllerConnected: Bool = false) -> OracleRuntime {
+        makeRuntimeWithGraph(controllerConnected: controllerConnected).runtime
+    }
+
+    private func makeRuntimeWithGraph(controllerConnected: Bool = false) -> (runtime: OracleRuntime, graphStore: GraphStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let traceRecorder = TraceRecorder()
         let traceStore = TraceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
         let artifactWriter = FailureArtifactWriter(baseURL: root.appendingPathComponent("artifacts", isDirectory: true))
         let approvalStore = ApprovalStore(rootDirectory: root.appendingPathComponent("approvals", isDirectory: true))
+        let graphStore = GraphStore(databaseURL: root.appendingPathComponent("graph.sqlite3"))
 
         if controllerConnected {
             approvalStore.writeControllerHeartbeat(sessionID: "controller-test")
@@ -127,12 +169,14 @@ struct SafeRuntimeTests {
             verifiedExecutor: VerifiedActionExecutor(
                 traceRecorder: traceRecorder,
                 traceStore: traceStore,
-                artifactWriter: artifactWriter
+                artifactWriter: artifactWriter,
+                graphStore: graphStore
             ),
             policyEngine: PolicyEngine(mode: .confirmRisky),
-            approvalStore: approvalStore
+            approvalStore: approvalStore,
+            graphStore: graphStore
         )
 
-        return OracleRuntime(context: context)
+        return (OracleRuntime(context: context), graphStore)
     }
 }

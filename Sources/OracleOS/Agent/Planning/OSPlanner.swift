@@ -66,8 +66,38 @@ public final class OSPlanner: @unchecked Sendable {
                 source: .stableGraph,
                 pathEdgeIDs: searchResult.edges.map(\.edgeID),
                 currentEdgeID: currentEdge.edgeID,
+                graphSearchDiagnostics: searchResult.diagnostics,
                 semanticQuery: semanticQuery(for: contract, worldState: worldState),
-                notes: searchResult.reachedGoal ? ["graph path reaches goal"] : ["graph path improves goal fit"]
+                notes: graphNotes(
+                    prefix: searchResult.reachedGoal ? "stable graph path reaches goal" : "stable graph path improves goal fit",
+                    diagnostics: searchResult.diagnostics
+                )
+            )
+        }
+
+        if let candidateSelection = graphPlanner.bestCandidateEdge(
+            from: worldState.planningState,
+            goal: graphGoal,
+            graphStore: graphStore,
+            memoryStore: memoryStore,
+            worldState: worldState
+        ),
+           let contract = candidateSelection.actionContract
+        {
+            return PlannerDecision(
+                agentKind: .os,
+                plannerFamily: .os,
+                stepPhase: .operatingSystem,
+                actionContract: contract,
+                source: .candidateGraph,
+                pathEdgeIDs: [candidateSelection.edge.edgeID],
+                currentEdgeID: candidateSelection.edge.edgeID,
+                graphSearchDiagnostics: candidateSelection.diagnostics,
+                semanticQuery: semanticQuery(for: contract, worldState: worldState),
+                notes: graphNotes(
+                    prefix: "candidate graph edge reuse",
+                    diagnostics: candidateSelection.diagnostics
+                ) + ["candidate score \(String(format: "%.2f", candidateSelection.score))"]
             )
         }
 
@@ -84,7 +114,7 @@ public final class OSPlanner: @unchecked Sendable {
             pathEdgeIDs: fallback.pathEdgeIDs,
             currentEdgeID: fallback.currentEdgeID,
             semanticQuery: fallback.semanticQuery,
-            notes: fallback.notes,
+            notes: fallback.notes + ["workflow and graph reuse unavailable"],
             recoveryTagged: fallback.recoveryTagged,
             recoveryStrategy: fallback.recoveryStrategy,
             recoverySource: fallback.recoverySource
@@ -107,5 +137,16 @@ public final class OSPlanner: @unchecked Sendable {
             visibleOnly: true,
             app: worldState.observation.app
         )
+    }
+
+    private func graphNotes(prefix: String, diagnostics: GraphSearchDiagnostics) -> [String] {
+        var notes = [prefix, "explored \(diagnostics.exploredEdgeIDs.count) graph edges"]
+        if !diagnostics.rejectedEdgeIDs.isEmpty {
+            notes.append("rejected \(diagnostics.rejectedEdgeIDs.count) alternatives")
+        }
+        if let fallbackReason = diagnostics.fallbackReason {
+            notes.append(fallbackReason)
+        }
+        return notes
     }
 }

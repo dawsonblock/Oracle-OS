@@ -36,7 +36,7 @@ public final class LoopExperimentCoordinator {
         experimentSpec: ExperimentSpec,
         taskContext: TaskContext,
         worldState: WorldState,
-        recoveries: inout Int,
+        budgetState: inout LoopBudgetState,
         step: Int,
         budget: LoopBudget,
         diagnostics: inout LoopDiagnostics
@@ -68,7 +68,7 @@ public final class LoopExperimentCoordinator {
                     reason: .lowConfidenceRepeatedFailure,
                     finalWorldState: worldState,
                     steps: step + 1,
-                    recoveries: recoveries,
+                    recoveries: budgetState.recoveries,
                     lastFailure: .patchApplyFailed,
                     diagnostics: diagnostics
                 )
@@ -114,8 +114,8 @@ public final class LoopExperimentCoordinator {
                 actionContract: replayContract,
                 source: .exploration,
                 projectMemoryRefs: decision.projectMemoryRefs,
-                architectureFindings: decision.architectureFindings,
-                refactorProposalID: decision.refactorProposalID,
+                architectureFindings: selectedResult?.architectureFindings ?? decision.architectureFindings,
+                refactorProposalID: selectedResult?.refactorProposalID ?? decision.refactorProposalID,
                 experimentSpec: experimentSpec,
                 experimentCandidateID: selected.id,
                 experimentSandboxPath: selectedResult?.sandboxPath,
@@ -153,7 +153,7 @@ public final class LoopExperimentCoordinator {
                 return nil
             }
 
-            if recoveries < budget.maxRecoveries {
+            if budgetState.canRecover(under: budget) {
                 let afterObservation = observationProvider.observe()
                 let afterWorldState = WorldState(
                     observation: afterObservation,
@@ -166,20 +166,79 @@ public final class LoopExperimentCoordinator {
                     state: afterWorldState,
                     memoryStore: memoryStore
                 )
-                recoveries += 1
-                if recoveryAttempt.result.success {
-                    diagnostics.append(
-                        LoopStepSummary(
-                            stepIndex: step,
-                            source: .recovery,
-                            skillName: recoveryAttempt.strategyName ?? "recovery",
-                            experimentID: experimentSpec.id,
-                            success: true,
-                            recoveryStrategy: recoveryAttempt.strategyName,
-                            notes: ["experiment replay recovery succeeded"]
+                budgetState.registerRecoveryAttempt()
+                var recordedFailure = false
+                if let preparation = recoveryAttempt.preparation {
+                    let recoveryDecision = PlannerDecision(
+                        agentKind: preparation.resolution.intent.agentKind,
+                        skillName: preparation.strategyName,
+                        plannerFamily: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract.from(
+                            intent: preparation.resolution.intent,
+                            method: preparation.resolution.semanticQuery == nil ? "recovery" : "recovery-query",
+                            selectedElementLabel: preparation.resolution.selectedCandidate?.element.label,
+                            plannerFamily: PlannerFamily.code.rawValue
+                        ),
+                        source: .recovery,
+                        projectMemoryRefs: decision.projectMemoryRefs,
+                        architectureFindings: decision.architectureFindings,
+                        refactorProposalID: decision.refactorProposalID,
+                        experimentSpec: experimentSpec,
+                        knowledgeTier: .recovery,
+                        notes: ["experiment replay recovery"],
+                        recoveryTagged: true,
+                        recoveryStrategy: preparation.strategyName,
+                        recoverySource: FailureClass.patchApplyFailed.rawValue
+                    )
+                    let recoveryResult = executionDriver.execute(
+                        intent: preparation.resolution.intent,
+                        plannerDecision: recoveryDecision,
+                        selectedCandidate: preparation.resolution.selectedCandidate
+                    )
+                    let recoveryActionResult = ActionResult.from(dict: recoveryResult.data?["action_result"] as? [String: Any] ?? [:])
+                        ?? ActionResult(success: recoveryResult.success, verified: recoveryResult.success, message: recoveryResult.error)
+                    memoryStore.recordStrategy(
+                        StrategyRecord(
+                            app: afterWorldState.observation.app ?? "unknown",
+                            strategy: preparation.strategyName,
+                            success: recoveryActionResult.success
                         )
                     )
-                    return nil
+                    if recoveryActionResult.success {
+                        diagnostics.recordRecovery(
+                            stepIndex: step,
+                            strategyName: preparation.strategyName,
+                            success: true,
+                            notes: preparation.notes + ["experiment replay recovery succeeded"]
+                        )
+                        return nil
+                    }
+                    recordedFailure = true
+                    diagnostics.recordRecovery(
+                        stepIndex: step,
+                        strategyName: preparation.strategyName,
+                        success: false,
+                        failure: .patchApplyFailed,
+                        notes: preparation.notes + ["experiment replay recovery failed"]
+                    )
+                }
+
+                if !recordedFailure {
+                    memoryStore.recordStrategy(
+                        StrategyRecord(
+                            app: afterWorldState.observation.app ?? "unknown",
+                            strategy: recoveryAttempt.strategyName ?? "none",
+                            success: false
+                        )
+                    )
+                    diagnostics.recordRecovery(
+                        stepIndex: step,
+                        strategyName: recoveryAttempt.strategyName,
+                        success: false,
+                        failure: .patchApplyFailed,
+                        notes: ["experiment replay recovery failed", recoveryAttempt.message]
+                    )
                 }
             }
 
@@ -187,7 +246,7 @@ public final class LoopExperimentCoordinator {
                 reason: .lowConfidenceRepeatedFailure,
                 finalWorldState: worldState,
                 steps: step + 1,
-                recoveries: recoveries,
+                recoveries: budgetState.recoveries,
                 lastFailure: .patchApplyFailed,
                 diagnostics: diagnostics
             )
@@ -213,7 +272,7 @@ public final class LoopExperimentCoordinator {
                 reason: .lowConfidenceRepeatedFailure,
                 finalWorldState: worldState,
                 steps: step + 1,
-                recoveries: recoveries,
+                recoveries: budgetState.recoveries,
                 lastFailure: .patchApplyFailed,
                 diagnostics: diagnostics
             )

@@ -42,6 +42,12 @@ public struct ElementMatcher {
             reasons.append("context match")
         }
 
+        let localUIContext = localUIContext(element: element, worldState: worldState)
+        if localUIContext > 0 {
+            score += localUIContext * 0.05
+            reasons.append("local UI context")
+        }
+
         if let memoryStore {
             let memoryBias = MemoryQuery.rankingBias(
                 label: element.label,
@@ -127,6 +133,24 @@ public struct ElementMatcher {
         }
 
         return min(total, 1)
+    }
+
+    private static func localUIContext(
+        element: UnifiedElement,
+        worldState: WorldState?
+    ) -> Double {
+        guard let focused = worldState?.observation.focusedElement,
+              let elementFrame = element.frame,
+              let focusedFrame = focused.frame
+        else {
+            return 0
+        }
+
+        let dx = elementFrame.midX - focusedFrame.midX
+        let dy = elementFrame.midY - focusedFrame.midY
+        let distance = sqrt((dx * dx) + (dy * dy))
+        let normalizedDistance = min(distance / 600.0, 1.0)
+        return max(0, 1 - normalizedDistance)
     }
 
     private static func sourceTrust(for source: ElementSource) -> Double {

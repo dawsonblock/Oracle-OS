@@ -133,6 +133,16 @@ public final class GraphStore: @unchecked Sendable {
         outgoingStableEdges(from: planningStateID)
     }
 
+    public func outgoingCandidateEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
+        candidateGraph.edges.values
+            .filter {
+                $0.fromPlanningStateID == planningStateID
+                    && $0.knowledgeTier == .candidate
+                    && $0.successes > 0
+            }
+            .sorted { $0.cost < $1.cost }
+    }
+
     public func outgoingStableEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
         stableGraph.outgoing(from: planningStateID)
     }

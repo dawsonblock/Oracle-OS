@@ -7,19 +7,22 @@ public final class VerifiedActionExecutor {
     private let traceRecorder: TraceRecorder?
     private let traceStore: TraceStore?
     private let artifactWriter: FailureArtifactWriter?
+    private let graphStore: GraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
         stateAbstraction: StateAbstraction = StateAbstraction(),
         traceRecorder: TraceRecorder? = nil,
         traceStore: TraceStore? = nil,
-        artifactWriter: FailureArtifactWriter? = nil
+        artifactWriter: FailureArtifactWriter? = nil,
+        graphStore: GraphStore? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
         self.traceRecorder = traceRecorder
         self.traceStore = traceStore
         self.artifactWriter = artifactWriter
+        self.graphStore = graphStore
     }
 
     public func run(
@@ -141,6 +144,16 @@ public final class VerifiedActionExecutor {
             surface: surface.rawValue,
             appProtectionProfile: policyDecision?.appProtectionProfile.rawValue,
             blockedByPolicy: policyDecision?.blockedByPolicy ?? false
+        )
+
+        recordGraphOutcome(
+            transition: verifiedTransition,
+            actionContract: actionContract,
+            actionResult: actionResult,
+            preState: prePlanningState,
+            postState: postPlanningState,
+            ambiguityScore: candidateAmbiguityScore,
+            failureClass: failureClass
         )
 
         let event = TraceEvent(
@@ -352,6 +365,42 @@ public final class VerifiedActionExecutor {
         execute: () -> ToolResult
     ) -> ToolResult {
         VerifiedActionExecutor().run(intent: intent, execute: execute)
+    }
+
+    private func recordGraphOutcome(
+        transition: VerifiedTransition,
+        actionContract: ActionContract,
+        actionResult: ActionResult,
+        preState: PlanningState,
+        postState: PlanningState,
+        ambiguityScore: Double?,
+        failureClass: FailureClass?
+    ) {
+        guard let graphStore else {
+            return
+        }
+
+        if actionResult.success, actionResult.verified {
+            graphStore.recordTransition(
+                transition,
+                actionContract: actionContract,
+                fromState: preState,
+                toState: postState
+            )
+        } else if let failureClass {
+            graphStore.recordFailure(
+                state: preState,
+                actionContract: actionContract,
+                failure: failureClass,
+                ambiguityScore: ambiguityScore,
+                recoveryTagged: transition.recoveryTagged
+            )
+        } else {
+            return
+        }
+
+        _ = graphStore.promoteEligibleEdges()
+        _ = graphStore.pruneOrDemoteEdges()
     }
 
     private func captureVerifiedPostObservation(
