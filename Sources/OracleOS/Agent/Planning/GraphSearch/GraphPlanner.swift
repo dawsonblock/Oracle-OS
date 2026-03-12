@@ -35,7 +35,8 @@ public final class GraphPlanner: @unchecked Sendable {
         goal: Goal,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore? = nil,
-        worldState: WorldState? = nil
+        worldState: WorldState? = nil,
+        riskPenalty: Double = 0
     ) -> GraphSearchResult? {
         pathSearch.search(
             from: startState,
@@ -61,6 +62,8 @@ public final class GraphPlanner: @unchecked Sendable {
                 app: worldState?.observation.app,
                 store: memoryStore
             )
+        } riskPenaltyProvider: { _, _ in
+            riskPenalty
         }
     }
 
@@ -69,7 +72,8 @@ public final class GraphPlanner: @unchecked Sendable {
         goal: Goal,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore? = nil,
-        worldState: WorldState? = nil
+        worldState: WorldState? = nil,
+        riskPenalty: Double = 0
     ) -> GraphEdgeSelection? {
         let candidateEdges = graphStore.outgoingCandidateEdges(from: startState.id)
             .filter { edge in
@@ -110,11 +114,12 @@ public final class GraphPlanner: @unchecked Sendable {
                 actionContract: actionContract,
                 source: .candidateGraph,
                 score: PathScorer().score(
-                    edge: edge,
-                    actionContract: actionContract,
-                    goal: goal,
-                    memoryBias: memoryBias
-                ),
+                edge: edge,
+                actionContract: actionContract,
+                goal: goal,
+                memoryBias: memoryBias,
+                riskPenalty: riskPenalty
+            ),
                 diagnostics: GraphSearchDiagnostics(
                     exploredStateIDs: [startState.id.rawValue],
                     exploredEdgeIDs: candidateEdges.map(\.edgeID),

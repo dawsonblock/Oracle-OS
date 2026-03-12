@@ -288,6 +288,7 @@ struct GraphAwareLoopTests {
 
         #expect(outcome.reason == .goalAchieved)
         #expect(driver.decisions.first?.source == .stableGraph)
+        #expect(driver.decisions.first?.fallbackReason == "workflow retrieval did not yield a reusable plan")
         #expect(driver.intents.first?.domID == "compose")
     }
 
@@ -387,8 +388,8 @@ struct GraphAwareLoopTests {
         #expect(outcome.diagnostics.stepSummaries.last?.terminationReason == .explorationBudgetExceeded)
     }
 
-    @Test("AgentLoop blocks risky actions before execution")
-    func agentLoopBlocksRiskyActionsBeforeExecution() async {
+    @Test("AgentLoop terminates approval-gated actions before execution")
+    func agentLoopTerminatesApprovalGatedActionsBeforeExecution() async {
         let composeObservation = Observation(
             app: "Google Chrome",
             windowTitle: "Compose - Gmail",
@@ -454,6 +455,46 @@ struct GraphAwareLoopTests {
                 targetApp: "Google Chrome",
                 targetDomain: "mail.google.com",
                 targetTaskPhase: "sent"
+            )
+        )
+
+        #expect(outcome.reason == .approvalTimeout)
+        #expect(driver.intents.isEmpty)
+        #expect(outcome.diagnostics.stepSummaries.last?.policyOutcome == .blocked)
+        #expect(outcome.diagnostics.stepSummaries.last?.terminationReason == .approvalTimeout)
+    }
+
+    @Test("AgentLoop terminates blocked actions before execution")
+    func agentLoopTerminatesBlockedActionsBeforeExecution() async {
+        let observation = Observation(
+            app: "Terminal",
+            windowTitle: "Terminal",
+            url: nil,
+            focusedElementID: "prompt",
+            elements: [
+                UnifiedElement(id: "prompt", source: .ax, role: "AXTextArea", label: "Shell Prompt", focused: true, confidence: 0.96),
+                UnifiedElement(id: "continue-button", source: .ax, role: "AXButton", label: "Shell Prompt", confidence: 0.94),
+            ]
+        )
+        let driver = RecordingExecutionDriver { _, _, _ in
+            Issue.record("Blocked terminal action should not reach the execution driver")
+            return ToolResult(success: true)
+        }
+        let loop = AgentLoop(
+            observationProvider: StubObservationProvider([observation]),
+            executionDriver: driver,
+            planner: Planner(),
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            policyEngine: PolicyEngine(mode: .confirmRisky),
+            recoveryEngine: RecoveryEngine(),
+            memoryStore: AppMemoryStore()
+        )
+
+        let outcome = await loop.run(
+            goal: Goal(
+                description: "continue terminal task",
+                targetApp: "Terminal",
+                targetTaskPhase: "shell"
             )
         )
 
@@ -862,7 +903,39 @@ struct GraphAwareLoopTests {
 
         #expect(decision?.source == .candidateGraph)
         #expect(decision?.currentEdgeID == store.allCandidateEdges().first?.edgeID)
+        #expect(decision?.fallbackReason == "workflow retrieval and stable graph path reuse were unavailable")
         #expect(decision?.graphSearchDiagnostics?.chosenPathEdgeIDs.count == 1)
+    }
+
+    @Test("Exploration decisions carry explicit fallback reasons")
+    func explorationDecisionCarriesFallbackReason() {
+        let planner = Planner()
+        planner.setGoal(
+            Goal(
+                description: "rename file in finder",
+                targetApp: "Finder",
+                targetTaskPhase: "rename"
+            )
+        )
+
+        let decision = planner.nextStep(
+            worldState: WorldState(
+                observation: Observation(
+                    app: "Finder",
+                    windowTitle: "Finder",
+                    url: nil,
+                    focusedElementID: "rename",
+                    elements: [
+                        UnifiedElement(id: "rename", source: .ax, role: "AXButton", label: "Rename", confidence: 0.97),
+                    ]
+                )
+            ),
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(decision?.source == .exploration)
+        #expect(decision?.fallbackReason == "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable")
     }
 
     @Test("Graph planner returns multi-step stable path before exploration")

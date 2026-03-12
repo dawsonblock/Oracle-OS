@@ -7,12 +7,12 @@ struct WorkflowSynthesisTests {
     @Test("Repeated verified trace segments become promoted workflow candidates")
     func repeatedSegmentsBecomeWorkflowCandidates() {
         let events = [
-            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/1", actionContractID: "open|url", postconditionClass: "urlChanged"),
-            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared"),
-            workflowEvent(sessionID: "s2", taskID: "t2", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/2", actionContractID: "open|url", postconditionClass: "urlChanged"),
-            workflowEvent(sessionID: "s2", taskID: "t2", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared"),
-            workflowEvent(sessionID: "s3", taskID: "t3", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/3", actionContractID: "open|url", postconditionClass: "urlChanged"),
-            workflowEvent(sessionID: "s3", taskID: "t3", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared"),
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/1", actionContractID: "open|url", postconditionClass: "urlChanged", planningStateID: "browser|report"),
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared", planningStateID: "browser|download"),
+            workflowEvent(sessionID: "s2", taskID: "t2", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/2", actionContractID: "open|url", postconditionClass: "urlChanged", planningStateID: "browser|report"),
+            workflowEvent(sessionID: "s2", taskID: "t2", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared", planningStateID: "browser|download"),
+            workflowEvent(sessionID: "s3", taskID: "t3", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/3", actionContractID: "open|url", postconditionClass: "urlChanged", planningStateID: "browser|report"),
+            workflowEvent(sessionID: "s3", taskID: "t3", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared", planningStateID: "browser|download"),
         ]
 
         let plans = WorkflowSynthesizer().synthesize(
@@ -26,6 +26,23 @@ struct WorkflowSynthesisTests {
         #expect(plans.first?.promotionStatus == .promoted)
         #expect(plans.first?.parameterSlots.contains(where: { $0.hasPrefix("url_") }) == true)
         #expect(plans.first?.steps.first?.actionContract.targetLabel?.contains("{{url_0}}") == true)
+    }
+
+    @Test("Repeated segments must span multiple episodes to become workflow candidates")
+    func repeatedSegmentsRequireMultipleEpisodes() {
+        let events = [
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 1, actionName: "navigate_url", actionTarget: "https://example.com/report/1", actionContractID: "open|url", postconditionClass: "urlChanged"),
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 2, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared"),
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 3, actionName: "navigate_url", actionTarget: "https://example.com/report/2", actionContractID: "open|url", postconditionClass: "urlChanged"),
+            workflowEvent(sessionID: "s1", taskID: "t1", stepID: 4, actionName: "click", actionTarget: "Download", actionContractID: "click|download", postconditionClass: "elementAppeared"),
+        ]
+
+        let plans = WorkflowSynthesizer().synthesize(
+            goalPattern: "download report",
+            events: events
+        )
+
+        #expect(plans.isEmpty)
     }
 
     @Test("Replay validation gates workflow promotion")

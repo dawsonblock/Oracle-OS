@@ -51,6 +51,7 @@ public struct WorkflowPromotionPolicy: Sendable {
                 || $0.contains("/private/var/")
                 || $0.contains("/var/folders/")
                 || $0.contains("/.oracle/experiments/")
+                || $0.contains("/Users/")
         }
         if containsTempPath, !parameterPrefixes.contains("path"), !parameterPrefixes.contains("repository") {
             return true
@@ -60,6 +61,15 @@ public struct WorkflowPromotionPolicy: Sendable {
         if inspectedTexts.contains(where: { $0.range(of: uuidLikePattern, options: .regularExpression) != nil }),
            parameterPrefixes.isEmpty
         {
+            return true
+        }
+
+        let obviousSandboxResidue = inspectedTexts.contains {
+            $0.contains("sandbox-")
+                || $0.contains("candidate-")
+                || $0.contains("worktree-")
+        }
+        if obviousSandboxResidue, !parameterPrefixes.contains("path"), !parameterPrefixes.contains("repository") {
             return true
         }
 
@@ -73,6 +83,7 @@ public struct WorkflowPromotionPolicy: Sendable {
                     || value.contains("/private/var/")
                     || value.contains("/var/folders/")
                     || value.contains("/.oracle/experiments/")
+                    || value.contains("/Users/")
             })
         }
         if parameterExamplesContainResidue {

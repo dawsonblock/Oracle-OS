@@ -4,6 +4,7 @@ public enum LoopTerminationReason: String, Codable, Sendable {
     case goalAchieved
     case maxSteps
     case policyBlocked
+    case approvalTimeout
     case noViablePlan
     case unrecoverableFailure
     case explorationBudgetExceeded

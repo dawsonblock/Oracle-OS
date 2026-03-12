@@ -260,7 +260,7 @@ public final class AgentLoop {
             )
         }
 
-        if precheckPolicy(
+        if let policyTerminationReason = precheckPolicy(
             prepared: prepared,
             surface: surface,
             stepIndex: stepIndex,
@@ -269,7 +269,7 @@ public final class AgentLoop {
         ) {
             return .finished(
                 finalize(
-                    reason: .policyBlocked,
+                    reason: policyTerminationReason,
                     finalWorldState: worldState,
                     steps: stepIndex,
                     lastFailure: nil,
@@ -298,7 +298,7 @@ public final class AgentLoop {
         stepIndex: Int,
         decision: PlannerDecision,
         runState: inout RunState
-    ) -> Bool {
+    ) -> LoopTerminationReason? {
         let policyDecision = policyEngine.evaluate(
             intent: prepared.intent,
             context: PolicyEvaluationContext(
@@ -317,15 +317,16 @@ public final class AgentLoop {
                 stepIndex: stepIndex,
                 outcome: .allowed
             )
-            return false
+            return nil
         }
 
+        let terminationReason: LoopTerminationReason = policyDecision.requiresApproval ? .approvalTimeout : .policyBlocked
         runState.diagnostics.recordPolicy(
             stepIndex: stepIndex,
             outcome: .blocked,
-            notes: decision.notes + ["policy precheck blocked execution"]
+            notes: decision.notes + [policyDecision.requiresApproval ? "approval required before loop execution" : "policy precheck blocked execution"]
         )
-        return true
+        return terminationReason
     }
 
     private func executePreparedDecision(
@@ -373,6 +374,27 @@ public final class AgentLoop {
         }
 
         let actionResult = actionResult(from: toolResult)
+        if actionResult.approvalStatus == ApprovalStatus.pending.rawValue {
+            runState.diagnostics.recordExecutionSkipped(
+                stepIndex: stepIndex,
+                notes: decision.notes + ["execution paused pending approval"]
+            )
+            runState.diagnostics.recordTermination(
+                stepIndex: stepIndex,
+                reason: .approvalTimeout
+            )
+            return .finished(
+                finalize(
+                    reason: .approvalTimeout,
+                    finalWorldState: worldState,
+                    steps: stepIndex + 1,
+                    lastFailure: nil,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
         if actionResult.success {
             runState.diagnostics.recordExecution(
                 stepIndex: stepIndex,
@@ -602,7 +624,7 @@ public final class AgentLoop {
             )
             return .finished(
                 finalize(
-                    reason: .policyBlocked,
+                    reason: policyDecision.requiresApproval ? .approvalTimeout : .policyBlocked,
                     finalWorldState: finalWorldState,
                     steps: stepIndex + 1,
                     lastFailure: failure,
@@ -707,6 +729,7 @@ public final class AgentLoop {
             source: .recovery,
             workflowID: originatingDecision.workflowID,
             workflowStepID: originatingDecision.workflowStepID,
+            fallbackReason: originatingDecision.fallbackReason,
             semanticQuery: preparation.resolution.semanticQuery,
             projectMemoryRefs: originatingDecision.projectMemoryRefs,
             architectureFindings: originatingDecision.architectureFindings,

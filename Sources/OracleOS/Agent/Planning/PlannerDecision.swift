@@ -25,6 +25,7 @@ public struct PlannerDecision: Sendable {
     public let workflowStepID: String?
     public let pathEdgeIDs: [String]
     public let currentEdgeID: String?
+    public let fallbackReason: String?
     public let graphSearchDiagnostics: GraphSearchDiagnostics?
     public let semanticQuery: ElementQuery?
     public let projectMemoryRefs: [ProjectMemoryRef]
@@ -54,6 +55,7 @@ public struct PlannerDecision: Sendable {
         workflowStepID: String? = nil,
         pathEdgeIDs: [String] = [],
         currentEdgeID: String? = nil,
+        fallbackReason: String? = nil,
         graphSearchDiagnostics: GraphSearchDiagnostics? = nil,
         semanticQuery: ElementQuery? = nil,
         projectMemoryRefs: [ProjectMemoryRef] = [],
@@ -82,6 +84,7 @@ public struct PlannerDecision: Sendable {
         self.workflowStepID = workflowStepID
         self.pathEdgeIDs = pathEdgeIDs
         self.currentEdgeID = currentEdgeID
+        self.fallbackReason = fallbackReason
         self.graphSearchDiagnostics = graphSearchDiagnostics
         self.semanticQuery = semanticQuery
         self.projectMemoryRefs = projectMemoryRefs

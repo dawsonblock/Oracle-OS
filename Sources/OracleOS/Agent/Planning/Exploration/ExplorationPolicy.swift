@@ -19,6 +19,7 @@ public final class ExplorationPolicy: @unchecked Sendable {
             return PlannerDecision(
                 actionContract: contract,
                 source: .exploration,
+                fallbackReason: "trusted workflow and graph knowledge are unavailable",
                 notes: ["focus target app before graph reuse"]
             )
         }
@@ -42,6 +43,7 @@ public final class ExplorationPolicy: @unchecked Sendable {
         return PlannerDecision(
             actionContract: contract,
             source: .exploration,
+            fallbackReason: "trusted workflow and graph knowledge are unavailable",
             semanticQuery: query,
             notes: ["bounded exploration fallback"]
         )

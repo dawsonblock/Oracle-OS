@@ -61,6 +61,7 @@ public final class CodePlanner: @unchecked Sendable {
             snapshot: snapshot,
             candidatePaths: candidatePaths
         )
+        let explorationFallbackReason = "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable"
 
         if let workflowDecision = workflowDecision(
             taskContext: taskContext,
@@ -76,6 +77,7 @@ public final class CodePlanner: @unchecked Sendable {
             graphStore: graphStore,
             memoryStore: memoryStore,
             projectMemoryRefs: projectMemoryRefs,
+            projectMemorySignals: projectMemorySignals,
             architectureReview: architectureReview
         ) {
             return graphDecision
@@ -100,6 +102,7 @@ public final class CodePlanner: @unchecked Sendable {
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
                 architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason,
                 notes: ["git push requested"] + projectMemorySignals.riskSummaries
             )
         }
@@ -108,7 +111,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "git_commit",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         if description.contains("branch") {
@@ -116,7 +120,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "git_branch",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         if description.contains("format") {
@@ -124,7 +129,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "run_formatter",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         if description.contains("lint") {
@@ -132,7 +138,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "run_linter",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         if description.contains("build") || description.contains("compile") {
@@ -140,7 +147,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "run_build",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         if description.contains("test") || description.contains("failing") {
@@ -148,7 +156,8 @@ public final class CodePlanner: @unchecked Sendable {
                 for: "run_tests",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
-                architectureReview: architectureReview
+                architectureReview: architectureReview,
+                fallbackReason: explorationFallbackReason
             )
         }
         return decision(
@@ -156,6 +165,7 @@ public final class CodePlanner: @unchecked Sendable {
             snapshot: snapshot,
             projectMemoryRefs: projectMemoryRefs,
             architectureReview: architectureReview,
+            fallbackReason: explorationFallbackReason,
             notes: ["default repository inspection"] + projectMemorySignals.riskSummaries
         )
     }
@@ -166,6 +176,7 @@ public final class CodePlanner: @unchecked Sendable {
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
+        projectMemorySignals: ProjectMemoryPlanningSignals,
         architectureReview: ArchitectureReview
     ) -> PlannerDecision? {
         let graphGoal = Goal(
@@ -181,7 +192,11 @@ public final class CodePlanner: @unchecked Sendable {
             goal: graphGoal,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            worldState: worldState
+            worldState: worldState,
+            riskPenalty: graphRiskPenalty(
+                architectureReview: architectureReview,
+                projectMemorySignals: projectMemorySignals
+            )
         ),
               let edge = searchResult.edges.first,
               let contract = graphStore.actionContract(for: edge.actionContractID)
@@ -192,6 +207,7 @@ public final class CodePlanner: @unchecked Sendable {
                 graphStore: graphStore,
                 memoryStore: memoryStore,
                 projectMemoryRefs: projectMemoryRefs,
+                projectMemorySignals: projectMemorySignals,
                 architectureReview: architectureReview
             )
         }
@@ -205,6 +221,7 @@ public final class CodePlanner: @unchecked Sendable {
             source: .stableGraph,
             pathEdgeIDs: searchResult.edges.map(\.edgeID),
             currentEdgeID: edge.edgeID,
+            fallbackReason: "workflow retrieval did not yield a reusable plan",
             graphSearchDiagnostics: searchResult.diagnostics,
             projectMemoryRefs: projectMemoryRefs,
             architectureFindings: architectureReview.findings,
@@ -222,6 +239,7 @@ public final class CodePlanner: @unchecked Sendable {
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
+        projectMemorySignals: ProjectMemoryPlanningSignals,
         architectureReview: ArchitectureReview
     ) -> PlannerDecision? {
         let graphGoal = Goal(
@@ -238,7 +256,11 @@ public final class CodePlanner: @unchecked Sendable {
             goal: graphGoal,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            worldState: worldState
+            worldState: worldState,
+            riskPenalty: graphRiskPenalty(
+                architectureReview: architectureReview,
+                projectMemorySignals: projectMemorySignals
+            )
         ),
         let contract = selection.actionContract
         else {
@@ -254,6 +276,7 @@ public final class CodePlanner: @unchecked Sendable {
             source: .candidateGraph,
             pathEdgeIDs: [selection.edge.edgeID],
             currentEdgeID: selection.edge.edgeID,
+            fallbackReason: "workflow retrieval and stable graph path reuse were unavailable",
             graphSearchDiagnostics: selection.diagnostics,
             projectMemoryRefs: projectMemoryRefs,
             architectureFindings: architectureReview.findings,
@@ -300,6 +323,7 @@ public final class CodePlanner: @unchecked Sendable {
         executionMode: PlannerExecutionMode = .direct,
         experimentSpec: ExperimentSpec? = nil,
         experimentDecision: ExperimentDecision? = nil,
+        fallbackReason: String? = nil,
         notes: [String] = ["bounded code exploration"]
     ) -> PlannerDecision? {
         let contract = ActionContract(
@@ -327,6 +351,7 @@ public final class CodePlanner: @unchecked Sendable {
             executionMode: executionMode,
             actionContract: contract,
             source: .exploration,
+            fallbackReason: fallbackReason,
             projectMemoryRefs: projectMemoryRefs,
             architectureFindings: architectureReview.findings,
             refactorProposalID: architectureReview.refactorProposal?.id,
@@ -377,6 +402,7 @@ public final class CodePlanner: @unchecked Sendable {
                 executionMode: .experiment,
                 experimentSpec: experimentSpec,
                 experimentDecision: experimentDecision,
+                fallbackReason: "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable",
                 notes: [
                     "parallel experiment fanout requested",
                     "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
@@ -397,6 +423,7 @@ public final class CodePlanner: @unchecked Sendable {
             workspaceRelativePath: preferredPath,
             projectMemoryRefs: projectMemoryRefs,
             architectureReview: architectureReview,
+            fallbackReason: "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable",
             notes: [
                 targetNote,
                 "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
@@ -671,6 +698,15 @@ public final class CodePlanner: @unchecked Sendable {
         default:
             nil
         }
+    }
+
+    private func graphRiskPenalty(
+        architectureReview: ArchitectureReview,
+        projectMemorySignals: ProjectMemoryPlanningSignals
+    ) -> Double {
+        let architecturePenalty = architectureReview.riskScore * 0.15
+        let projectMemoryPenalty = projectMemorySignals.hasRisks ? 0.1 : 0
+        return min(0.25, architecturePenalty + projectMemoryPenalty)
     }
 }
 

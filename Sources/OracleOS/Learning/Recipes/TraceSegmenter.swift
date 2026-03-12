@@ -26,6 +26,7 @@ public struct TraceSegment: Sendable, Identifiable {
             [
                 $0.agentKind ?? "unknown",
                 $0.actionName,
+                Self.normalizedPlanningStateID($0.planningStateID),
                 $0.postconditionClass ?? "none",
                 Self.normalizedFingerprintValue($0.actionTarget ?? $0.selectedElementLabel),
                 Self.normalizedFingerprintValue($0.workspaceRelativePath),
@@ -62,6 +63,11 @@ public struct TraceSegment: Sendable, Identifiable {
             return "{test}"
         }
         return value
+    }
+
+    private static func normalizedPlanningStateID(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "none" }
+        return value.lowercased()
     }
 }
 
@@ -155,7 +161,12 @@ public enum TraceSegmenter {
         let grouped = Dictionary(grouping: segment(events: events), by: \.fingerprint)
         return grouped
             .compactMap { fingerprint, segments in
-                guard segments.count >= 2 else { return nil }
+                let uniqueEpisodes = Set(
+                    segments.map { segment in
+                        [segment.sessionID, segment.taskID ?? "none"].joined(separator: "|")
+                    }
+                )
+                guard segments.count >= 2, uniqueEpisodes.count >= 2 else { return nil }
                 return RepeatedTraceSegment(fingerprint: fingerprint, segments: segments)
             }
             .sorted { lhs, rhs in

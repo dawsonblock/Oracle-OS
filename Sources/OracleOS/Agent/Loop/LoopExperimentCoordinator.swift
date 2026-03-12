@@ -113,6 +113,7 @@ public final class LoopExperimentCoordinator {
                 stepPhase: .engineering,
                 actionContract: replayContract,
                 source: .exploration,
+                fallbackReason: decision.fallbackReason,
                 projectMemoryRefs: decision.projectMemoryRefs,
                 architectureFindings: selectedResult?.architectureFindings ?? decision.architectureFindings,
                 refactorProposalID: selectedResult?.refactorProposalID ?? decision.refactorProposalID,
@@ -181,6 +182,7 @@ public final class LoopExperimentCoordinator {
                             plannerFamily: PlannerFamily.code.rawValue
                         ),
                         source: .recovery,
+                        fallbackReason: decision.fallbackReason,
                         projectMemoryRefs: decision.projectMemoryRefs,
                         architectureFindings: decision.architectureFindings,
                         refactorProposalID: decision.refactorProposalID,

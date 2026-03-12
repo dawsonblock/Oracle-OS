@@ -66,6 +66,7 @@ public final class OSPlanner: @unchecked Sendable {
                 source: .stableGraph,
                 pathEdgeIDs: searchResult.edges.map(\.edgeID),
                 currentEdgeID: currentEdge.edgeID,
+                fallbackReason: "workflow retrieval did not yield a reusable plan",
                 graphSearchDiagnostics: searchResult.diagnostics,
                 semanticQuery: semanticQuery(for: contract, worldState: worldState),
                 notes: graphNotes(
@@ -92,6 +93,7 @@ public final class OSPlanner: @unchecked Sendable {
                 source: .candidateGraph,
                 pathEdgeIDs: [candidateSelection.edge.edgeID],
                 currentEdgeID: candidateSelection.edge.edgeID,
+                fallbackReason: "workflow retrieval and stable graph path reuse were unavailable",
                 graphSearchDiagnostics: candidateSelection.diagnostics,
                 semanticQuery: semanticQuery(for: contract, worldState: worldState),
                 notes: graphNotes(
@@ -113,6 +115,7 @@ public final class OSPlanner: @unchecked Sendable {
             source: fallback.source,
             pathEdgeIDs: fallback.pathEdgeIDs,
             currentEdgeID: fallback.currentEdgeID,
+            fallbackReason: "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable",
             semanticQuery: fallback.semanticQuery,
             notes: fallback.notes + ["workflow and graph reuse unavailable"],
             recoveryTagged: fallback.recoveryTagged,

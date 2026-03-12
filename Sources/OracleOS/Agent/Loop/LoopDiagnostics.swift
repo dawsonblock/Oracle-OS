@@ -34,6 +34,9 @@ public struct LoopStepSummary: Sendable, Equatable, Identifiable {
     public let skillName: String
     public let workflowID: String?
     public let experimentID: String?
+    public let pathEdgeIDs: [String]
+    public let currentEdgeID: String?
+    public let fallbackReason: String?
     public let success: Bool
     public let failure: FailureClass?
     public let recoveryStrategy: String?
@@ -51,6 +54,9 @@ public struct LoopStepSummary: Sendable, Equatable, Identifiable {
         skillName: String,
         workflowID: String? = nil,
         experimentID: String? = nil,
+        pathEdgeIDs: [String] = [],
+        currentEdgeID: String? = nil,
+        fallbackReason: String? = nil,
         success: Bool,
         failure: FailureClass? = nil,
         recoveryStrategy: String? = nil,
@@ -67,6 +73,9 @@ public struct LoopStepSummary: Sendable, Equatable, Identifiable {
         self.skillName = skillName
         self.workflowID = workflowID
         self.experimentID = experimentID
+        self.pathEdgeIDs = pathEdgeIDs
+        self.currentEdgeID = currentEdgeID
+        self.fallbackReason = fallbackReason
         self.success = success
         self.failure = failure
         self.recoveryStrategy = recoveryStrategy
@@ -105,6 +114,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: decision.skillName,
                 workflowID: decision.workflowID,
                 experimentID: decision.experimentSpec?.id,
+                pathEdgeIDs: decision.pathEdgeIDs,
+                currentEdgeID: decision.currentEdgeID,
+                fallbackReason: decision.fallbackReason,
                 success: false,
                 notes: decision.notes
             )
@@ -125,6 +137,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: summary.success,
                 failure: failure ?? summary.failure,
                 recoveryStrategy: summary.recoveryStrategy,
@@ -151,6 +166,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: summary.success,
                 failure: summary.failure,
                 recoveryStrategy: summary.recoveryStrategy,
@@ -178,6 +196,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: success,
                 failure: failure ?? summary.failure,
                 recoveryStrategy: summary.recoveryStrategy,
@@ -204,6 +225,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: false,
                 failure: failure ?? summary.failure,
                 recoveryStrategy: summary.recoveryStrategy,
@@ -232,6 +256,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: success ? summary.success : false,
                 failure: failure ?? summary.failure,
                 recoveryStrategy: strategyName ?? summary.recoveryStrategy,
@@ -258,6 +285,9 @@ public struct LoopDiagnostics: Sendable, Equatable {
                 skillName: summary.skillName,
                 workflowID: summary.workflowID,
                 experimentID: summary.experimentID,
+                pathEdgeIDs: summary.pathEdgeIDs,
+                currentEdgeID: summary.currentEdgeID,
+                fallbackReason: summary.fallbackReason,
                 success: summary.success,
                 failure: summary.failure,
                 recoveryStrategy: summary.recoveryStrategy,

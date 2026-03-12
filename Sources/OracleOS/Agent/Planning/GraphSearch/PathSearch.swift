@@ -25,7 +25,8 @@ public struct PathSearch: Sendable {
         from startState: PlanningState,
         goal: Goal,
         graphStore: GraphStore,
-        memoryBiasProvider: (EdgeTransition, ActionContract?) -> Double = { _, _ in 0 }
+        memoryBiasProvider: (EdgeTransition, ActionContract?) -> Double = { _, _ in 0 },
+        riskPenaltyProvider: (EdgeTransition, ActionContract?) -> Double = { _, _ in 0 }
     ) -> GraphSearchResult? {
         var exploredEdgeIDs: [String] = []
         var exploredStateIDs: [String] = [startState.id.rawValue]
@@ -65,11 +66,13 @@ public struct PathSearch: Sendable {
                     exploredEdgeIDs.append(edge.edgeID)
                     let contract = graphStore.actionContract(for: edge.actionContractID)
                     let memoryBias = memoryBiasProvider(edge, contract)
+                    let riskPenalty = riskPenaltyProvider(edge, contract)
                     let edgeScore = scorer.score(
                         edge: edge,
                         actionContract: contract,
                         goal: goal,
-                        memoryBias: memoryBias
+                        memoryBias: memoryBias,
+                        riskPenalty: riskPenalty
                     )
                     let candidate = ScoredPath(
                         stateID: edge.toPlanningStateID,
