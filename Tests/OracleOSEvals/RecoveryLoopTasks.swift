@@ -77,10 +77,19 @@ struct RecoveryLoopTasks {
                     UnifiedElement(id: "fresh-btn", source: .ax, role: "AXButton", label: "Continue", focused: true, confidence: 0.97),
                 ]
             )
+            var usedStableGraph = false
+            var usedWorkflow = false
             let loop = AgentLoop(
                 observationProvider: EvalObservationProvider([ambiguous, refreshed]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
-                    EvalExecutionDriver.recordedSources.append(decision.source)
+                    switch decision.source {
+                    case .stableGraph:
+                        usedStableGraph = true
+                    case .workflow:
+                        usedWorkflow = true
+                    default:
+                        break
+                    }
                     return ToolResult(success: true, data: [
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
@@ -91,14 +100,13 @@ struct RecoveryLoopTasks {
                 recoveryEngine: RecoveryEngine(),
                 memoryStore: AppMemoryStore()
             )
-            EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
                 goal: Goal(description: "recover from stale observations after page state changes", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
             )
             return EvalRunSnapshot(
                 outcome: outcome,
-                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow),
+                usedStableGraph: usedStableGraph,
+                usedWorkflow: usedWorkflow,
                 recoveryAttempted: outcome.recoveries > 0
             )
         }
