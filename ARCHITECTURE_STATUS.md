@@ -12,6 +12,7 @@ The descriptive architecture map is in [ARCHITECTURE.md](ARCHITECTURE.md). The n
 - One runtime-managed execution truth path for policy, verified execution, trace, and outcome handling
 - Graph trust tiers and promotion guards for experiment/recovery evidence
 - Canonical project memory plus episode-residue separation
+- Reasoning Layer: Multi-coordinator architecture (Decision, Execution, Learning, Recovery, State Coordinators)
 
 ## Partial
 
@@ -25,7 +26,6 @@ The descriptive architecture map is in [ARCHITECTURE.md](ARCHITECTURE.md). The n
 ## Scaffold Only
 
 - Workflow synthesis and reusable workflow promotion
-- Belief-state reasoning
 - Neural policy layers
 - Distributed execution
 

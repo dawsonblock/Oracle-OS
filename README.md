@@ -81,6 +81,7 @@ The primary contract for future changes is now:
 - policy and approval gating are active runtime concerns, not just scaffolding
 - code-domain execution uses a workspace-scoped runner instead of unsafe shell UI control
 - project memory, experiment fanout, and architecture review are implemented as bounded upper layers
+- Reasoning Layer: Multi-coordinator architecture for decision, execution, learning, and recovery
 
 ### Partial
 
@@ -96,7 +97,6 @@ The primary contract for future changes is now:
 - full autonomous long-horizon project execution
 - autonomous refactor control with enforced architectural governance
 - workflow synthesis and promotion from traces
-- belief-state reasoning
 - neural policies
 - OpenFst planning
 - distributed execution
