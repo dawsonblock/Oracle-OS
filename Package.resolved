@@ -1,33 +1,22 @@
 {
-  "originHash" : "62485a650d4b08eeef37667d4fa58395961ced561405e6f6f421c5cb2a75b45f",
   "pins" : [
     {
       "identity" : "axorcist",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/steipete/AXorcist.git",
       "state" : {
-        "revision" : "c75d06f7f93e264a9786edc2b78c04973061cb2f",
-        "version" : "0.1.0"
+        "revision" : "a10bbaba1efe73b1e5037eb29f1f07bfd9adc8ef"
       }
     },
     {
-      "identity" : "commander",
+      "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/steipete/Commander.git",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "9e349575c8e3c6745e81fe19e5bb5efa01b078ce",
-        "version" : "0.2.1"
-      }
-    },
-    {
-      "identity" : "swift-log",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-log.git",
-      "state" : {
-        "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
-        "version" : "1.10.1"
+        "revision" : "c5d11a805e765f52ba34ec7284bd4fcd6ba68615",
+        "version" : "1.7.0"
       }
     }
   ],
-  "version" : 3
+  "version" : 2
 }

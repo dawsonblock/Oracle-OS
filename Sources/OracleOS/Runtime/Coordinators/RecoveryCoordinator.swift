@@ -3,10 +3,9 @@ import Foundation
 @MainActor
 public final class RecoveryCoordinator {
     private let observationProvider: any ObservationProvider
-    private let executionDriver: any AgentExecutionDriver
     private let stateAbstraction: StateAbstraction
     private let recoveryEngine: RecoveryEngine
-    private let policyEngine: PolicyEngine
+    private let executionCoordinator: ExecutionCoordinator
     private let learningCoordinator: LearningCoordinator
     private let repositoryIndexer: RepositoryIndexer
     private let automationHost: AutomationHost
@@ -14,20 +13,18 @@ public final class RecoveryCoordinator {
 
     public init(
         observationProvider: any ObservationProvider,
-        executionDriver: any AgentExecutionDriver,
         stateAbstraction: StateAbstraction = StateAbstraction(),
         recoveryEngine: RecoveryEngine = RecoveryEngine(),
-        policyEngine: PolicyEngine = PolicyEngine(),
+        executionCoordinator: ExecutionCoordinator,
         learningCoordinator: LearningCoordinator,
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         automationHost: AutomationHost = .live(),
         browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder()
     ) {
         self.observationProvider = observationProvider
-        self.executionDriver = executionDriver
         self.stateAbstraction = stateAbstraction
         self.recoveryEngine = recoveryEngine
-        self.policyEngine = policyEngine
+        self.executionCoordinator = executionCoordinator
         self.learningCoordinator = learningCoordinator
         self.repositoryIndexer = repositoryIndexer
         self.automationHost = automationHost
@@ -102,20 +99,12 @@ public final class RecoveryCoordinator {
             preparation: preparation,
             failure: failure
         )
-        let policyDecision = policyEngine.evaluate(
-            intent: preparation.resolution.intent,
-            context: PolicyEvaluationContext(
-                surface: .recipe,
-                toolName: "agent_loop_recovery",
-                appName: preparation.resolution.intent.app,
-                agentKind: preparation.resolution.intent.agentKind,
-                workspaceRoot: preparation.resolution.intent.workspaceRoot,
-                workspaceRelativePath: preparation.resolution.intent.workspaceRelativePath,
-                commandCategory: preparation.resolution.intent.commandCategory
-            )
+        let preparedAction = executionCoordinator.prepare(
+            resolution: preparation.resolution,
+            surface: .recipe,
+            toolName: "agent_loop_recovery"
         )
-
-        if policyDecision.blockedByPolicy || policyDecision.requiresApproval {
+        if let policyTermination = executionCoordinator.terminationReason(for: preparedAction) {
             learningCoordinator.recordStrategy(
                 app: stateBundle.observation.app ?? "unknown",
                 strategy: preparation.strategyName,
@@ -133,10 +122,9 @@ public final class RecoveryCoordinator {
                 failure: failure,
                 notes: preparation.notes + [failureNote, "recovery blocked by policy"]
             )
-            let reason: LoopTerminationReason = policyDecision.requiresApproval ? .approvalTimeout : .policyBlocked
             return .finished(
                 LoopOutcome(
-                    reason: reason,
+                    reason: policyTermination,
                     finalWorldState: stateBundle.worldState,
                     steps: stepIndex + 1,
                     recoveries: budgetState.recoveries,
@@ -147,18 +135,58 @@ public final class RecoveryCoordinator {
         }
 
         diagnostics.recordPolicy(stepIndex: stepIndex, outcome: .allowed)
-        let toolResult = executionDriver.execute(
-            intent: preparation.resolution.intent,
-            plannerDecision: recoveryDecision,
-            selectedCandidate: preparation.resolution.selectedCandidate
+        let execution = executionCoordinator.execute(
+            preparedAction: preparedAction,
+            decision: recoveryDecision,
+            budgetState: &budgetState,
+            budget: budget
         )
-        let actionResult = ActionResult.from(dict: toolResult.data?["action_result"] as? [String: Any] ?? [:])
-            ?? ActionResult(success: toolResult.success, verified: toolResult.success, message: toolResult.error)
+        let actionResult = execution.actionResult
         learningCoordinator.recordStrategy(
             app: stateBundle.observation.app ?? "unknown",
             strategy: preparation.strategyName,
             success: actionResult.success
         )
+
+        if let budgetReason = execution.budgetTerminationReason {
+            diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: preparation.strategyName,
+                success: false,
+                failure: failure,
+                notes: preparation.notes + [failureNote, "recovery execution exceeded budget"]
+            )
+            return .finished(
+                LoopOutcome(
+                    reason: budgetReason,
+                    finalWorldState: stateBundle.worldState,
+                    steps: stepIndex + 1,
+                    recoveries: budgetState.recoveries,
+                    lastFailure: failure,
+                    diagnostics: diagnostics
+                )
+            )
+        }
+
+        if execution.approvalPending {
+            diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: preparation.strategyName,
+                success: false,
+                failure: failure,
+                notes: preparation.notes + [failureNote, "recovery paused pending approval"]
+            )
+            return .finished(
+                LoopOutcome(
+                    reason: .approvalTimeout,
+                    finalWorldState: stateBundle.worldState,
+                    steps: stepIndex + 1,
+                    recoveries: budgetState.recoveries,
+                    lastFailure: failure,
+                    diagnostics: diagnostics
+                )
+            )
+        }
 
         if actionResult.success {
             diagnostics.recordRecovery(
@@ -170,14 +198,14 @@ public final class RecoveryCoordinator {
             return .continueRunning
         }
 
-        let afterStateBundle = refreshedStateBundle(from: stateBundle, lastAction: preparation.resolution.intent)
+        let afterStateBundle = refreshedStateBundle(from: stateBundle, lastAction: execution.intent)
         let recoveryFailure = FailureAnalyzer.classify(
-            intent: preparation.resolution.intent,
+            intent: execution.intent,
             result: actionResult,
             before: stateBundle.observation,
             after: afterStateBundle.observation,
-            selectedCandidate: preparation.resolution.selectedCandidate,
-            ambiguityScore: preparation.resolution.selectedCandidate?.ambiguityScore
+            selectedCandidate: execution.selectedCandidate,
+            ambiguityScore: execution.selectedCandidate?.ambiguityScore
         ) ?? failure
 
         learningCoordinator.recordFailure(

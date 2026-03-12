@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 public final class LoopExperimentCoordinator {
     private let experimentManager: ExperimentManager
-    private let executionDriver: any AgentExecutionDriver
+    private let executionCoordinator: ExecutionCoordinator
     private let observationProvider: any ObservationProvider
     private let stateAbstraction: StateAbstraction
     private let recoveryEngine: RecoveryEngine
@@ -13,7 +13,7 @@ public final class LoopExperimentCoordinator {
 
     public init(
         experimentManager: ExperimentManager,
-        executionDriver: any AgentExecutionDriver,
+        executionCoordinator: ExecutionCoordinator,
         observationProvider: any ObservationProvider,
         stateAbstraction: StateAbstraction,
         recoveryEngine: RecoveryEngine,
@@ -22,7 +22,7 @@ public final class LoopExperimentCoordinator {
         projectMemoryCoordinator: LoopProjectMemoryCoordinator
     ) {
         self.experimentManager = experimentManager
-        self.executionDriver = executionDriver
+        self.executionCoordinator = executionCoordinator
         self.observationProvider = observationProvider
         self.stateAbstraction = stateAbstraction
         self.recoveryEngine = recoveryEngine
@@ -126,13 +126,40 @@ public final class LoopExperimentCoordinator {
                 notes: decision.notes + ["replaying selected experiment candidate"]
             )
 
-            let result = executionDriver.execute(
+            let preparedReplay = executionCoordinator.prepare(
                 intent: replayIntent,
-                plannerDecision: replayDecision,
-                selectedCandidate: nil
+                surface: .recipe,
+                toolName: "agent_loop_experiment"
             )
-            let actionResult = ActionResult.from(dict: result.data?["action_result"] as? [String: Any] ?? [:])
-                ?? ActionResult(success: result.success, verified: result.success, message: result.error)
+            if let policyTermination = executionCoordinator.terminationReason(for: preparedReplay) {
+                diagnostics.append(
+                    LoopStepSummary(
+                        stepIndex: step,
+                        source: replayDecision.source,
+                        skillName: replayDecision.skillName,
+                        experimentID: experimentSpec.id,
+                        success: false,
+                        failure: .patchApplyFailed,
+                        notes: replayDecision.notes + ["experiment replay blocked by policy"]
+                    )
+                )
+                return LoopOutcome(
+                    reason: policyTermination,
+                    finalWorldState: worldState,
+                    steps: step + 1,
+                    recoveries: budgetState.recoveries,
+                    lastFailure: .patchApplyFailed,
+                    diagnostics: diagnostics
+                )
+            }
+
+            let execution = executionCoordinator.execute(
+                preparedAction: preparedReplay,
+                decision: replayDecision,
+                budgetState: &budgetState,
+                budget: budget
+            )
+            let actionResult = execution.actionResult
 
             diagnostics.append(
                 LoopStepSummary(
@@ -146,6 +173,28 @@ public final class LoopExperimentCoordinator {
                 )
             )
 
+            if let budgetReason = execution.budgetTerminationReason {
+                return LoopOutcome(
+                    reason: budgetReason,
+                    finalWorldState: worldState,
+                    steps: step + 1,
+                    recoveries: budgetState.recoveries,
+                    lastFailure: .patchApplyFailed,
+                    diagnostics: diagnostics
+                )
+            }
+
+            if execution.approvalPending {
+                return LoopOutcome(
+                    reason: .approvalTimeout,
+                    finalWorldState: worldState,
+                    steps: step + 1,
+                    recoveries: budgetState.recoveries,
+                    lastFailure: .patchApplyFailed,
+                    diagnostics: diagnostics
+                )
+            }
+
             if actionResult.success {
                 projectMemoryCoordinator.recordArchitectureDecision(
                     decision: replayDecision,
@@ -158,7 +207,7 @@ public final class LoopExperimentCoordinator {
                 let afterObservation = observationProvider.observe()
                 let afterWorldState = WorldState(
                     observation: afterObservation,
-                    lastAction: replayIntent,
+                    lastAction: execution.intent,
                     repositorySnapshot: repositorySnapshot(for: taskContext),
                     stateAbstraction: stateAbstraction
                 )
@@ -193,13 +242,36 @@ public final class LoopExperimentCoordinator {
                         recoveryStrategy: preparation.strategyName,
                         recoverySource: FailureClass.patchApplyFailed.rawValue
                     )
-                    let recoveryResult = executionDriver.execute(
-                        intent: preparation.resolution.intent,
-                        plannerDecision: recoveryDecision,
-                        selectedCandidate: preparation.resolution.selectedCandidate
+                    let preparedRecovery = executionCoordinator.prepare(
+                        resolution: preparation.resolution,
+                        surface: .recipe,
+                        toolName: "agent_loop_experiment_recovery"
                     )
-                    let recoveryActionResult = ActionResult.from(dict: recoveryResult.data?["action_result"] as? [String: Any] ?? [:])
-                        ?? ActionResult(success: recoveryResult.success, verified: recoveryResult.success, message: recoveryResult.error)
+                    if let policyTermination = executionCoordinator.terminationReason(for: preparedRecovery) {
+                        diagnostics.recordRecovery(
+                            stepIndex: step,
+                            strategyName: preparation.strategyName,
+                            success: false,
+                            failure: .patchApplyFailed,
+                            notes: preparation.notes + ["experiment replay recovery blocked by policy", policyTermination.rawValue]
+                        )
+                        return LoopOutcome(
+                            reason: policyTermination,
+                            finalWorldState: afterWorldState,
+                            steps: step + 1,
+                            recoveries: budgetState.recoveries,
+                            lastFailure: .patchApplyFailed,
+                            diagnostics: diagnostics
+                        )
+                    }
+
+                    let recoveryExecution = executionCoordinator.execute(
+                        preparedAction: preparedRecovery,
+                        decision: recoveryDecision,
+                        budgetState: &budgetState,
+                        budget: budget
+                    )
+                    let recoveryActionResult = recoveryExecution.actionResult
                     memoryStore.recordStrategy(
                         StrategyRecord(
                             app: afterWorldState.observation.app ?? "unknown",
@@ -207,6 +279,43 @@ public final class LoopExperimentCoordinator {
                             success: recoveryActionResult.success
                         )
                     )
+
+                    if let budgetReason = recoveryExecution.budgetTerminationReason {
+                        diagnostics.recordRecovery(
+                            stepIndex: step,
+                            strategyName: preparation.strategyName,
+                            success: false,
+                            failure: .patchApplyFailed,
+                            notes: preparation.notes + ["experiment replay recovery exceeded budget"]
+                        )
+                        return LoopOutcome(
+                            reason: budgetReason,
+                            finalWorldState: afterWorldState,
+                            steps: step + 1,
+                            recoveries: budgetState.recoveries,
+                            lastFailure: .patchApplyFailed,
+                            diagnostics: diagnostics
+                        )
+                    }
+
+                    if recoveryExecution.approvalPending {
+                        diagnostics.recordRecovery(
+                            stepIndex: step,
+                            strategyName: preparation.strategyName,
+                            success: false,
+                            failure: .patchApplyFailed,
+                            notes: preparation.notes + ["experiment replay recovery paused pending approval"]
+                        )
+                        return LoopOutcome(
+                            reason: .approvalTimeout,
+                            finalWorldState: afterWorldState,
+                            steps: step + 1,
+                            recoveries: budgetState.recoveries,
+                            lastFailure: .patchApplyFailed,
+                            diagnostics: diagnostics
+                        )
+                    }
+
                     if recoveryActionResult.success {
                         diagnostics.recordRecovery(
                             stepIndex: step,
@@ -216,6 +325,7 @@ public final class LoopExperimentCoordinator {
                         )
                         return nil
                     }
+
                     recordedFailure = true
                     diagnostics.recordRecovery(
                         stepIndex: step,

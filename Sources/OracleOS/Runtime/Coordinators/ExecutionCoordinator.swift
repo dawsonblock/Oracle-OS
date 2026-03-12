@@ -63,11 +63,23 @@ public final class ExecutionCoordinator {
             state: stateBundle.worldState,
             taskContext: stateBundle.taskContext
         )
+        return prepare(
+            resolution: resolution,
+            surface: .recipe,
+            toolName: "agent_loop"
+        )
+    }
+
+    public func prepare(
+        resolution: SkillResolution,
+        surface: RuntimeSurface = .recipe,
+        toolName: String
+    ) -> PreparedLoopAction {
         let policyDecision = policyEngine.evaluate(
             intent: resolution.intent,
             context: PolicyEvaluationContext(
-                surface: .recipe,
-                toolName: "agent_loop",
+                surface: surface,
+                toolName: toolName,
                 appName: resolution.intent.app,
                 agentKind: resolution.intent.agentKind,
                 workspaceRoot: resolution.intent.workspaceRoot,
@@ -76,6 +88,26 @@ public final class ExecutionCoordinator {
             )
         )
         return PreparedLoopAction(resolution: resolution, policyDecision: policyDecision)
+    }
+
+    public func prepare(
+        intent: ActionIntent,
+        selectedCandidate: ElementCandidate? = nil,
+        semanticQuery: ElementQuery? = nil,
+        repositorySnapshotID: String? = nil,
+        surface: RuntimeSurface = .recipe,
+        toolName: String
+    ) -> PreparedLoopAction {
+        prepare(
+            resolution: SkillResolution(
+                intent: intent,
+                selectedCandidate: selectedCandidate,
+                semanticQuery: semanticQuery,
+                repositorySnapshotID: repositorySnapshotID
+            ),
+            surface: surface,
+            toolName: toolName
+        )
     }
 
     public func terminationReason(

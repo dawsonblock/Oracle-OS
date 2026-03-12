@@ -20,7 +20,7 @@ let package = Package(
         .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/steipete/AXorcist.git", from: "0.1.0"),
+        .package(url: "https://github.com/steipete/AXorcist.git", revision: "a10bbaba1efe73b1e5037eb29f1f07bfd9adc8ef"),
     ],
     targets: [
         .target(
