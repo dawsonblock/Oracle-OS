@@ -31,6 +31,26 @@ public enum MemoryScorer {
         return min(log(Double(successes) + 1) * 0.05, 0.15)
     }
 
+    public static func planBias(influence: MemoryInfluence) -> Double {
+        var bias = 0.0
+        bias += influence.executionRankingBias * 0.3
+        bias += influence.commandBias * 0.2
+        if influence.preferredFixPath != nil {
+            bias += 0.1
+        }
+        if influence.shouldPreferExperiments {
+            bias -= 0.05
+        }
+        bias -= influence.riskPenalty * 0.5
+        if !influence.avoidedPaths.isEmpty {
+            bias -= 0.1
+        }
+        if !influence.preferredPaths.isEmpty {
+            bias += 0.1
+        }
+        return max(-0.3, min(0.3, bias))
+    }
+
     public static func fixPatternScore(
         pattern: FixPattern,
         now: Date = Date()

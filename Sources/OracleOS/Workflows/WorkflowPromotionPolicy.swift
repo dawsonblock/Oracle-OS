@@ -4,15 +4,18 @@ public struct WorkflowPromotionPolicy: Sendable {
     public let minimumTraceSegmentCount: Int
     public let minimumSuccessRate: Double
     public let minimumReplayValidationSuccess: Double
+    public let minimumDistinctEpisodes: Int
 
     public init(
         minimumTraceSegmentCount: Int = 3,
         minimumSuccessRate: Double = 0.8,
-        minimumReplayValidationSuccess: Double = 0.66
+        minimumReplayValidationSuccess: Double = 0.66,
+        minimumDistinctEpisodes: Int = 2
     ) {
         self.minimumTraceSegmentCount = minimumTraceSegmentCount
         self.minimumSuccessRate = minimumSuccessRate
         self.minimumReplayValidationSuccess = minimumReplayValidationSuccess
+        self.minimumDistinctEpisodes = minimumDistinctEpisodes
     }
 
     public func shouldPromote(_ plan: WorkflowPlan) -> Bool {
@@ -25,6 +28,9 @@ public struct WorkflowPromotionPolicy: Sendable {
         guard plan.replayValidationSuccess >= minimumReplayValidationSuccess else {
             return false
         }
+        guard distinctEpisodeCount(plan) >= minimumDistinctEpisodes else {
+            return false
+        }
         guard !plan.evidenceTiers.contains(.recovery), !plan.evidenceTiers.contains(.experiment) else {
             return false
         }
@@ -32,6 +38,15 @@ public struct WorkflowPromotionPolicy: Sendable {
             return false
         }
         return true
+    }
+
+    private func distinctEpisodeCount(_ plan: WorkflowPlan) -> Int {
+        let episodeKeys = Set(plan.sourceTraceRefs.compactMap { ref -> String? in
+            let parts = ref.split(separator: ":")
+            guard let sessionPart = parts.first else { return nil }
+            return String(sessionPart)
+        })
+        return episodeKeys.count
     }
 
     private func containsUntypedEpisodeResidue(_ plan: WorkflowPlan) -> Bool {
