@@ -21,19 +21,25 @@ struct EvalRunSnapshot {
     let usedWorkflow: Bool
     let recoveryAttempted: Bool
     let patchSelectionSucceeded: Bool
+    let recoveryReused: Bool
+    let usedPlannerReasoning: Bool
 
     init(
         outcome: LoopOutcome,
         usedStableGraph: Bool,
         usedWorkflow: Bool = false,
         recoveryAttempted: Bool? = nil,
-        patchSelectionSucceeded: Bool = false
+        patchSelectionSucceeded: Bool = false,
+        recoveryReused: Bool = false,
+        usedPlannerReasoning: Bool = false
     ) {
         self.outcome = outcome
         self.usedStableGraph = usedStableGraph
         self.usedWorkflow = usedWorkflow
         self.recoveryAttempted = recoveryAttempted ?? (outcome.recoveries > 0)
         self.patchSelectionSucceeded = patchSelectionSucceeded
+        self.recoveryReused = recoveryReused
+        self.usedPlannerReasoning = usedPlannerReasoning
     }
 
     var recoverySucceeded: Bool {

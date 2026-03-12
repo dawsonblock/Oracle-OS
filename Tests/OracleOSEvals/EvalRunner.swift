@@ -12,6 +12,8 @@ enum EvalRunner {
         var workflowReuseCount = 0
         var ambiguityFailures = 0
         var patchSelections = 0
+        var recoveryReuseCount = 0
+        var plannerReasoningCount = 0
 
         for index in 0..<task.runs {
             let snapshot = await task.executeRun(index)
@@ -40,17 +42,26 @@ enum EvalRunner {
             if snapshot.patchSelectionSucceeded {
                 patchSelections += 1
             }
+            if snapshot.recoveryReused {
+                recoveryReuseCount += 1
+            }
+            if snapshot.usedPlannerReasoning {
+                plannerReasoningCount += 1
+            }
         }
 
+        let runs = max(task.runs, 1)
         let metrics = EvalMetrics(
-            successRate: Double(successes) / Double(max(task.runs, 1)),
-            firstPassSuccessRate: Double(firstPassSuccesses) / Double(max(task.runs, 1)),
-            averageSteps: Double(totalSteps) / Double(max(task.runs, 1)),
+            successRate: Double(successes) / Double(runs),
+            firstPassSuccessRate: Double(firstPassSuccesses) / Double(runs),
+            averageSteps: Double(totalSteps) / Double(runs),
             recoverySuccessRate: recoveryAttempts == 0 ? 0 : Double(successfulRecoveries) / Double(recoveryAttempts),
-            graphReuseRatio: Double(graphReuseCount) / Double(max(task.runs, 1)),
-            workflowReuseRatio: Double(workflowReuseCount) / Double(max(task.runs, 1)),
+            graphReuseRatio: Double(graphReuseCount) / Double(runs),
+            workflowReuseRatio: Double(workflowReuseCount) / Double(runs),
             ambiguityFailureCount: ambiguityFailures,
-            patchSelectionSuccessRate: Double(patchSelections) / Double(max(task.runs, 1))
+            patchSelectionSuccessRate: Double(patchSelections) / Double(runs),
+            recoveryReuseRatio: Double(recoveryReuseCount) / Double(runs),
+            plannerReasoningRatio: Double(plannerReasoningCount) / Double(runs)
         )
         return EvalReport(taskName: task.name, family: task.family, runs: task.runs, metrics: metrics)
     }
