@@ -40,11 +40,18 @@ public struct WorkflowPromotionPolicy: Sendable {
         return true
     }
 
+    private func episodeKey(from ref: String) -> String? {
+        let parts = ref.split(separator: ":")
+        guard !parts.isEmpty else { return nil }
+
+        // Prefer using the first two components (e.g. session + task) when available
+        let keyParts = parts.prefix(2).map(String.init)
+        return keyParts.joined(separator: ":")
+    }
+
     private func distinctEpisodeCount(_ plan: WorkflowPlan) -> Int {
-        let episodeKeys = Set(plan.sourceTraceRefs.compactMap { ref -> String? in
-            let parts = ref.split(separator: ":")
-            guard let sessionPart = parts.first else { return nil }
-            return String(sessionPart)
+        let episodeKeys = Set(plan.sourceTraceRefs.compactMap { ref in
+            episodeKey(from: ref)
         })
         return episodeKeys.count
     }
