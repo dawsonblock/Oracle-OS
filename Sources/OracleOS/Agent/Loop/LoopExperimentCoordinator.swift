@@ -139,8 +139,15 @@ public final class LoopExperimentCoordinator {
                         skillName: replayDecision.skillName,
                         experimentID: experimentSpec.id,
                         success: false,
-                        failure: .patchApplyFailed,
-                        notes: replayDecision.notes + ["experiment replay blocked by policy"]
+                        preparationOutcome: .ready,
+                        policyOutcome: .blocked,
+                        executionOutcome: .skipped,
+                        terminationReason: policyTermination,
+                        notes: replayDecision.notes + [
+                            policyTermination == .approvalTimeout
+                                ? "approval required before experiment replay"
+                                : "policy precheck blocked experiment replay"
+                        ]
                     )
                 )
                 return LoopOutcome(
@@ -148,7 +155,7 @@ public final class LoopExperimentCoordinator {
                     finalWorldState: worldState,
                     steps: step + 1,
                     recoveries: budgetState.recoveries,
-                    lastFailure: .patchApplyFailed,
+                    lastFailure: nil,
                     diagnostics: diagnostics
                 )
             }
