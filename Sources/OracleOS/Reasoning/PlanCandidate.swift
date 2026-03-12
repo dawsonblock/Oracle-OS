@@ -6,18 +6,27 @@ public struct PlanCandidate: Sendable {
     public let score: Double
     public let reasons: [String]
     public let simulatedOutcome: SimulatedOutcome?
+    public let estimatedCost: Double
+    public let riskScore: Double
+    public let successProbability: Double
 
     public init(
         operators: [Operator],
         projectedState: ReasoningPlanningState,
         score: Double = 0,
         reasons: [String] = [],
-        simulatedOutcome: SimulatedOutcome? = nil
+        simulatedOutcome: SimulatedOutcome? = nil,
+        estimatedCost: Double? = nil,
+        riskScore: Double? = nil,
+        successProbability: Double? = nil
     ) {
         self.operators = operators
         self.projectedState = projectedState
         self.score = score
         self.reasons = reasons
         self.simulatedOutcome = simulatedOutcome
+        self.estimatedCost = estimatedCost ?? operators.reduce(0.0) { $0 + $1.baseCost }
+        self.riskScore = riskScore ?? operators.reduce(0.0) { $0 + $1.risk } / Double(max(operators.count, 1))
+        self.successProbability = successProbability ?? simulatedOutcome?.successProbability ?? 0
     }
 }

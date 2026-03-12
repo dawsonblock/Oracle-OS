@@ -25,22 +25,28 @@ public final class OperatorRegistry: @unchecked Sendable {
         switch op.kind {
         case .dismissModal where state.modalPresent:
             return 0
-        case .openApplication where state.targetApplication != nil && state.activeApplication != state.targetApplication:
+        case .focusWindow where state.targetApplication != nil && state.activeApplication != state.targetApplication:
             return 1
-        case .navigateBrowser where state.targetDomain != nil && state.currentDomain != state.targetDomain:
+        case .openApplication where state.targetApplication != nil && state.activeApplication != state.targetApplication:
             return 2
-        case .rerunTests where state.patchApplied:
+        case .navigateBrowser where state.targetDomain != nil && state.currentDomain != state.targetDomain:
             return 3
-        case .runTests, .buildProject:
+        case .rerunTests where state.patchApplied:
             return 4
-        case .applyPatch:
+        case .runTests, .buildProject:
             return 5
-        case .clickTarget:
+        case .applyPatch:
             return 6
-        case .revertPatch:
+        case .clickTarget:
             return 7
-        default:
+        case .revertPatch, .rollbackPatch:
             return 8
+        case .retryWithAlternateTarget:
+            return 9
+        case .restartApplication:
+            return 10
+        default:
+            return 11
         }
     }
 }

@@ -10,6 +10,10 @@ public enum ReasoningOperatorKind: String, CaseIterable, Sendable {
     case openApplication = "open_application"
     case navigateBrowser = "navigate_browser"
     case rerunTests = "rerun_tests"
+    case retryWithAlternateTarget = "retry_alternate_target"
+    case focusWindow = "focus_window"
+    case restartApplication = "restart_application"
+    case rollbackPatch = "rollback_patch"
 }
 
 public struct Operator: Sendable, Hashable {
@@ -67,6 +71,26 @@ public struct Operator: Sendable, Hashable {
             self.risk = 0.04
             self.agentKind = .code
             self.stepPhase = .engineering
+        case .retryWithAlternateTarget:
+            self.baseCost = 0.7
+            self.risk = 0.1
+            self.agentKind = .os
+            self.stepPhase = .operatingSystem
+        case .focusWindow:
+            self.baseCost = 0.3
+            self.risk = 0.02
+            self.agentKind = .os
+            self.stepPhase = .operatingSystem
+        case .restartApplication:
+            self.baseCost = 1.5
+            self.risk = 0.15
+            self.agentKind = .os
+            self.stepPhase = .operatingSystem
+        case .rollbackPatch:
+            self.baseCost = 1.2
+            self.risk = 0.08
+            self.agentKind = .code
+            self.stepPhase = .engineering
         }
     }
 
@@ -96,6 +120,14 @@ public struct Operator: Sendable, Hashable {
             return targetDomain != state.currentDomain
         case .rerunTests:
             return state.agentKind != .os && state.repoOpen && (state.testsObserved || state.patchApplied)
+        case .retryWithAlternateTarget:
+            return state.agentKind != .code && !state.visibleTargets.isEmpty
+        case .focusWindow:
+            return state.agentKind != .code && state.targetApplication != nil
+        case .restartApplication:
+            return state.agentKind != .code && state.targetApplication != nil
+        case .rollbackPatch:
+            return state.agentKind != .os && state.repoOpen && state.patchApplied
         }
     }
 
@@ -123,6 +155,16 @@ public struct Operator: Sendable, Hashable {
             projected.activeApplication = projected.targetApplication
         case .navigateBrowser:
             projected.currentDomain = projected.targetDomain
+        case .retryWithAlternateTarget:
+            break
+        case .focusWindow:
+            projected.activeApplication = projected.targetApplication
+        case .restartApplication:
+            projected.activeApplication = projected.targetApplication
+            projected.modalPresent = false
+        case .rollbackPatch:
+            projected.patchApplied = false
+            projected.repoDirty = false
         }
         return projected
     }
@@ -234,6 +276,52 @@ public struct Operator: Sendable, Hashable {
                 locatorStrategy: "reasoning-rerun",
                 workspaceRelativePath: state.preferredWorkspacePath,
                 commandCategory: CodeCommandCategory.test.rawValue,
+                plannerFamily: PlannerFamily.code.rawValue
+            )
+        case .retryWithAlternateTarget:
+            guard let label = bestVisibleTarget(for: state, goal: goal) else { return nil }
+            return ActionContract(
+                id: "reasoning|\(kind.rawValue)|\(state.activeApplication ?? "unknown")|\(label)",
+                agentKind: .os,
+                skillName: "click",
+                targetRole: nil,
+                targetLabel: label,
+                locatorStrategy: "reasoning-retry-alternate",
+                plannerFamily: PlannerFamily.os.rawValue
+            )
+        case .focusWindow:
+            guard let targetApplication = state.targetApplication else { return nil }
+            return ActionContract(
+                id: "reasoning|\(kind.rawValue)|\(targetApplication)",
+                agentKind: .os,
+                skillName: "focus",
+                targetRole: nil,
+                targetLabel: targetApplication,
+                locatorStrategy: "reasoning-focus-window",
+                plannerFamily: PlannerFamily.os.rawValue
+            )
+        case .restartApplication:
+            guard let targetApplication = state.targetApplication else { return nil }
+            return ActionContract(
+                id: "reasoning|\(kind.rawValue)|\(targetApplication)",
+                agentKind: .os,
+                skillName: "focus",
+                targetRole: nil,
+                targetLabel: targetApplication,
+                locatorStrategy: "reasoning-restart-app",
+                plannerFamily: PlannerFamily.os.rawValue
+            )
+        case .rollbackPatch:
+            guard let workspaceRoot = state.workspaceRoot else { return nil }
+            return ActionContract(
+                id: "reasoning|\(kind.rawValue)|\(workspaceRoot)",
+                agentKind: .code,
+                skillName: "git_status",
+                targetRole: nil,
+                targetLabel: nil,
+                locatorStrategy: "reasoning-rollback",
+                workspaceRelativePath: state.preferredWorkspacePath,
+                commandCategory: CodeCommandCategory.gitStatus.rawValue,
                 plannerFamily: PlannerFamily.code.rawValue
             )
         }

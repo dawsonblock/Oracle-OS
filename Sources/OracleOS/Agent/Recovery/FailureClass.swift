@@ -15,4 +15,8 @@ public enum FailureClass: String, Codable, Sendable {
     case gitPolicyBlocked
     case noRelevantFiles
     case ambiguousEditTarget
+    case targetMissing
+    case permissionBlocked
+    case unexpectedDialog
+    case environmentMismatch
 }

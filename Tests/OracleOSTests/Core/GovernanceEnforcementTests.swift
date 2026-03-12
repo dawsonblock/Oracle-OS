@@ -244,6 +244,42 @@ struct GovernanceEnforcementTests {
         #expect(review.governanceReport.hardFailures.contains(where: { $0.title == "Planner/local-resolution boundary drift" }))
     }
 
+    @Test("Execution driver is only invoked from the execution coordinator")
+    func executionDriverIsOnlyUsedByExecutionCoordinator() throws {
+        let root = repositoryRoot()
+        let sourcesRoot = root.appendingPathComponent("Sources/OracleOS", isDirectory: true)
+        let enumerator = FileManager.default.enumerator(
+            at: sourcesRoot,
+            includingPropertiesForKeys: nil
+        )
+
+        var offendingFiles: [String] = []
+        while let fileURL = enumerator?.nextObject() as? URL {
+            guard fileURL.pathExtension == "swift" else { continue }
+            let contents = try String(contentsOf: fileURL)
+            guard contents.contains("executionDriver.execute") else { continue }
+            if fileURL.lastPathComponent != "ExecutionCoordinator.swift" {
+                offendingFiles.append(fileURL.lastPathComponent)
+            }
+        }
+
+        #expect(offendingFiles.isEmpty, "executionDriver.execute should be centralized in ExecutionCoordinator.swift, found: \(offendingFiles)")
+    }
+
+    @Test("AgentLoop source file stays below 150 lines")
+    func agentLoopSourceFileStaysBelowOneFiftyLines() throws {
+        let agentLoopURL = repositoryRoot().appendingPathComponent(
+            "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+            isDirectory: false
+        )
+        let lineCount = try String(contentsOf: agentLoopURL).split(
+            separator: "\n",
+            omittingEmptySubsequences: false
+        ).count
+
+        #expect(lineCount < 150, "AgentLoop.swift should stay below 150 lines, found \(lineCount)")
+    }
+
     @Test("Workspace runner blocks unsupported arbitrary shell execution")
     func workspaceRunnerBlocksArbitraryShellExecution() throws {
         let root = makeTempDirectory()
@@ -280,6 +316,26 @@ struct GovernanceEnforcementTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func repositoryRoot() -> URL {
+        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let fileManager = FileManager.default
+
+        while true {
+            let packageManifestURL = url.appendingPathComponent("Package.swift")
+            if fileManager.fileExists(atPath: packageManifestURL.path) {
+                return url
+            }
+
+            let parent = url.deletingLastPathComponent()
+            if parent.path == url.path {
+                // Reached filesystem root without finding Package.swift; return the current directory.
+                return url
+            }
+
+            url = parent
+        }
     }
 
     private func makeTempGraphURL() -> URL {

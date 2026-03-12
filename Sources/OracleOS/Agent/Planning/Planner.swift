@@ -112,15 +112,23 @@ public final class Planner: @unchecked Sendable {
         guard let currentGoal else { return nil }
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
-        let fallbackDecision = familyPlannerDecision(
+
+        // Decision hierarchy:
+        // 1. Workflow plan (highest priority)
+        // 2. Graph-familiar plan (stable or candidate graph)
+        // 3. Reasoning-generated plan
+        // 4. Experiment plan
+        // 5. Exploration plan (fallback)
+        let familyDecision = familyPlannerDecision(
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore
         )
 
-        guard fallbackDecision?.source == .exploration || fallbackDecision == nil else {
-            return fallbackDecision
+        if let decision = familyDecision,
+           decision.source == .workflow || decision.source == .stableGraph || decision.source == .candidateGraph {
+            return decision
         }
 
         if let reasoningDecision = reasoningDecision(
@@ -128,12 +136,12 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            fallbackDecision: fallbackDecision
+            fallbackDecision: familyDecision
         ) {
             return reasoningDecision
         }
 
-        return fallbackDecision
+        return familyDecision
     }
 
     private func familyPlannerDecision(

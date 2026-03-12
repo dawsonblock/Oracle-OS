@@ -56,18 +56,32 @@ public final class ExecutionCoordinator {
 
     public func prepare(
         decision: PlannerDecision,
-        stateBundle: LoopStateBundle
+        stateBundle: LoopStateBundle,
+        surface: RuntimeSurface = .recipe,
+        toolName: String = "agent_loop"
     ) throws -> PreparedLoopAction {
         let resolution = try prepareAction(
             decision: decision,
             state: stateBundle.worldState,
             taskContext: stateBundle.taskContext
         )
+        return prepare(
+            resolution: resolution,
+            surface: surface,
+            toolName: toolName
+        )
+    }
+
+    public func prepare(
+        resolution: SkillResolution,
+        surface: RuntimeSurface = .recipe,
+        toolName: String = "agent_loop"
+    ) -> PreparedLoopAction {
         let policyDecision = policyEngine.evaluate(
             intent: resolution.intent,
             context: PolicyEvaluationContext(
-                surface: .recipe,
-                toolName: "agent_loop",
+                surface: surface,
+                toolName: toolName,
                 appName: resolution.intent.app,
                 agentKind: resolution.intent.agentKind,
                 workspaceRoot: resolution.intent.workspaceRoot,
@@ -76,6 +90,26 @@ public final class ExecutionCoordinator {
             )
         )
         return PreparedLoopAction(resolution: resolution, policyDecision: policyDecision)
+    }
+
+    public func prepare(
+        intent: ActionIntent,
+        selectedCandidate: ElementCandidate? = nil,
+        semanticQuery: ElementQuery? = nil,
+        repositorySnapshotID: String? = nil,
+        surface: RuntimeSurface = .recipe,
+        toolName: String = "agent_loop"
+    ) -> PreparedLoopAction {
+        prepare(
+            resolution: SkillResolution(
+                intent: intent,
+                selectedCandidate: selectedCandidate,
+                semanticQuery: semanticQuery,
+                repositorySnapshotID: repositorySnapshotID
+            ),
+            surface: surface,
+            toolName: toolName
+        )
     }
 
     public func terminationReason(
