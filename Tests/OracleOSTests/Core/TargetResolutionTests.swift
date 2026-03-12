@@ -100,4 +100,58 @@ struct TargetResolutionTests {
             Issue.record("Unexpected error: \(error)")
         }
     }
+
+    @Test("ReadFileSkill returns resolved target metadata")
+    func readFileSkillReturnsResolvedTargetMetadata() throws {
+        let observation = Observation(
+            app: "Finder",
+            windowTitle: "Finder",
+            focusedElementID: "report",
+            elements: [
+                UnifiedElement(
+                    id: "report",
+                    source: .ax,
+                    role: "AXRow",
+                    label: "Quarterly Report.pdf",
+                    frame: CGRect(x: 80, y: 120, width: 260, height: 22),
+                    focused: true,
+                    confidence: 0.98
+                ),
+            ]
+        )
+        let skill = ReadFileSkill()
+        let resolution = try skill.resolve(
+            query: ElementQuery(text: "Quarterly Report.pdf", clickable: true, visibleOnly: true, app: "Finder"),
+            state: WorldState(observation: observation),
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(resolution.selectedCandidate?.element.id == "report")
+        #expect((resolution.selectedCandidate?.score ?? 0) >= OSTargetResolver.minimumScore)
+        #expect((resolution.selectedCandidate?.ambiguityScore ?? 1) <= OSTargetResolver.maximumAmbiguity)
+    }
+
+    @Test("All audited target-bearing OS skills route through OSTargetResolver")
+    func auditedTargetBearingSkillsUseSharedResolver() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let skillPaths = [
+            "Sources/OracleOS/Agent/Skills/OS/ClickSkill.swift",
+            "Sources/OracleOS/Agent/Skills/OS/TypeSkill.swift",
+            "Sources/OracleOS/Agent/Skills/OS/FillFormSkill.swift",
+            "Sources/OracleOS/Agent/Skills/OS/ReadFileSkill.swift",
+        ]
+
+        for relativePath in skillPaths {
+            let source = try String(
+                contentsOf: repoRoot.appendingPathComponent(relativePath),
+                encoding: .utf8
+            )
+            #expect(source.contains("OSTargetResolver.resolve("))
+        }
+    }
 }

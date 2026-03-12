@@ -63,6 +63,22 @@ public struct WorkflowPromotionPolicy: Sendable {
             return true
         }
 
+        let parameterExamplesContainResidue = plan.parameterExamples.contains { slot, values in
+            let kind = plan.parameterKinds[slot] ?? ""
+            guard kind == "file-path" || kind == "repository" else {
+                return false
+            }
+            return values.contains(where: { value in
+                value.contains("/tmp/")
+                    || value.contains("/private/var/")
+                    || value.contains("/var/folders/")
+                    || value.contains("/.oracle/experiments/")
+            })
+        }
+        if parameterExamplesContainResidue {
+            return true
+        }
+
         return false
     }
 }

@@ -35,13 +35,24 @@ public struct WorkflowSynthesizer: Sendable {
     ) -> WorkflowPlan {
         let representative = group.segments[0]
         let parameters = ParameterExtractor.extract(from: group.segments)
-        let steps = representative.events.map(step(from:))
+        let steps = representative.events.enumerated().map { index, event in
+            step(
+                from: event,
+                stepIndex: index,
+                parameters: parameters,
+                stablePlanningStateID: stablePlanningStateID(for: group, stepIndex: index)
+            )
+        }
+        let parameterKinds = Dictionary(uniqueKeysWithValues: parameters.map { ($0.name, $0.kind) })
+        let parameterExamples = Dictionary(uniqueKeysWithValues: parameters.map { ($0.name, $0.values) })
         let replayValidationSuccess = replayValidator.validate(
             plan: WorkflowPlan(
                 agentKind: representative.agentKind,
                 goalPattern: goalPattern,
                 steps: steps,
                 parameterSlots: parameters.map(\.name),
+                parameterKinds: parameterKinds,
+                parameterExamples: parameterExamples,
                 successRate: successRate(for: group),
                 sourceTraceRefs: sourceTraceRefs(for: group),
                 sourceGraphEdgeRefs: sourceGraphEdgeRefs(for: group),
@@ -56,6 +67,8 @@ public struct WorkflowSynthesizer: Sendable {
             goalPattern: goalPattern,
             steps: steps,
             parameterSlots: parameters.map(\.name),
+            parameterKinds: parameterKinds,
+            parameterExamples: parameterExamples,
             successRate: successRate(for: group),
             sourceTraceRefs: sourceTraceRefs(for: group),
             sourceGraphEdgeRefs: sourceGraphEdgeRefs(for: group),
@@ -73,6 +86,8 @@ public struct WorkflowSynthesizer: Sendable {
             goalPattern: basePlan.goalPattern,
             steps: basePlan.steps,
             parameterSlots: basePlan.parameterSlots,
+            parameterKinds: basePlan.parameterKinds,
+            parameterExamples: basePlan.parameterExamples,
             successRate: basePlan.successRate,
             sourceTraceRefs: basePlan.sourceTraceRefs,
             sourceGraphEdgeRefs: basePlan.sourceGraphEdgeRefs,
@@ -85,15 +100,30 @@ public struct WorkflowSynthesizer: Sendable {
         )
     }
 
-    private func step(from event: TraceEvent) -> WorkflowStep {
+    private func step(
+        from event: TraceEvent,
+        stepIndex: Int,
+        parameters: [ExtractedParameter],
+        stablePlanningStateID: String?
+    ) -> WorkflowStep {
         let agentKind = AgentKind(rawValue: event.agentKind ?? AgentKind.os.rawValue) ?? .os
+        let parameterizedTarget = ParameterExtractor.applySlots(
+            to: event.actionTarget ?? event.selectedElementLabel,
+            parameters: parameters,
+            stepIndex: stepIndex
+        )
+        let parameterizedPath = ParameterExtractor.applySlots(
+            to: event.workspaceRelativePath,
+            parameters: parameters,
+            stepIndex: stepIndex
+        )
         let semanticQuery: ElementQuery?
         if agentKind == .os {
             semanticQuery = ElementQuery(
-                text: event.actionTarget ?? event.selectedElementLabel,
+                text: parameterizedTarget,
                 role: nil,
                 editable: event.actionName == "type" || event.actionName == "fill_form",
-                clickable: event.actionName == "click" || event.actionName == "read-file",
+                clickable: event.actionName == "click" || event.actionName == "read_file",
                 visibleOnly: true,
                 app: nil
             )
@@ -105,14 +135,14 @@ public struct WorkflowSynthesizer: Sendable {
             id: event.actionContractID ?? [
                 agentKind.rawValue,
                 event.actionName,
-                event.workspaceRelativePath ?? event.actionTarget ?? "none",
+                parameterizedPath ?? parameterizedTarget ?? "none",
             ].joined(separator: "|"),
             agentKind: agentKind,
             skillName: event.actionName,
             targetRole: nil,
-            targetLabel: event.actionTarget ?? event.selectedElementLabel,
+            targetLabel: parameterizedTarget,
             locatorStrategy: event.selectedElementID == nil ? "query" : "dom-id",
-            workspaceRelativePath: event.workspaceRelativePath,
+            workspaceRelativePath: parameterizedPath,
             commandCategory: event.commandCategory,
             plannerFamily: event.plannerFamily
         )
@@ -122,10 +152,14 @@ public struct WorkflowSynthesizer: Sendable {
             stepPhase: taskPhase(for: event),
             actionContract: actionContract,
             semanticQuery: semanticQuery,
-            fromPlanningStateID: event.planningStateID,
+            fromPlanningStateID: stablePlanningStateID,
             notes: [
                 event.postconditionClass.map { "postcondition=\($0)" },
-                event.commandSummary,
+                ParameterExtractor.applySlots(
+                    to: event.commandSummary,
+                    parameters: parameters,
+                    stepIndex: stepIndex
+                ),
             ].compactMap { $0 }
         )
     }
@@ -159,6 +193,22 @@ public struct WorkflowSynthesizer: Sendable {
         Array(Set(group.segments.flatMap(\.evidenceTiers))).sorted { $0.rawValue < $1.rawValue }
     }
 
+    private func stablePlanningStateID(
+        for group: RepeatedTraceSegment,
+        stepIndex: Int
+    ) -> String? {
+        let stateIDs = orderedUnique(
+            group.segments.compactMap { segment in
+                guard segment.events.indices.contains(stepIndex) else { return nil }
+                return segment.events[stepIndex].planningStateID
+            }
+        )
+        guard stateIDs.count == 1 else {
+            return nil
+        }
+        return stateIDs.first ?? nil
+    }
+
     private func latestTimestamp(for group: RepeatedTraceSegment) -> Date? {
         group.segments.flatMap(\.events).map(\.timestamp).max()
     }
@@ -172,5 +222,10 @@ public struct WorkflowSynthesizer: Sendable {
         default:
             return .operatingSystem
         }
+    }
+
+    private func orderedUnique(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values.filter { seen.insert($0).inserted }
     }
 }

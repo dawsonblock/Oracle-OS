@@ -31,7 +31,7 @@ struct CodingBenchmarks {
     }
 
     private func makeBuildBreakRepairTask() -> EvalTask {
-        EvalTask(name: "build-break-repair", family: .codingTask, runs: 1) { _ in
+        EvalTask(name: "build-break-repair", family: .codingTask, runs: 3) { _ in
             let workspace = try! makeBrokenSwiftWorkspace(mode: .buildBreak)
             let provider = EvalObservationProvider([
                 Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
@@ -83,7 +83,7 @@ struct CodingBenchmarks {
     }
 
     private func makeFailingTestRepairTask() -> EvalTask {
-        EvalTask(name: "failing-test-repair", family: .codingTask, runs: 1) { _ in
+        EvalTask(name: "failing-test-repair", family: .codingTask, runs: 3) { _ in
             let workspace = try! makeBrokenSwiftWorkspace(mode: .failingTest)
             let provider = EvalObservationProvider([
                 Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
@@ -135,7 +135,7 @@ struct CodingBenchmarks {
     }
 
     private func makeExperimentEscalationTask() -> EvalTask {
-        EvalTask(name: "experiment-escalation", family: .codingTask, runs: 1) { _ in
+        EvalTask(name: "experiment-escalation", family: .codingTask, runs: 3) { _ in
             let workspace = try! makeBrokenSwiftWorkspace(mode: .failingTest)
             let provider = EvalObservationProvider([
                 Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),

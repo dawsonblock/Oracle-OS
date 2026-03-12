@@ -23,7 +23,7 @@ struct HybridBenchmarks {
     }
 
     private func makeFinderToCodeRepairTask() -> EvalTask {
-        EvalTask(name: "finder-to-code-repair", family: .hybridTask, runs: 1) { _ in
+        EvalTask(name: "finder-to-code-repair", family: .hybridTask, runs: 3) { _ in
             let workspace = try! makeBrokenSwiftWorkspace(mode: .buildBreak)
             let provider = EvalObservationProvider([
                 Observation(app: "Notes", windowTitle: "Notes", url: nil, focusedElementID: nil, elements: []),
@@ -76,7 +76,7 @@ struct HybridBenchmarks {
     }
 
     private func makeInspectProjectThenApplyChangeTask() -> EvalTask {
-        EvalTask(name: "inspect-project-then-apply-change", family: .hybridTask, runs: 1) { _ in
+        EvalTask(name: "inspect-project-then-apply-change", family: .hybridTask, runs: 3) { _ in
             let workspace = try! makeBrokenSwiftWorkspace(mode: .failingTest)
             let provider = EvalObservationProvider([
                 Observation(app: "Notes", windowTitle: "Notes", url: nil, focusedElementID: nil, elements: []),
