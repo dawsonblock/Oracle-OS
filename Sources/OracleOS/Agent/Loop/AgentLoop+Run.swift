@@ -6,7 +6,7 @@ extension AgentLoop {
     public func run(
         goal: Goal,
         budget: LoopBudget = LoopBudget(),
-        surface _: RuntimeSurface = .recipe
+        surface: RuntimeSurface = .recipe
     ) async -> LoopOutcome {
         decisionCoordinator.setGoal(goal)
         let taskContext = TaskContext.from(
@@ -82,7 +82,8 @@ extension AgentLoop {
             do {
                 prepared = try executionCoordinator.prepare(
                     decision: decision,
-                    stateBundle: stateBundle
+                    stateBundle: stateBundle,
+                    surface: surface
                 )
                 runState.diagnostics.recordPreparation(
                     stepIndex: stepIndex,

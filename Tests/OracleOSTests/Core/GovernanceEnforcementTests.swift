@@ -266,8 +266,8 @@ struct GovernanceEnforcementTests {
         #expect(offendingFiles.isEmpty, "executionDriver.execute should be centralized in ExecutionCoordinator.swift, found: \(offendingFiles)")
     }
 
-    @Test("AgentLoop source file stays below 300 lines")
-    func agentLoopSourceFileStaysBelowThreeHundredLines() throws {
+    @Test("AgentLoop source file stays below 150 lines")
+    func agentLoopSourceFileStaysBelowOneFiftyLines() throws {
         let agentLoopURL = repositoryRoot().appendingPathComponent(
             "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
             isDirectory: false
@@ -277,7 +277,7 @@ struct GovernanceEnforcementTests {
             omittingEmptySubsequences: false
         ).count
 
-        #expect(lineCount < 300, "AgentLoop.swift should stay below 300 lines, found \(lineCount)")
+        #expect(lineCount < 150, "AgentLoop.swift should stay below 150 lines, found \(lineCount)")
     }
 
     @Test("Workspace runner blocks unsupported arbitrary shell execution")
