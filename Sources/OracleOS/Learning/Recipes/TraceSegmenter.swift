@@ -83,6 +83,43 @@ public struct RepeatedTraceSegment: Sendable {
 
 public enum TraceSegmenter {
     public static func segment(events: [TraceEvent]) -> [TraceSegment] {
+        segmentFiltered(events: events, includeRecovery: false)
+    }
+
+    public static func segmentIncludingRecovery(events: [TraceEvent]) -> [TraceSegment] {
+        segmentFiltered(events: events, includeRecovery: true)
+    }
+
+    public static func repeatedRecoverySegments(events: [TraceEvent]) -> [RepeatedTraceSegment] {
+        let allSegments = segmentIncludingRecovery(events: events)
+        // Only include segments that contain at least one recovery-tagged event,
+        // so non-recovery segments are not misclassified as recovery patterns.
+        let recoveryOnly = allSegments.filter { segment in
+            segment.events.contains { event in
+                event.recoveryTagged == true
+                    || event.knowledgeTier == KnowledgeTier.recovery.rawValue
+            }
+        }
+        let grouped = Dictionary(grouping: recoveryOnly, by: \.fingerprint)
+        return grouped
+            .compactMap { fingerprint, segments in
+                let uniqueEpisodes = Set(
+                    segments.map { segment in
+                        [segment.sessionID, segment.taskID ?? "none"].joined(separator: "|")
+                    }
+                )
+                guard segments.count >= 2, uniqueEpisodes.count >= 2 else { return nil }
+                return RepeatedTraceSegment(fingerprint: fingerprint, segments: segments)
+            }
+            .sorted { lhs, rhs in
+                if lhs.segments.count == rhs.segments.count {
+                    return lhs.fingerprint < rhs.fingerprint
+                }
+                return lhs.segments.count > rhs.segments.count
+            }
+    }
+
+    private static func segmentFiltered(events: [TraceEvent], includeRecovery: Bool) -> [TraceSegment] {
         var segments: [TraceSegment] = []
         var current: [TraceEvent] = []
         var currentTaskID: String?
@@ -123,12 +160,13 @@ public enum TraceSegmenter {
         }
 
         for event in events.sorted(by: traceSortOrder) {
+            let isRecoveryEvent = event.recoveryTagged == true
+                || event.knowledgeTier == KnowledgeTier.recovery.rawValue
             guard event.success,
                   event.verified,
                   event.blockedByPolicy != true,
-                  event.recoveryTagged != true,
-                  event.knowledgeTier != KnowledgeTier.recovery.rawValue,
                   event.knowledgeTier != KnowledgeTier.experiment.rawValue,
+                  (includeRecovery || !isRecoveryEvent),
                   let agentKind = AgentKind(rawValue: event.agentKind ?? AgentKind.os.rawValue)
             else {
                 flush()

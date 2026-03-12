@@ -27,8 +27,8 @@ public struct BrowserTargetScore: Sendable {
 }
 
 public enum BrowserTargetResolver {
-    public static let minimumScore = 0.6
-    public static let maximumAmbiguity = 0.2
+    public static let minimumScore = 0.65
+    public static let maximumAmbiguity = 0.15
 
     public static func resolve(
         query: ElementQuery,
@@ -43,8 +43,11 @@ public enum BrowserTargetResolver {
         }
 
         let secondScore = matches.dropFirst().first?.score ?? 0
-        let ambiguity = max(0, best.score - secondScore < maximumAmbiguity ? 1 - (best.score - secondScore) : 0)
-        if best.score - secondScore < maximumAmbiguity {
+        let gap = best.score - secondScore
+        // Ambiguity maps the score gap to [0, 1]: a smaller gap between first and
+        // second candidates means higher ambiguity. Fail closed when gap < threshold.
+        let ambiguity = gap < maximumAmbiguity ? max(0, 1 - gap) : 0
+        if gap < maximumAmbiguity {
             throw SkillResolutionError.ambiguousTarget(query.text ?? query.role ?? "browser target", ambiguity)
         }
 

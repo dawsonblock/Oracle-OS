@@ -9,6 +9,32 @@ struct EvalMetrics {
     let workflowReuseRatio: Double
     let ambiguityFailureCount: Int
     let patchSelectionSuccessRate: Double
+    let recoveryReuseRatio: Double
+    let plannerReasoningRatio: Double
+
+    init(
+        successRate: Double,
+        firstPassSuccessRate: Double,
+        averageSteps: Double,
+        recoverySuccessRate: Double,
+        graphReuseRatio: Double,
+        workflowReuseRatio: Double,
+        ambiguityFailureCount: Int,
+        patchSelectionSuccessRate: Double,
+        recoveryReuseRatio: Double = 0,
+        plannerReasoningRatio: Double = 0
+    ) {
+        self.successRate = successRate
+        self.firstPassSuccessRate = firstPassSuccessRate
+        self.averageSteps = averageSteps
+        self.recoverySuccessRate = recoverySuccessRate
+        self.graphReuseRatio = graphReuseRatio
+        self.workflowReuseRatio = workflowReuseRatio
+        self.ambiguityFailureCount = ambiguityFailureCount
+        self.patchSelectionSuccessRate = patchSelectionSuccessRate
+        self.recoveryReuseRatio = recoveryReuseRatio
+        self.plannerReasoningRatio = plannerReasoningRatio
+    }
 
     var comparisonFields: [(String, String)] {
         [
@@ -20,6 +46,8 @@ struct EvalMetrics {
             ("workflow_reuse_ratio", percent(workflowReuseRatio)),
             ("ambiguity_failure_count", "\(ambiguityFailureCount)"),
             ("patch_selection_success_rate", percent(patchSelectionSuccessRate)),
+            ("recovery_reuse_ratio", percent(recoveryReuseRatio)),
+            ("planner_reasoning_ratio", percent(plannerReasoningRatio)),
         ]
     }
 
@@ -30,7 +58,61 @@ struct EvalMetrics {
         return "\(taskName): \(fields)"
     }
 
+    func regressions(against baseline: EvalMetrics, thresholds: RegressionThresholds = RegressionThresholds()) -> [String] {
+        var regressions: [String] = []
+        if successRate < baseline.successRate - thresholds.successRateDrop {
+            regressions.append("success_rate regressed from \(percent(baseline.successRate)) to \(percent(successRate))")
+        }
+        if recoverySuccessRate < baseline.recoverySuccessRate - thresholds.recoveryRateDrop {
+            regressions.append("recovery_success_rate regressed from \(percent(baseline.recoverySuccessRate)) to \(percent(recoverySuccessRate))")
+        }
+        if workflowReuseRatio < baseline.workflowReuseRatio - thresholds.workflowReuseDrop {
+            regressions.append("workflow_reuse_ratio regressed from \(percent(baseline.workflowReuseRatio)) to \(percent(workflowReuseRatio))")
+        }
+        if ambiguityFailureCount > baseline.ambiguityFailureCount + thresholds.ambiguityFailureIncrease {
+            regressions.append("ambiguity_failure_count increased from \(baseline.ambiguityFailureCount) to \(ambiguityFailureCount)")
+        }
+        if patchSelectionSuccessRate < baseline.patchSelectionSuccessRate - thresholds.patchSelectionDrop {
+            regressions.append("patch_selection_success_rate regressed from \(percent(baseline.patchSelectionSuccessRate)) to \(percent(patchSelectionSuccessRate))")
+        }
+        if graphReuseRatio < baseline.graphReuseRatio - thresholds.graphReuseDrop {
+            regressions.append("graph_reuse_ratio regressed from \(percent(baseline.graphReuseRatio)) to \(percent(graphReuseRatio))")
+        }
+        if recoveryReuseRatio < baseline.recoveryReuseRatio - thresholds.recoveryReuseDrop {
+            regressions.append("recovery_reuse_ratio regressed from \(percent(baseline.recoveryReuseRatio)) to \(percent(recoveryReuseRatio))")
+        }
+        return regressions
+    }
+
     private func percent(_ value: Double) -> String {
         String(format: "%.2f", value)
+    }
+}
+
+struct RegressionThresholds {
+    let successRateDrop: Double
+    let recoveryRateDrop: Double
+    let workflowReuseDrop: Double
+    let ambiguityFailureIncrease: Int
+    let patchSelectionDrop: Double
+    let graphReuseDrop: Double
+    let recoveryReuseDrop: Double
+
+    init(
+        successRateDrop: Double = 0.05,
+        recoveryRateDrop: Double = 0.1,
+        workflowReuseDrop: Double = 0.1,
+        ambiguityFailureIncrease: Int = 2,
+        patchSelectionDrop: Double = 0.1,
+        graphReuseDrop: Double = 0.1,
+        recoveryReuseDrop: Double = 0.15
+    ) {
+        self.successRateDrop = successRateDrop
+        self.recoveryRateDrop = recoveryRateDrop
+        self.workflowReuseDrop = workflowReuseDrop
+        self.ambiguityFailureIncrease = ambiguityFailureIncrease
+        self.patchSelectionDrop = patchSelectionDrop
+        self.graphReuseDrop = graphReuseDrop
+        self.recoveryReuseDrop = recoveryReuseDrop
     }
 }

@@ -35,7 +35,27 @@ public final class DecisionCoordinator {
             return nil
         }
 
-        return Self.harden(decision: decision, taskContext: stateBundle.taskContext)
+        let hardened = Self.harden(decision: decision, taskContext: stateBundle.taskContext)
+        guard let result = hardened else { return nil }
+
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(
+                taskContext: stateBundle.taskContext,
+                worldState: stateBundle.worldState
+            )
+        )
+
+        if memoryInfluence.avoidedPaths.contains(where: {
+            result.actionContract.workspaceRelativePath == $0
+        }) {
+            let notes = result.notes + ["memory avoids this path; decision retained with warning"]
+            return result.normalized(
+                fallbackReason: result.fallbackReason,
+                notes: notes
+            )
+        }
+
+        return result
     }
 
     static func harden(

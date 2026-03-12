@@ -297,6 +297,59 @@ struct GovernanceEnforcementTests {
         }
     }
 
+    @Test("AgentLoop must not contain plan scoring logic")
+    func agentLoopDoesNotScorePlans() throws {
+        let contents = try agentLoopContents()
+        let forbidden = ["planEvaluator", "PlanEvaluator", "PlanEvaluator(", "scorePlan", "rankPlan", "PlanCandidate"]
+        for term in forbidden {
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - plan scoring belongs in PlanEvaluator")
+        }
+    }
+
+    @Test("AgentLoop must not route memory directly")
+    func agentLoopDoesNotRouteMemory() throws {
+        let contents = try agentLoopContents()
+        let forbidden = ["MemoryRouter(", "PatternMemoryStore(", "ExecutionMemoryStore("]
+        for term in forbidden {
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - memory routing belongs in MemoryRouter")
+        }
+    }
+
+    @Test("AgentLoop must not update graph directly")
+    func agentLoopDoesNotUpdateGraph() throws {
+        let contents = try agentLoopContents()
+        let forbidden = ["graphStore.recordTransition", "graphStore.promote", "graphStore.insert"]
+        for term in forbidden {
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - graph updates belong in LearningCoordinator")
+        }
+    }
+
+    @Test("AgentLoop must not analyze architecture")
+    func agentLoopDoesNotAnalyzeArchitecture() throws {
+        let contents = try agentLoopContents()
+        let forbidden = ["ArchitectureEngine(", "architectureEngine.review"]
+        for term in forbidden {
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - architecture analysis belongs in CodePlanner")
+        }
+    }
+
+    @Test("AgentLoop must not compare experiments")
+    func agentLoopDoesNotCompareExperiments() throws {
+        let contents = try agentLoopContents()
+        let forbidden = ["ResultComparator(", "PatchRanker(", "comparator.sort"]
+        for term in forbidden {
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - experiment comparison belongs in ExperimentCoordinator")
+        }
+    }
+
+    private func agentLoopContents() throws -> String {
+        let agentLoopURL = repositoryRoot().appendingPathComponent(
+            "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+            isDirectory: false
+        )
+        return try String(contentsOf: agentLoopURL)
+    }
+
     private func planningState(id: String, taskPhase: String) -> PlanningState {
         PlanningState(
             id: PlanningStateID(rawValue: id),

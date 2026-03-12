@@ -587,7 +587,9 @@ public final class CodePlanner: @unchecked Sendable {
                 return [best.path]
             }
         }
-        return strongCandidates.map(\.path)
+        // Constrain patch surface to top 3 candidates to reduce blast radius
+        // and focus experiments on highest-probability locations.
+        return Array(strongCandidates.prefix(3).map(\.path))
     }
 
     private func graphNotes(prefix: String, diagnostics: GraphSearchDiagnostics) -> [String] {

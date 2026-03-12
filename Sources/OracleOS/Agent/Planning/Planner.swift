@@ -113,12 +113,11 @@ public final class Planner: @unchecked Sendable {
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
 
-        // Decision hierarchy:
-        // 1. Workflow plan (highest priority)
-        // 2. Graph-familiar plan (stable or candidate graph)
-        // 3. Reasoning-generated plan
-        // 4. Experiment plan
-        // 5. Exploration plan (fallback)
+        // Deliberate plan comparison:
+        // 1. Gather candidates from family planner (workflow, graph, exploration)
+        // 2. Gather candidates from reasoning engine
+        // 3. Score all candidates and pick the best deliberate plan
+        // 4. Escalate to experiment when confidence is low
         let familyDecision = familyPlannerDecision(
             taskContext: taskContext,
             worldState: worldState,
@@ -126,22 +125,72 @@ public final class Planner: @unchecked Sendable {
             memoryStore: memoryStore
         )
 
-        if let decision = familyDecision,
-           decision.source == .workflow || decision.source == .stableGraph || decision.source == .candidateGraph {
-            return decision
-        }
-
-        if let reasoningDecision = reasoningDecision(
+        // Reasoning runs sequentially after the family planner to allow
+        // deliberate comparison rather than blind fallthrough.
+        let reasoning = reasoningDecision(
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore,
             fallbackDecision: familyDecision
-        ) {
-            return reasoningDecision
-        }
+        )
 
-        return familyDecision
+        return selectBestDecision(
+            familyDecision: familyDecision,
+            reasoningDecision: reasoning,
+            taskContext: taskContext,
+            worldState: worldState,
+            memoryStore: memoryStore
+        )
+    }
+
+    private func selectBestDecision(
+        familyDecision: PlannerDecision?,
+        reasoningDecision: PlannerDecision?,
+        taskContext: TaskContext,
+        worldState: WorldState,
+        memoryStore: AppMemoryStore
+    ) -> PlannerDecision? {
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
+        )
+        let memoryBias = MemoryScorer.planBias(influence: memoryInfluence)
+
+        switch (familyDecision, reasoningDecision) {
+        case let (family?, reasoning?):
+            // Memory bias applies only to the family score — it reflects historical
+            // confidence in familiar sources (graph, workflow). Reasoning scores
+            // are already memory-aware via the ReasoningPlanningState input.
+            let familyScore = sourceConfidence(family.source) + memoryBias
+            // When reasoning has no plan diagnostics (e.g. no viable plans generated),
+            // score defaults to 0 so the family decision is preferred.
+            let reasoningScore = reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0
+            if family.source == .workflow || family.source == .stableGraph {
+                return familyScore >= reasoningScore ? family : reasoning
+            }
+            return reasoningScore > familyScore ? reasoning : family
+        case let (family?, nil):
+            return family
+        case let (nil, reasoning?):
+            return reasoning
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    // Confidence values represent how reliable each planner source is based on
+    // validation level: workflows are fully validated replay sequences (0.9),
+    // stable graph edges are promoted from multiple observed transitions (0.75),
+    // candidate edges have fewer observations (0.5), recovery is contextual (0.4),
+    // and exploration is unbacked by prior evidence (0.3).
+    private func sourceConfidence(_ source: PlannerSource) -> Double {
+        switch source {
+        case .workflow: return 0.9
+        case .stableGraph: return 0.75
+        case .candidateGraph: return 0.5
+        case .exploration: return 0.3
+        case .recovery: return 0.4
+        }
     }
 
     private func familyPlannerDecision(

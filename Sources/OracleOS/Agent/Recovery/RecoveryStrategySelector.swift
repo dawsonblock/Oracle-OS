@@ -43,17 +43,28 @@ public struct RecoveryStrategySelector {
         state: WorldState,
         memoryStore: AppMemoryStore?
     ) -> RecoverySelection {
-        let preferredStrategy = memoryStore.flatMap {
-            MemoryRouter(memoryStore: $0).preferredRecoveryStrategy(
-                app: state.observation.app ?? "unknown"
+        let memoryRouter = memoryStore.map { MemoryRouter(memoryStore: $0) }
+        let preferredStrategy = memoryRouter?.preferredRecoveryStrategy(
+            app: state.observation.app ?? "unknown"
+        )
+        let memoryInfluence = memoryRouter?.influence(
+            for: MemoryQueryContext(
+                app: state.observation.app,
+                failureClass: failure,
+                planningState: state.planningState
             )
-        }
+        )
         let strategies = registry.strategies(for: failure)
         let orderedStrategies: [any RecoveryStrategy]
         if let preferredStrategy {
             orderedStrategies = strategies.sorted { lhs, rhs in
-                if lhs.name == preferredStrategy { return true }
-                if rhs.name == preferredStrategy { return false }
+                let lhsBias = memoryStrategyBias(
+                    lhs.name, preferred: preferredStrategy, influence: memoryInfluence
+                )
+                let rhsBias = memoryStrategyBias(
+                    rhs.name, preferred: preferredStrategy, influence: memoryInfluence
+                )
+                if lhsBias != rhsBias { return lhsBias > rhsBias }
                 return lhs.name < rhs.name
             }
         } else {
@@ -71,5 +82,20 @@ public struct RecoveryStrategySelector {
             orderedStrategies: orderedStrategies,
             promptDiagnostics: promptDiagnostics
         )
+    }
+
+    private func memoryStrategyBias(
+        _ strategyName: String,
+        preferred: String?,
+        influence: MemoryInfluence?
+    ) -> Double {
+        var bias = 0.0
+        if strategyName == preferred {
+            bias += 1.0
+        }
+        if let influence, strategyName == influence.preferredRecoveryStrategy {
+            bias += 0.5
+        }
+        return bias
     }
 }
