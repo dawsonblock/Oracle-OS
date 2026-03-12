@@ -300,7 +300,7 @@ struct GovernanceEnforcementTests {
     @Test("AgentLoop must not contain plan scoring logic")
     func agentLoopDoesNotScorePlans() throws {
         let contents = try agentLoopContents()
-        let forbidden = ["planEvaluator", "scorePlan", "rankPlan", "PlanCandidate"]
+        let forbidden = ["planEvaluator", "PlanEvaluator", "PlanEvaluator(", "scorePlan", "rankPlan", "PlanCandidate"]
         for term in forbidden {
             #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - plan scoring belongs in PlanEvaluator")
         }
