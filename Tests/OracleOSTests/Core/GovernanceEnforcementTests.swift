@@ -107,7 +107,7 @@ struct GovernanceEnforcementTests {
             files: [
                 RepositoryFile(path: "Sources/OracleOS/Runtime/OracleRuntime.swift", isDirectory: false),
                 RepositoryFile(path: "Sources/OracleOS/Graph/GraphStore.swift", isDirectory: false),
-                RepositoryFile(path: "Tests/OracleOSEvals/OracleOSEvals.swift", isDirectory: false),
+                RepositoryFile(path: "Tests/OracleOSEvals/OperatorBenchmarks.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
             dependencyGraph: DependencyGraph(),

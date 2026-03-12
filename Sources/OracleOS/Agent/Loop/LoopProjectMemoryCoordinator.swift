@@ -43,7 +43,10 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
         decision: PlannerDecision,
         taskContext: TaskContext
     ) {
-        guard !decision.architectureFindings.isEmpty,
+        let majorFindings = decision.architectureFindings.filter {
+            $0.severity == .critical || $0.riskScore >= 0.5
+        }
+        guard !majorFindings.isEmpty,
               let refactorProposalID = decision.refactorProposalID,
               taskContext.agentKind == .code || taskContext.agentKind == .mixed
         else {
@@ -54,16 +57,16 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
             let store = try projectMemoryStore(for: taskContext)
             _ = try store.writeArchitectureDecisionDraft(
                 title: "Architecture review for \(taskContext.goal.description)",
-                summary: "High-impact change touched \(decision.architectureFindings.flatMap(\.affectedModules).count) module references",
+                summary: "High-impact change surfaced \(majorFindings.count) major architecture finding(s).",
                 knowledgeClass: .reusable,
-                affectedModules: Array(Set(decision.architectureFindings.flatMap(\.affectedModules))).sorted(),
+                affectedModules: Array(Set(majorFindings.flatMap(\.affectedModules))).sorted(),
                 evidenceRefs: decision.projectMemoryRefs.map(\.path),
                 sourceTraceIDs: [],
                 body: """
                 Refactor proposal id: \(refactorProposalID)
 
                 Findings:
-                \(decision.architectureFindings.map { "- \($0.title): \($0.summary)" }.joined(separator: "\n"))
+                \(majorFindings.map { "- \($0.title): \($0.summary)" }.joined(separator: "\n"))
                 """
             )
         } catch {

@@ -1,6 +1,9 @@
-public struct RefreshObservationStrategy: RecoveryStrategy {
+import Foundation
 
-    public let name = "refresh_observation"
+public struct DismissModalStrategy: RecoveryStrategy {
+    public let name = "dismiss_modal"
+
+    public init() {}
 
     public func prepare(
         failure: FailureClass,
@@ -13,8 +16,8 @@ public struct RefreshObservationStrategy: RecoveryStrategy {
 
         return RecoveryPreparation(
             strategyName: name,
-            resolution: SkillResolution(intent: .focus(app: app)),
-            notes: ["refreshing observation by refocusing \(app) after \(failure.rawValue)"]
+            resolution: SkillResolution(intent: .press(app: app, key: "escape")),
+            notes: ["dismissing modal after \(failure.rawValue)"]
         )
     }
 }

@@ -11,25 +11,11 @@ public struct ClickSkill: Skill {
         state: WorldState,
         memoryStore: AppMemoryStore
     ) throws -> SkillResolution {
-        let best: ElementCandidate
-
-        do {
-            best = try state.resolve(
-                query: query,
-                memoryStore: memoryStore,
-                minimumScore: 0.6,
-                maximumAmbiguity: 0.2
-            )
-        } catch let error as WorldQueryResolutionError {
-            switch error {
-            case let .notFound(label):
-                throw SkillResolutionError.noCandidate(label)
-            case let .ambiguous(label, ambiguity):
-                throw SkillResolutionError.ambiguousTarget(label, ambiguity)
-            case let .lowConfidence(label, score):
-                throw SkillResolutionError.ambiguousTarget(label, score)
-            }
-        }
+        let best = try OSTargetResolver.resolve(
+            query: query,
+            state: state,
+            memoryStore: memoryStore
+        )
 
         let intent = ActionIntent.click(
             app: state.observation.app,

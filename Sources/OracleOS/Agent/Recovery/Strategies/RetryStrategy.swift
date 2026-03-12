@@ -2,24 +2,19 @@ public struct RetryStrategy: RecoveryStrategy {
 
     public let name = "retry"
 
-    public func attempt(
+    public func prepare(
         failure: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
-
+        state: WorldState,
+        memoryStore _: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
         guard let last = state.lastAction else {
-
-            return ActionResult(
-                success: false,
-                message: "No previous action"
-            )
+            return nil
         }
 
-        print("Retrying:", last.action)
-
-        return ActionResult(
-            success: true,
-            message: "Retry attempted"
+        return RecoveryPreparation(
+            strategyName: name,
+            resolution: SkillResolution(intent: last),
+            notes: ["retrying previous \(last.action) action after \(failure.rawValue)"]
         )
     }
 }

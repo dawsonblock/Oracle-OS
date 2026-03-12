@@ -60,4 +60,117 @@ public final class ArchitectureEngine: @unchecked Sendable {
             governanceReport: governanceReport
         )
     }
+
+    public func reviewCandidatePatch(
+        goalDescription: String,
+        snapshot: RepositorySnapshot,
+        candidate: CandidatePatch,
+        diffSummary: String
+    ) -> ArchitectureReview {
+        let baseReview = review(
+            goalDescription: goalDescription,
+            snapshot: snapshot,
+            candidatePaths: [candidate.workspaceRelativePath]
+        )
+        let heuristicFindings = candidateHeuristicFindings(
+            goalDescription: goalDescription,
+            candidate: candidate,
+            diffSummary: diffSummary
+        )
+        let findings = (baseReview.findings + heuristicFindings)
+            .sorted { lhs, rhs in lhs.riskScore > rhs.riskScore }
+        let proposal = baseReview.refactorProposal ?? refactorPlanner.proposal(from: findings)
+        let riskScore = findings.map(\.riskScore).max() ?? baseReview.riskScore
+
+        return ArchitectureReview(
+            triggered: baseReview.triggered || !heuristicFindings.isEmpty,
+            affectedModules: Array(Set(baseReview.affectedModules + heuristicFindings.flatMap(\.affectedModules))).sorted(),
+            findings: findings,
+            refactorProposal: proposal,
+            riskScore: riskScore,
+            governanceReport: baseReview.governanceReport
+        )
+    }
+
+    private func candidateHeuristicFindings(
+        goalDescription: String,
+        candidate: CandidatePatch,
+        diffSummary: String
+    ) -> [ArchitectureFinding] {
+        let loweredGoal = goalDescription.lowercased()
+        let path = candidate.workspaceRelativePath
+        let affectedModules = [ArchitectureModuleGraph.moduleName(for: path)]
+        var findings: [ArchitectureFinding] = []
+
+        if path.hasPrefix("Tests/"),
+           loweredGoal.contains("fix") || loweredGoal.contains("repair") || loweredGoal.contains("failing")
+                || loweredGoal.contains("build") || loweredGoal.contains("test")
+        {
+            findings.append(
+                ArchitectureFinding(
+                    title: "Test-only repair path",
+                    summary: "This candidate changes tests instead of production code for a repair task, which risks locking in the wrong behavior.",
+                    severity: .warning,
+                    affectedModules: affectedModules,
+                    evidence: [path],
+                    riskScore: 0.65
+                )
+            )
+        }
+
+        if path.hasPrefix("Sources/"),
+           !loweredGoal.contains("refactor"),
+           candidate.content.contains("public ")
+        {
+            findings.append(
+                ArchitectureFinding(
+                    title: "Public interface change",
+                    summary: "This candidate alters public surface area during a repair task. Prefer smaller internal fixes when possible.",
+                    severity: .warning,
+                    affectedModules: affectedModules,
+                    evidence: [path],
+                    riskScore: 0.45
+                )
+            )
+        }
+
+        if touchedFileCount(diffSummary) > 1 {
+            findings.append(
+                ArchitectureFinding(
+                    title: "Expanded patch blast radius",
+                    summary: "This candidate touches multiple files. Wider patch surfaces should be justified before they outrank safer focused fixes.",
+                    severity: .warning,
+                    affectedModules: affectedModules,
+                    evidence: diffSummary.split(separator: "\n").map(String.init),
+                    riskScore: 0.4
+                )
+            )
+        }
+
+        if path.contains("Agent/Planning"),
+           candidate.content.contains("execute(") || candidate.content.contains("WorkspaceRunner(")
+        {
+            findings.append(
+                ArchitectureFinding(
+                    title: "Planner/execution boundary drift",
+                    summary: "This candidate pulls execution concerns into planning code. Keep planning declarative and execution local.",
+                    severity: .critical,
+                    affectedModules: affectedModules,
+                    evidence: [path],
+                    riskScore: 0.85,
+                    governanceRuleID: .hierarchicalPlanning,
+                    governanceSeverity: .hardFail
+                )
+            )
+        }
+
+        return findings
+    }
+
+    private func touchedFileCount(_ diffSummary: String) -> Int {
+        diffSummary
+            .split(separator: "\n")
+            .filter { $0.contains("|") }
+            .count
+    }
 }

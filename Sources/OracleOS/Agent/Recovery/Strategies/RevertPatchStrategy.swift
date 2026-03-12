@@ -5,18 +5,15 @@ public struct RevertPatchStrategy: RecoveryStrategy {
 
     public init() {}
 
-    public func attempt(
+    public func prepare(
         failure _: FailureClass,
-        state: WorldState
-    ) async throws -> ActionResult {
+        state: WorldState,
+        memoryStore _: AppMemoryStore
+    ) async throws -> RecoveryPreparation? {
         guard state.lastAction?.agentKind == .code else {
-            return ActionResult(success: false, verified: false, message: "No code patch to revert", failureClass: FailureClass.patchApplyFailed.rawValue)
+            return nil
         }
 
-        return ActionResult(
-            success: true,
-            verified: true,
-            message: "Patch revert requested"
-        )
+        return nil
     }
 }

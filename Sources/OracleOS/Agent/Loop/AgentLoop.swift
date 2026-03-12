@@ -2,6 +2,13 @@ import Foundation
 
 @MainActor
 public final class AgentLoop {
+    private struct RunState {
+        var latestWorldState: WorldState?
+        var lastAction: ActionIntent?
+        var diagnostics = LoopDiagnostics.empty
+        var budgetState = LoopBudgetState()
+    }
+
     private let observationProvider: any ObservationProvider
     private let executionDriver: any AgentExecutionDriver
     private let stateAbstraction: StateAbstraction
@@ -38,7 +45,9 @@ public final class AgentLoop {
         self.memoryStore = memoryStore
         self.skillRegistry = skillRegistry
         self.repositoryIndexer = repositoryIndexer
-        self.projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+
+        let projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+        self.projectMemoryCoordinator = projectMemoryCoordinator
         self.experimentCoordinator = LoopExperimentCoordinator(
             experimentManager: experimentManager,
             executionDriver: executionDriver,
@@ -47,7 +56,7 @@ public final class AgentLoop {
             recoveryEngine: recoveryEngine,
             memoryStore: memoryStore,
             repositoryIndexer: repositoryIndexer,
-            projectMemoryCoordinator: LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+            projectMemoryCoordinator: projectMemoryCoordinator
         )
     }
 
@@ -63,26 +72,24 @@ public final class AgentLoop {
             workspaceRoot: goal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         )
 
-        var latestWorldState: WorldState?
-        var lastAction: ActionIntent?
-        var recoveries = 0
-        var consecutiveExplorationSteps = 0
-        var patchIterations = 0
-        var buildAttempts = 0
-        var testAttempts = 0
-        var diagnostics = LoopDiagnostics.empty
+        var runState = RunState()
 
-        for step in 0..<budget.maxSteps {
-            let worldState = captureWorldState(lastAction: lastAction, taskContext: taskContext)
-            latestWorldState = worldState
+        for stepIndex in 0..<budget.maxSteps {
+            let worldState = captureWorldState(
+                lastAction: runState.lastAction,
+                taskContext: taskContext
+            )
+            runState.latestWorldState = worldState
 
             if planner.goalReached(state: worldState.planningState) {
-                return LoopOutcome(
+                return finalize(
                     reason: .goalAchieved,
                     finalWorldState: worldState,
-                    steps: step,
-                    recoveries: recoveries,
-                    diagnostics: diagnostics
+                    steps: stepIndex,
+                    lastFailure: nil,
+                    decision: nil,
+                    taskContext: taskContext,
+                    runState: runState
                 )
             }
 
@@ -91,290 +98,617 @@ public final class AgentLoop {
                 graphStore: graphStore,
                 memoryStore: memoryStore
             ) else {
-                return LoopOutcome(
+                return finalize(
                     reason: .noViablePlan,
                     finalWorldState: worldState,
-                    steps: step,
-                    recoveries: recoveries,
-                    diagnostics: diagnostics
-                )
-            }
-
-            if decision.source == .exploration {
-                consecutiveExplorationSteps += 1
-                if consecutiveExplorationSteps > budget.maxConsecutiveExplorationSteps {
-                    return LoopOutcome(
-                        reason: .explorationBudgetExceeded,
-                        finalWorldState: worldState,
-                        steps: step,
-                        recoveries: recoveries,
-                        diagnostics: diagnostics
-                    )
-                }
-            } else {
-                consecutiveExplorationSteps = 0
-            }
-
-            if decision.executionMode == .experiment,
-               let experimentSpec = decision.experimentSpec
-            {
-                let experimentOutcome = await experimentCoordinator.handle(
-                    decision: decision,
-                    experimentSpec: experimentSpec,
+                    steps: stepIndex,
+                    lastFailure: nil,
+                    decision: nil,
                     taskContext: taskContext,
-                    worldState: worldState,
-                    recoveries: &recoveries,
-                    step: step,
-                    budget: budget,
-                    diagnostics: &diagnostics
-                )
-                if let experimentOutcome {
-                    return experimentOutcome
-                }
-                continue
-            }
-
-            let prepared: SkillResolution
-            do {
-                prepared = try prepareAction(decision: decision, state: worldState, taskContext: taskContext)
-            } catch let error as SkillResolutionError {
-                if let outcome = await handlePreparationFailure(
-                    failure: error.failureClass,
-                    decision: decision,
-                    worldState: worldState,
-                    recoveries: &recoveries,
-                    step: step,
-                    budget: budget,
-                    diagnostics: &diagnostics
-                ) {
-                    return outcome
-                }
-                continue
-            } catch let error as CodeSkillResolutionError {
-                if let outcome = await handlePreparationFailure(
-                    failure: error.failureClass,
-                    decision: decision,
-                    worldState: worldState,
-                    recoveries: &recoveries,
-                    step: step,
-                    budget: budget,
-                    diagnostics: &diagnostics
-                ) {
-                    return outcome
-                }
-                continue
-            } catch {
-                return LoopOutcome(
-                    reason: .unrecoverableFailure,
-                    finalWorldState: worldState,
-                    steps: step + 1,
-                    recoveries: recoveries,
-                    lastFailure: .actionFailed,
-                    diagnostics: diagnostics
+                    runState: runState
                 )
             }
 
-            let policyDecision = policyEngine.evaluate(
-                intent: prepared.intent,
-                context: PolicyEvaluationContext(
-                    surface: surface,
-                    toolName: "agent_loop",
-                    appName: prepared.intent.app,
-                    agentKind: prepared.intent.agentKind,
-                    workspaceRoot: prepared.intent.workspaceRoot,
-                    workspaceRelativePath: prepared.intent.workspaceRelativePath,
-                    commandCategory: prepared.intent.commandCategory
-                )
-            )
-            if policyDecision.blockedByPolicy || policyDecision.requiresApproval {
-                diagnostics.append(
-                    LoopStepSummary(
-                        stepIndex: step,
-                        source: decision.source,
-                        skillName: decision.skillName,
-                        workflowID: decision.workflowID,
-                        experimentID: decision.experimentSpec?.id,
-                        success: false,
-                        failure: .actionFailed,
-                        notes: decision.notes + ["policy precheck blocked execution"]
-                    )
-                )
-                return LoopOutcome(
-                    reason: .policyBlocked,
-                    finalWorldState: worldState,
-                    steps: step,
-                    recoveries: recoveries,
-                    diagnostics: diagnostics
-                )
-            }
-
-            let result = executionDriver.execute(
-                intent: prepared.intent,
-                plannerDecision: decision,
-                selectedCandidate: prepared.selectedCandidate
-            )
-            lastAction = prepared.intent
-            incrementCounters(
-                intent: prepared.intent,
-                patchIterations: &patchIterations,
-                buildAttempts: &buildAttempts,
-                testAttempts: &testAttempts
-            )
-            if exceedsCodeBudget(
-                patchIterations: patchIterations,
-                buildAttempts: buildAttempts,
-                testAttempts: testAttempts,
+            if let budgetReason = runState.budgetState.registerPlannerSource(
+                decision.source,
                 budget: budget
             ) {
-                diagnostics.append(
-                    LoopStepSummary(
-                        stepIndex: step,
-                        source: decision.source,
-                        skillName: decision.skillName,
-                        workflowID: decision.workflowID,
-                        experimentID: decision.experimentSpec?.id,
-                        success: false,
-                        failure: .patchApplyFailed,
-                        notes: decision.notes + ["code budget exceeded"]
-                    )
-                )
-                return LoopOutcome(
-                    reason: .lowConfidenceRepeatedFailure,
-                    finalWorldState: worldState,
-                    steps: step + 1,
-                    recoveries: recoveries,
-                    diagnostics: diagnostics
-                )
-            }
-
-            let actionResult = ActionResult.from(dict: result.data?["action_result"] as? [String: Any] ?? [:])
-                ?? ActionResult(
-                    success: result.success,
-                    verified: result.success,
-                    message: result.error
-                )
-
-            if actionResult.success {
-                diagnostics.append(
-                    LoopStepSummary(
-                        stepIndex: step,
-                        source: decision.source,
-                        skillName: decision.skillName,
-                        workflowID: decision.workflowID,
-                        experimentID: decision.experimentSpec?.id,
-                        success: true,
-                        notes: decision.notes
-                    )
-                )
-                projectMemoryCoordinator.recordKnownGoodPattern(
+                runState.diagnostics.recordDecision(
+                    stepIndex: stepIndex,
                     decision: decision,
-                    intent: prepared.intent,
-                    taskContext: taskContext
-                )
-                projectMemoryCoordinator.recordArchitectureDecision(
-                    decision: decision,
-                    taskContext: taskContext
-                )
-                continue
-            }
-
-            let afterObservation = observationProvider.observe()
-            let afterWorldState = WorldState(
-                observation: afterObservation,
-                lastAction: prepared.intent,
-                repositorySnapshot: repositorySnapshot(for: taskContext),
-                stateAbstraction: stateAbstraction
-            )
-            let failure = FailureAnalyzer.classify(
-                intent: prepared.intent,
-                result: actionResult,
-                before: worldState.observation,
-                after: afterObservation,
-                selectedCandidate: prepared.selectedCandidate,
-                ambiguityScore: prepared.selectedCandidate?.ambiguityScore
-            ) ?? .actionFailed
-            MemoryUpdater.recordFailure(
-                failure: failure,
-                state: afterWorldState,
-                store: memoryStore
-            )
-            diagnostics.append(
-                LoopStepSummary(
-                    stepIndex: step,
-                    source: decision.source,
-                    skillName: decision.skillName,
-                    workflowID: decision.workflowID,
-                    experimentID: decision.experimentSpec?.id,
                     success: false,
-                    failure: failure,
-                    notes: decision.notes
+                    notes: decision.notes + ["exploration budget exceeded"]
                 )
-            )
-
-            if recoveries < budget.maxRecoveries {
-                let recoveryAttempt = await recoveryEngine.recover(
-                    failure: failure,
-                    state: afterWorldState,
-                    memoryStore: memoryStore
+                return finalize(
+                    reason: budgetReason,
+                    finalWorldState: worldState,
+                    steps: stepIndex,
+                    lastFailure: nil,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
                 )
-                recoveries += 1
-                memoryStore.recordStrategy(
-                    StrategyRecord(
-                        app: afterObservation.app ?? "unknown",
-                        strategy: recoveryAttempt.strategyName ?? "none",
-                        success: recoveryAttempt.result.success
-                    )
-                )
-                if recoveryAttempt.result.success {
-                    diagnostics.append(
-                        LoopStepSummary(
-                            stepIndex: step,
-                            source: .recovery,
-                            skillName: recoveryAttempt.strategyName ?? "recovery",
-                            success: true,
-                            recoveryStrategy: recoveryAttempt.strategyName,
-                            notes: ["bounded recovery succeeded"]
-                        )
-                    )
-                    continue
-                }
             }
 
-            let outcome = LoopOutcome(
-                reason: .unrecoverableFailure,
-                finalWorldState: worldState,
-                steps: step + 1,
-                recoveries: recoveries,
-                lastFailure: failure,
-                diagnostics: diagnostics
-            )
-            projectMemoryCoordinator.recordOpenProblem(
-                outcome: outcome,
+            let loopTermination = await handleDecision(
+                decision,
+                stepIndex: stepIndex,
+                worldState: worldState,
                 taskContext: taskContext,
-                decision: decision
+                budget: budget,
+                surface: surface,
+                runState: &runState
             )
-            return outcome
+            if let outcome = loopTermination.outcome {
+                return outcome
+            }
         }
 
-        let outcome = LoopOutcome(
+        return finalize(
             reason: .maxSteps,
-            finalWorldState: latestWorldState,
+            finalWorldState: runState.latestWorldState,
             steps: budget.maxSteps,
-            recoveries: recoveries,
-            diagnostics: diagnostics
-        )
-        projectMemoryCoordinator.recordOpenProblem(
-            outcome: outcome,
+            lastFailure: nil,
+            decision: nil,
             taskContext: taskContext,
-            decision: nil
+            runState: runState
         )
-        return outcome
     }
 
     public func run(goal: String, state: WorldState) async {
         let interpretedGoal = planner.interpretGoal(goal)
         planner.setGoal(interpretedGoal)
         _ = planner.nextStep(worldState: state, graphStore: graphStore)
+    }
+
+    private func handleDecision(
+        _ decision: PlannerDecision,
+        stepIndex: Int,
+        worldState: WorldState,
+        taskContext: TaskContext,
+        budget: LoopBudget,
+        surface: RuntimeSurface,
+        runState: inout RunState
+    ) async -> LoopTermination {
+        if decision.executionMode == .experiment,
+           let experimentSpec = decision.experimentSpec
+        {
+            if let outcome = await experimentCoordinator.handle(
+                decision: decision,
+                experimentSpec: experimentSpec,
+                taskContext: taskContext,
+                worldState: worldState,
+                budgetState: &runState.budgetState,
+                step: stepIndex,
+                budget: budget,
+                diagnostics: &runState.diagnostics
+            ) {
+                return .finished(outcome)
+            }
+            return .continueRunning
+        }
+
+        let prepared: SkillResolution
+        do {
+            prepared = try prepareAction(
+                decision: decision,
+                state: worldState,
+                taskContext: taskContext
+            )
+        } catch let error as SkillResolutionError {
+            return await handlePreparationFailure(
+                failure: error.failureClass,
+                decision: decision,
+                worldState: worldState,
+                stepIndex: stepIndex,
+                taskContext: taskContext,
+                budget: budget,
+                surface: surface,
+                runState: &runState
+            )
+        } catch let error as CodeSkillResolutionError {
+            return await handlePreparationFailure(
+                failure: error.failureClass,
+                decision: decision,
+                worldState: worldState,
+                stepIndex: stepIndex,
+                taskContext: taskContext,
+                budget: budget,
+                surface: surface,
+                runState: &runState
+            )
+        } catch {
+            return .finished(
+                finalize(
+                    reason: .unrecoverableFailure,
+                    finalWorldState: worldState,
+                    steps: stepIndex + 1,
+                    lastFailure: .actionFailed,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        if precheckPolicy(
+            prepared: prepared,
+            surface: surface,
+            stepIndex: stepIndex,
+            decision: decision,
+            runState: &runState
+        ) {
+            return .finished(
+                finalize(
+                    reason: .policyBlocked,
+                    finalWorldState: worldState,
+                    steps: stepIndex,
+                    lastFailure: nil,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        return await executePreparedDecision(
+            prepared,
+            decision: decision,
+            stepIndex: stepIndex,
+            worldState: worldState,
+            taskContext: taskContext,
+            budget: budget,
+            surface: surface,
+            runState: &runState
+        )
+    }
+
+    private func precheckPolicy(
+        prepared: SkillResolution,
+        surface: RuntimeSurface,
+        stepIndex: Int,
+        decision: PlannerDecision,
+        runState: inout RunState
+    ) -> Bool {
+        let policyDecision = policyEngine.evaluate(
+            intent: prepared.intent,
+            context: PolicyEvaluationContext(
+                surface: surface,
+                toolName: "agent_loop",
+                appName: prepared.intent.app,
+                agentKind: prepared.intent.agentKind,
+                workspaceRoot: prepared.intent.workspaceRoot,
+                workspaceRelativePath: prepared.intent.workspaceRelativePath,
+                commandCategory: prepared.intent.commandCategory
+            )
+        )
+
+        guard policyDecision.blockedByPolicy || policyDecision.requiresApproval else {
+            return false
+        }
+
+        runState.diagnostics.recordDecision(
+            stepIndex: stepIndex,
+            decision: decision,
+            success: false,
+            failure: .actionFailed,
+            notes: decision.notes + ["policy precheck blocked execution"]
+        )
+        return true
+    }
+
+    private func executePreparedDecision(
+        _ prepared: SkillResolution,
+        decision: PlannerDecision,
+        stepIndex: Int,
+        worldState: WorldState,
+        taskContext: TaskContext,
+        budget: LoopBudget,
+        surface: RuntimeSurface,
+        runState: inout RunState
+    ) async -> LoopTermination {
+        let toolResult = executionDriver.execute(
+            intent: prepared.intent,
+            plannerDecision: decision,
+            selectedCandidate: prepared.selectedCandidate
+        )
+        runState.lastAction = prepared.intent
+
+        if let budgetReason = runState.budgetState.registerExecution(
+            intent: prepared.intent,
+            budget: budget
+        ) {
+            runState.diagnostics.recordDecision(
+                stepIndex: stepIndex,
+                decision: decision,
+                success: false,
+                failure: .patchApplyFailed,
+                notes: decision.notes + ["code budget exceeded"]
+            )
+            return .finished(
+                finalize(
+                    reason: budgetReason,
+                    finalWorldState: worldState,
+                    steps: stepIndex + 1,
+                    lastFailure: .patchApplyFailed,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        let actionResult = actionResult(from: toolResult)
+        if actionResult.success {
+            runState.diagnostics.recordDecision(
+                stepIndex: stepIndex,
+                decision: decision,
+                success: true,
+                notes: decision.notes
+            )
+            projectMemoryCoordinator.recordKnownGoodPattern(
+                decision: decision,
+                intent: prepared.intent,
+                taskContext: taskContext
+            )
+            projectMemoryCoordinator.recordArchitectureDecision(
+                decision: decision,
+                taskContext: taskContext
+            )
+            return .continueRunning
+        }
+
+        let afterObservation = observationProvider.observe()
+        let afterWorldState = WorldState(
+            observation: afterObservation,
+            lastAction: prepared.intent,
+            repositorySnapshot: repositorySnapshot(for: taskContext),
+            stateAbstraction: stateAbstraction
+        )
+        let failure = FailureAnalyzer.classify(
+            intent: prepared.intent,
+            result: actionResult,
+            before: worldState.observation,
+            after: afterObservation,
+            selectedCandidate: prepared.selectedCandidate,
+            ambiguityScore: prepared.selectedCandidate?.ambiguityScore
+        ) ?? .actionFailed
+
+        MemoryUpdater.recordFailure(
+            failure: failure,
+            state: afterWorldState,
+            store: memoryStore
+        )
+        runState.diagnostics.recordDecision(
+            stepIndex: stepIndex,
+            decision: decision,
+            success: false,
+            failure: failure,
+            notes: decision.notes
+        )
+
+        return await attemptRecovery(
+            failure: failure,
+            decision: decision,
+            recoveryState: afterWorldState,
+            finalWorldState: afterWorldState,
+            stepIndex: stepIndex,
+            taskContext: taskContext,
+            budget: budget,
+            surface: surface,
+            runState: &runState,
+            successNote: "bounded recovery succeeded",
+            failureNote: "bounded recovery failed"
+        )
+    }
+
+    private func handlePreparationFailure(
+        failure: FailureClass,
+        decision: PlannerDecision,
+        worldState: WorldState,
+        stepIndex: Int,
+        taskContext: TaskContext,
+        budget: LoopBudget,
+        surface: RuntimeSurface,
+        runState: inout RunState
+    ) async -> LoopTermination {
+        runState.diagnostics.recordDecision(
+            stepIndex: stepIndex,
+            decision: decision,
+            success: false,
+            failure: failure,
+            notes: decision.notes + ["preparation failure"]
+        )
+
+        return await attemptRecovery(
+            failure: failure,
+            decision: decision,
+            recoveryState: worldState,
+            finalWorldState: worldState,
+            stepIndex: stepIndex,
+            taskContext: taskContext,
+            budget: budget,
+            surface: surface,
+            runState: &runState,
+            successNote: "recovery succeeded after preparation failure",
+            failureNote: "recovery failed after preparation failure"
+        )
+    }
+
+    private func attemptRecovery(
+        failure: FailureClass,
+        decision: PlannerDecision,
+        recoveryState: WorldState,
+        finalWorldState: WorldState,
+        stepIndex: Int,
+        taskContext: TaskContext,
+        budget: LoopBudget,
+        surface: RuntimeSurface,
+        runState: inout RunState,
+        successNote: String,
+        failureNote: String
+    ) async -> LoopTermination {
+        guard runState.budgetState.canRecover(under: budget) else {
+            return .finished(
+                finalize(
+                    reason: .unrecoverableFailure,
+                    finalWorldState: finalWorldState,
+                    steps: stepIndex + 1,
+                    lastFailure: failure,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        runState.budgetState.registerRecoveryAttempt()
+        let recoveryAttempt = await recoveryEngine.recover(
+            failure: failure,
+            state: recoveryState,
+            memoryStore: memoryStore
+        )
+
+        guard let preparation = recoveryAttempt.preparation else {
+            memoryStore.recordStrategy(
+                StrategyRecord(
+                    app: recoveryState.observation.app ?? "unknown",
+                    strategy: recoveryAttempt.strategyName ?? "none",
+                    success: false
+                )
+            )
+            runState.diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: recoveryAttempt.strategyName,
+                success: false,
+                failure: failure,
+                notes: [failureNote, recoveryAttempt.message]
+            )
+            return .finished(
+                finalize(
+                    reason: .unrecoverableFailure,
+                    finalWorldState: finalWorldState,
+                    steps: stepIndex + 1,
+                    lastFailure: failure,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        return await executeRecoveryPreparation(
+            preparation,
+            failure: failure,
+            originatingDecision: decision,
+            recoveryState: recoveryState,
+            finalWorldState: finalWorldState,
+            stepIndex: stepIndex,
+            taskContext: taskContext,
+            surface: surface,
+            runState: &runState,
+            successNote: successNote,
+            failureNote: failureNote
+        )
+    }
+
+    private func executeRecoveryPreparation(
+        _ preparation: RecoveryPreparation,
+        failure: FailureClass,
+        originatingDecision: PlannerDecision,
+        recoveryState: WorldState,
+        finalWorldState: WorldState,
+        stepIndex: Int,
+        taskContext: TaskContext,
+        surface: RuntimeSurface,
+        runState: inout RunState,
+        successNote: String,
+        failureNote: String
+    ) async -> LoopTermination {
+        let recoveryDecision = makeRecoveryDecision(
+            from: originatingDecision,
+            preparation: preparation,
+            failure: failure
+        )
+
+        let policyDecision = policyEngine.evaluate(
+            intent: preparation.resolution.intent,
+            context: PolicyEvaluationContext(
+                surface: surface,
+                toolName: "agent_loop_recovery",
+                appName: preparation.resolution.intent.app,
+                agentKind: preparation.resolution.intent.agentKind,
+                workspaceRoot: preparation.resolution.intent.workspaceRoot,
+                workspaceRelativePath: preparation.resolution.intent.workspaceRelativePath,
+                commandCategory: preparation.resolution.intent.commandCategory
+            )
+        )
+
+        if policyDecision.blockedByPolicy || policyDecision.requiresApproval {
+            memoryStore.recordStrategy(
+                StrategyRecord(
+                    app: recoveryState.observation.app ?? "unknown",
+                    strategy: preparation.strategyName,
+                    success: false
+                )
+            )
+            runState.diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: preparation.strategyName,
+                success: false,
+                failure: failure,
+                notes: preparation.notes + [failureNote, "recovery blocked by policy"]
+            )
+            return .finished(
+                finalize(
+                    reason: .policyBlocked,
+                    finalWorldState: finalWorldState,
+                    steps: stepIndex + 1,
+                    lastFailure: failure,
+                    decision: recoveryDecision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            )
+        }
+
+        let toolResult = executionDriver.execute(
+            intent: preparation.resolution.intent,
+            plannerDecision: recoveryDecision,
+            selectedCandidate: preparation.resolution.selectedCandidate
+        )
+        runState.lastAction = preparation.resolution.intent
+
+        let actionResult = actionResult(from: toolResult)
+        memoryStore.recordStrategy(
+            StrategyRecord(
+                app: recoveryState.observation.app ?? "unknown",
+                strategy: preparation.strategyName,
+                success: actionResult.success
+            )
+        )
+
+        if actionResult.success {
+            runState.diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: preparation.strategyName,
+                success: true,
+                notes: preparation.notes + [successNote]
+            )
+            return .continueRunning
+        }
+
+        let afterObservation = observationProvider.observe()
+        let afterWorldState = WorldState(
+            observation: afterObservation,
+            lastAction: preparation.resolution.intent,
+            repositorySnapshot: repositorySnapshot(for: taskContext),
+            stateAbstraction: stateAbstraction
+        )
+        let recoveryFailure = FailureAnalyzer.classify(
+            intent: preparation.resolution.intent,
+            result: actionResult,
+            before: recoveryState.observation,
+            after: afterObservation,
+            selectedCandidate: preparation.resolution.selectedCandidate,
+            ambiguityScore: preparation.resolution.selectedCandidate?.ambiguityScore
+        ) ?? failure
+
+        MemoryUpdater.recordFailure(
+            failure: recoveryFailure,
+            state: afterWorldState,
+            store: memoryStore
+        )
+        runState.diagnostics.recordRecovery(
+            stepIndex: stepIndex,
+            strategyName: preparation.strategyName,
+            success: false,
+            failure: recoveryFailure,
+            notes: preparation.notes + [failureNote]
+        )
+        return .finished(
+            finalize(
+                reason: .unrecoverableFailure,
+                finalWorldState: afterWorldState,
+                steps: stepIndex + 1,
+                lastFailure: recoveryFailure,
+                decision: recoveryDecision,
+                taskContext: taskContext,
+                runState: runState
+            )
+        )
+    }
+
+    private func makeRecoveryDecision(
+        from originatingDecision: PlannerDecision,
+        preparation: RecoveryPreparation,
+        failure: FailureClass
+    ) -> PlannerDecision {
+        let selectedLabel = preparation.resolution.selectedCandidate?.element.label
+        let actionContract = ActionContract.from(
+            intent: preparation.resolution.intent,
+            method: preparation.resolution.semanticQuery == nil ? "recovery" : "recovery-query",
+            selectedElementLabel: selectedLabel,
+            plannerFamily: originatingDecision.plannerFamily.rawValue
+        )
+
+        return PlannerDecision(
+            agentKind: preparation.resolution.intent.agentKind,
+            skillName: actionContract.skillName,
+            plannerFamily: originatingDecision.plannerFamily,
+            stepPhase: originatingDecision.stepPhase,
+            actionContract: actionContract,
+            source: .recovery,
+            workflowID: originatingDecision.workflowID,
+            workflowStepID: originatingDecision.workflowStepID,
+            semanticQuery: preparation.resolution.semanticQuery,
+            projectMemoryRefs: originatingDecision.projectMemoryRefs,
+            architectureFindings: originatingDecision.architectureFindings,
+            refactorProposalID: originatingDecision.refactorProposalID,
+            knowledgeTier: .recovery,
+            notes: originatingDecision.notes + preparation.notes,
+            recoveryTagged: true,
+            recoveryStrategy: preparation.strategyName,
+            recoverySource: failure.rawValue
+        )
+    }
+
+    private func finalize(
+        reason: LoopTerminationReason,
+        finalWorldState: WorldState?,
+        steps: Int,
+        lastFailure: FailureClass?,
+        decision: PlannerDecision?,
+        taskContext: TaskContext,
+        runState: RunState
+    ) -> LoopOutcome {
+        let outcome = LoopOutcome(
+            reason: reason,
+            finalWorldState: finalWorldState,
+            steps: steps,
+            recoveries: runState.budgetState.recoveries,
+            lastFailure: lastFailure,
+            diagnostics: runState.diagnostics
+        )
+
+        if reason != .goalAchieved {
+            projectMemoryCoordinator.recordOpenProblem(
+                outcome: outcome,
+                taskContext: taskContext,
+                decision: decision
+            )
+        }
+
+        return outcome
+    }
+
+    private func actionResult(from toolResult: ToolResult) -> ActionResult {
+        ActionResult.from(dict: toolResult.data?["action_result"] as? [String: Any] ?? [:])
+            ?? ActionResult(
+                success: toolResult.success,
+                verified: toolResult.success,
+                message: toolResult.error
+            )
     }
 
     private func captureWorldState(lastAction: ActionIntent?, taskContext: TaskContext) -> WorldState {
@@ -443,96 +777,8 @@ public final class AgentLoop {
         else {
             return nil
         }
-        return repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
-    }
-
-    private func handlePreparationFailure(
-        failure: FailureClass,
-        decision: PlannerDecision,
-        worldState: WorldState,
-        recoveries: inout Int,
-        step: Int,
-        budget: LoopBudget,
-        diagnostics: inout LoopDiagnostics
-    ) async -> LoopOutcome? {
-        diagnostics.append(
-            LoopStepSummary(
-                stepIndex: step,
-                source: decision.source,
-                skillName: decision.skillName,
-                workflowID: decision.workflowID,
-                experimentID: decision.experimentSpec?.id,
-                success: false,
-                failure: failure,
-                notes: decision.notes + ["preparation failure"]
-            )
-        )
-        if recoveries < budget.maxRecoveries {
-            let recoveryAttempt = await recoveryEngine.recover(
-                failure: failure,
-                state: worldState,
-                memoryStore: memoryStore
-            )
-            recoveries += 1
-            memoryStore.recordStrategy(
-                StrategyRecord(
-                    app: worldState.observation.app ?? "unknown",
-                    strategy: recoveryAttempt.strategyName ?? "none",
-                    success: recoveryAttempt.result.success
-                )
-            )
-            if recoveryAttempt.result.success {
-                diagnostics.append(
-                    LoopStepSummary(
-                        stepIndex: step,
-                        source: .recovery,
-                        skillName: recoveryAttempt.strategyName ?? "recovery",
-                        success: true,
-                        recoveryStrategy: recoveryAttempt.strategyName,
-                        notes: ["recovery succeeded after preparation failure"]
-                    )
-                )
-                return nil
-            }
-        }
-
-        return LoopOutcome(
-            reason: .unrecoverableFailure,
-            finalWorldState: worldState,
-            steps: step + 1,
-            recoveries: recoveries,
-            lastFailure: failure,
-            diagnostics: diagnostics
+        return repositoryIndexer.index(
+            workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
         )
     }
-
-    private func incrementCounters(
-        intent: ActionIntent,
-        patchIterations: inout Int,
-        buildAttempts: inout Int,
-        testAttempts: inout Int
-    ) {
-        switch intent.commandCategory {
-        case CodeCommandCategory.generatePatch.rawValue, CodeCommandCategory.editFile.rawValue, CodeCommandCategory.writeFile.rawValue:
-            patchIterations += 1
-        case CodeCommandCategory.build.rawValue:
-            buildAttempts += 1
-        case CodeCommandCategory.test.rawValue:
-            testAttempts += 1
-        default:
-            break
-        }
-    }
-
-    private func exceedsCodeBudget(
-        patchIterations: Int,
-        buildAttempts: Int,
-        testAttempts: Int,
-        budget: LoopBudget
-    ) -> Bool {
-        patchIterations > budget.maxPatchIterations
-            || buildAttempts > budget.maxBuildAttempts
-            || testAttempts > budget.maxTestAttempts
-    }
-
 }

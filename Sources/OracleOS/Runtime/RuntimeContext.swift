@@ -64,7 +64,8 @@ public final class RuntimeContext {
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
-            artifactWriter: artifactWriter
+            artifactWriter: artifactWriter,
+            graphStore: graphStore
         )
 
         return RuntimeContext(

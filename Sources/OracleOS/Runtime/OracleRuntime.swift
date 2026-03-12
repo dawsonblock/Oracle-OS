@@ -272,8 +272,8 @@ public final class OracleRuntime {
             execute: execute
         )
 
-        if shouldRecordOutcome(from: result, policyDecision: policyDecision) {
-            recordExecutionOutcome(from: result, policyDecision: policyDecision)
+        if shouldRecordMemoryOutcome(from: result, policyDecision: policyDecision) {
+            recordMemoryOutcome(from: result, policyDecision: policyDecision)
         }
 
         result = mergingPolicy(
@@ -467,7 +467,7 @@ public final class OracleRuntime {
         return ObservationBuilder.capture(appName: nil).app
     }
 
-    private func shouldRecordOutcome(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
+    private func shouldRecordMemoryOutcome(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
         guard policyDecision.blockedByPolicy == false else {
             return false
         }
@@ -485,12 +485,10 @@ public final class OracleRuntime {
         return true
     }
 
-    private func recordExecutionOutcome(from result: ToolResult, policyDecision: PolicyDecision) {
+    private func recordMemoryOutcome(from result: ToolResult, policyDecision: PolicyDecision) {
         guard let data = result.data,
               let executionSemantics = data["execution_semantics"] as? [String: Any],
-              let actionContractDict = executionSemantics["action_contract"] as? [String: Any],
               let transitionDict = executionSemantics["verified_transition"] as? [String: Any],
-              let actionContract = ExecutionSemanticsEncoder.decodeActionContract(from: actionContractDict),
               let transition = ExecutionSemanticsEncoder.decodeTransition(from: transitionDict),
               let actionResultDict = data["action_result"] as? [String: Any],
               let actionResult = ActionResult.from(dict: actionResultDict)
@@ -498,25 +496,10 @@ public final class OracleRuntime {
             return
         }
 
-        let planningDict = data["planning"] as? [String: Any]
-        let preState = (planningDict?["pre_state"] as? [String: Any]).flatMap(PlanningState.from(dict:))
-        let postState = (planningDict?["post_state"] as? [String: Any]).flatMap(PlanningState.from(dict:))
-        let ambiguityScore = (data["ranking"] as? [String: Any])?["ambiguity_score"] as? Double
-
-        assertGovernedOutcome(transition: transition)
-        applyGraphOutcome(
-            transition: transition,
-            actionContract: actionContract,
-            actionResult: actionResult,
-            preState: preState,
-            postState: postState,
-            ambiguityScore: ambiguityScore
-        )
-
         let observation = ObservationBuilder.capture(appName: nil)
         let observationHash = ObservationHash.hash(observation)
         let repositorySnapshot = transition.domain == "code"
-            ? repositorySnapshot(forWorkspaceRoot: actionContract.workspaceRelativePath == nil ? (data["code_execution"] as? [String: Any])?["workspace_root"] as? String : intentWorkspaceRoot(from: data))
+            ? repositorySnapshot(forWorkspaceRoot: intentWorkspaceRoot(from: data))
             : nil
         let worldState = WorldState(
             observationHash: observationHash,
@@ -537,43 +520,6 @@ public final class OracleRuntime {
             observation: observation,
             repositorySnapshot: repositorySnapshot
         )
-    }
-
-    private func assertGovernedOutcome(transition: VerifiedTransition) {
-        _ = transition.recoveryTagged && transition.knowledgeTier == .stable
-        _ = transition.knowledgeTier == .stable
-    }
-
-    private func applyGraphOutcome(
-        transition: VerifiedTransition,
-        actionContract: ActionContract,
-        actionResult: ActionResult,
-        preState: PlanningState?,
-        postState: PlanningState?,
-        ambiguityScore: Double?
-    ) {
-        if actionResult.success, actionResult.verified {
-            context.graphStore.recordTransition(
-                transition,
-                actionContract: actionContract,
-                fromState: preState,
-                toState: postState
-            )
-        } else if let preState,
-                  let failureRaw = actionResult.failureClass,
-                  let failure = FailureClass(rawValue: failureRaw)
-        {
-            context.graphStore.recordFailure(
-                state: preState,
-                actionContract: actionContract,
-                failure: failure,
-                ambiguityScore: ambiguityScore,
-                recoveryTagged: transition.recoveryTagged
-            )
-        }
-
-        _ = context.graphStore.promoteEligibleEdges()
-        _ = context.graphStore.pruneOrDemoteEdges()
     }
 
     private func applyMemoryOutcome(

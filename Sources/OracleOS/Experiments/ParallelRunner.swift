@@ -2,9 +2,17 @@ import Foundation
 
 public final class ParallelRunner: @unchecked Sendable {
     private let workspaceRunner: WorkspaceRunner
+    private let repositoryIndexer: RepositoryIndexer
+    private let architectureEngine: ArchitectureEngine
 
-    public init(workspaceRunner: WorkspaceRunner = WorkspaceRunner()) {
+    public init(
+        workspaceRunner: WorkspaceRunner = WorkspaceRunner(),
+        repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
+        architectureEngine: ArchitectureEngine = ArchitectureEngine()
+    ) {
         self.workspaceRunner = workspaceRunner
+        self.repositoryIndexer = repositoryIndexer
+        self.architectureEngine = architectureEngine
     }
 
     public func run(
@@ -14,6 +22,8 @@ public final class ParallelRunner: @unchecked Sendable {
     ) async throws -> [ExperimentResult] {
         let workspaceRoot = URL(fileURLWithPath: spec.workspaceRoot, isDirectory: true)
         let workspaceRunner = self.workspaceRunner
+        let repositoryIndexer = self.repositoryIndexer
+        let architectureEngine = self.architectureEngine
 
         return try await withThrowingTaskGroup(of: ExperimentResult.self) { group in
             for candidate in spec.candidates {
@@ -66,13 +76,27 @@ public final class ParallelRunner: @unchecked Sendable {
                         results.append(try workspaceRunner.execute(spec: testCommand))
                     }
 
+                    let diffSummary = sandbox.diffSummary()
+                    let candidateSnapshot = repositoryIndexer.index(
+                        workspaceRoot: URL(fileURLWithPath: sandbox.sandboxPath, isDirectory: true)
+                    )
+                    let architectureReview = architectureEngine.reviewCandidatePatch(
+                        goalDescription: spec.goalDescription,
+                        snapshot: candidateSnapshot,
+                        candidate: candidate,
+                        diffSummary: diffSummary
+                    )
+                    let effectiveArchitectureRisk = max(architectureRiskScore, architectureReview.riskScore)
+
                     return ExperimentResult(
                         experimentID: spec.id,
                         candidate: candidate,
                         sandboxPath: sandbox.sandboxPath,
                         commandResults: results,
-                        diffSummary: sandbox.diffSummary(),
-                        architectureRiskScore: architectureRiskScore
+                        diffSummary: diffSummary,
+                        architectureRiskScore: effectiveArchitectureRisk,
+                        architectureFindings: architectureReview.findings,
+                        refactorProposalID: architectureReview.refactorProposal?.id
                     )
                 }
             }

@@ -4,6 +4,7 @@ public enum WorkflowPromotionStatus: String, Codable, Sendable, CaseIterable {
     case candidate
     case promoted
     case rejected
+    case stale
 }
 
 public struct WorkflowStep: Sendable, Identifiable {
@@ -47,6 +48,8 @@ public struct WorkflowPlan: Sendable, Identifiable {
     public let repeatedTraceSegmentCount: Int
     public let replayValidationSuccess: Double
     public let promotionStatus: WorkflowPromotionStatus
+    public let lastValidatedAt: Date?
+    public let lastSucceededAt: Date?
 
     public init(
         id: String = UUID().uuidString,
@@ -60,7 +63,9 @@ public struct WorkflowPlan: Sendable, Identifiable {
         evidenceTiers: [KnowledgeTier] = [.candidate],
         repeatedTraceSegmentCount: Int = 0,
         replayValidationSuccess: Double = 0,
-        promotionStatus: WorkflowPromotionStatus = .candidate
+        promotionStatus: WorkflowPromotionStatus = .candidate,
+        lastValidatedAt: Date? = nil,
+        lastSucceededAt: Date? = nil
     ) {
         self.id = id
         self.agentKind = agentKind
@@ -74,5 +79,7 @@ public struct WorkflowPlan: Sendable, Identifiable {
         self.repeatedTraceSegmentCount = repeatedTraceSegmentCount
         self.replayValidationSuccess = replayValidationSuccess
         self.promotionStatus = promotionStatus
+        self.lastValidatedAt = lastValidatedAt
+        self.lastSucceededAt = lastSucceededAt
     }
 }

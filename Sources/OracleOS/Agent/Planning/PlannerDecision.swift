@@ -3,6 +3,7 @@ import Foundation
 public enum PlannerSource: String, Codable, Sendable {
     case workflow
     case stableGraph = "stable_graph"
+    case candidateGraph = "candidate_graph"
     case exploration
     case recovery
 }
@@ -24,11 +25,13 @@ public struct PlannerDecision: Sendable {
     public let workflowStepID: String?
     public let pathEdgeIDs: [String]
     public let currentEdgeID: String?
+    public let graphSearchDiagnostics: GraphSearchDiagnostics?
     public let semanticQuery: ElementQuery?
     public let projectMemoryRefs: [ProjectMemoryRef]
     public let architectureFindings: [ArchitectureFinding]
     public let refactorProposalID: String?
     public let experimentSpec: ExperimentSpec?
+    public let experimentDecision: ExperimentDecision?
     public let experimentCandidateID: String?
     public let experimentSandboxPath: String?
     public let selectedExperimentCandidate: Bool?
@@ -51,11 +54,13 @@ public struct PlannerDecision: Sendable {
         workflowStepID: String? = nil,
         pathEdgeIDs: [String] = [],
         currentEdgeID: String? = nil,
+        graphSearchDiagnostics: GraphSearchDiagnostics? = nil,
         semanticQuery: ElementQuery? = nil,
         projectMemoryRefs: [ProjectMemoryRef] = [],
         architectureFindings: [ArchitectureFinding] = [],
         refactorProposalID: String? = nil,
         experimentSpec: ExperimentSpec? = nil,
+        experimentDecision: ExperimentDecision? = nil,
         experimentCandidateID: String? = nil,
         experimentSandboxPath: String? = nil,
         selectedExperimentCandidate: Bool? = nil,
@@ -77,11 +82,13 @@ public struct PlannerDecision: Sendable {
         self.workflowStepID = workflowStepID
         self.pathEdgeIDs = pathEdgeIDs
         self.currentEdgeID = currentEdgeID
+        self.graphSearchDiagnostics = graphSearchDiagnostics
         self.semanticQuery = semanticQuery
         self.projectMemoryRefs = projectMemoryRefs
         self.architectureFindings = architectureFindings
         self.refactorProposalID = refactorProposalID
         self.experimentSpec = experimentSpec
+        self.experimentDecision = experimentDecision
         self.experimentCandidateID = experimentCandidateID
         self.experimentSandboxPath = experimentSandboxPath
         self.selectedExperimentCandidate = selectedExperimentCandidate

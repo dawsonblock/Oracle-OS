@@ -1,22 +1,14 @@
 import Foundation
 
-public struct RecoveryAttempt: Sendable {
-    public let strategyName: String?
-    public let result: ActionResult
-
-    public init(strategyName: String?, result: ActionResult) {
-        self.strategyName = strategyName
-        self.result = result
-    }
-}
-
 @MainActor
 public final class RecoveryEngine {
 
     private let registry: RecoveryRegistry
+    private let selector: RecoveryStrategySelector
 
     public init(registry: RecoveryRegistry = .live()) {
         self.registry = registry
+        selector = RecoveryStrategySelector(registry: registry)
     }
 
     public func recover(
@@ -24,43 +16,40 @@ public final class RecoveryEngine {
         state: WorldState,
         memoryStore: AppMemoryStore? = nil
     ) async -> RecoveryAttempt {
-        let preferredStrategy = memoryStore.flatMap {
-            MemoryQuery.preferredRecoveryStrategy(app: state.observation.app ?? "unknown", store: $0)
-        }
-        let orderedStrategies = prioritize(
-            strategies: registry.strategies(for: failure),
-            preferredStrategy: preferredStrategy
+        let memoryStore = memoryStore ?? AppMemoryStore()
+        let orderedStrategies = selector.orderedStrategies(
+            for: failure,
+            state: state,
+            memoryStore: memoryStore
         )
 
         guard !orderedStrategies.isEmpty else {
             return RecoveryAttempt(
                 strategyName: nil,
-                result: ActionResult(
-                    success: false,
-                    verified: false,
-                    message: "No recovery strategy",
-                    failureClass: failure.rawValue
-                )
+                preparation: nil,
+                message: "No recovery strategy"
             )
         }
 
         for strategy in orderedStrategies {
             do {
-                let result = try await strategy.attempt(
+                if let preparation = try await strategy.prepare(
                     failure: failure,
-                    state: state
-                )
-                return RecoveryAttempt(strategyName: strategy.name, result: result)
+                    state: state,
+                    memoryStore: memoryStore
+                ) {
+                    return RecoveryAttempt(
+                        strategyName: strategy.name,
+                        preparation: preparation,
+                        message: "Prepared recovery strategy \(strategy.name)"
+                    )
+                }
             } catch {
                 if strategy.name == orderedStrategies.last?.name {
                     return RecoveryAttempt(
                         strategyName: strategy.name,
-                        result: ActionResult(
-                            success: false,
-                            verified: false,
-                            message: error.localizedDescription,
-                            failureClass: failure.rawValue
-                        )
+                        preparation: nil,
+                        message: error.localizedDescription
                     )
                 }
             }
@@ -68,24 +57,8 @@ public final class RecoveryEngine {
 
         return RecoveryAttempt(
             strategyName: nil,
-            result: ActionResult(
-                success: false,
-                verified: false,
-                message: "Recovery exhausted",
-                failureClass: failure.rawValue
-            )
+            preparation: nil,
+            message: "Recovery exhausted"
         )
-    }
-
-    private func prioritize(
-        strategies: [any RecoveryStrategy],
-        preferredStrategy: String?
-    ) -> [any RecoveryStrategy] {
-        guard let preferredStrategy else { return strategies }
-        return strategies.sorted { lhs, rhs in
-            if lhs.name == preferredStrategy { return true }
-            if rhs.name == preferredStrategy { return false }
-            return lhs.name < rhs.name
-        }
     }
 }
