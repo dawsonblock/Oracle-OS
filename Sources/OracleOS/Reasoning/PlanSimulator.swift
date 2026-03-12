@@ -135,6 +135,26 @@ public final class PlanSimulator: @unchecked Sendable {
             if reasoningState.patchApplied == false {
                 failureMode = "no-patch-to-revert"
             }
+        case .retryWithAlternateTarget:
+            probability += reasoningState.visibleTargets.count > 1 ? 0.12 : -0.08
+            if reasoningState.visibleTargets.isEmpty {
+                failureMode = "no-visible-targets"
+            }
+        case .focusWindow:
+            probability += reasoningState.targetApplication != nil ? 0.18 : -0.1
+            if reasoningState.targetApplication == nil {
+                failureMode = "missing-target-application"
+            }
+        case .restartApplication:
+            probability += reasoningState.targetApplication != nil ? 0.1 : -0.15
+            if reasoningState.targetApplication == nil {
+                failureMode = "missing-target-application"
+            }
+        case .rollbackPatch:
+            probability += reasoningState.patchApplied ? 0.14 : -0.08
+            if reasoningState.patchApplied == false {
+                failureMode = "no-patch-to-rollback"
+            }
         }
 
         let workflowMatch = workflowRetriever.retrieve(

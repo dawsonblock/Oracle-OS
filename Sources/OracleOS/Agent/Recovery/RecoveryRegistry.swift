@@ -41,6 +41,14 @@ public final class RecoveryRegistry {
         registry.register(failure: .noRelevantFiles, strategy: RefreshIndexStrategy())
         registry.register(failure: .ambiguousEditTarget, strategy: RefreshIndexStrategy())
         registry.register(failure: .gitPolicyBlocked, strategy: RefreshIndexStrategy())
+        registry.register(failure: .targetMissing, strategy: AlternateElementStrategy())
+        registry.register(failure: .targetMissing, strategy: RefreshObservationStrategy())
+        registry.register(failure: .permissionBlocked, strategy: DismissModalStrategy())
+        registry.register(failure: .permissionBlocked, strategy: RetryStrategy())
+        registry.register(failure: .unexpectedDialog, strategy: DismissModalStrategy())
+        registry.register(failure: .unexpectedDialog, strategy: RetryStrategy())
+        registry.register(failure: .environmentMismatch, strategy: RefreshIndexStrategy())
+        registry.register(failure: .environmentMismatch, strategy: RetryStrategy())
         return registry
     }
 }
