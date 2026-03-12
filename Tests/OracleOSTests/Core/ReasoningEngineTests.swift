@@ -92,6 +92,7 @@ struct ReasoningEngineTests {
         #expect(decision?.skillName == "press")
         #expect(decision?.source == .exploration)
         #expect(decision?.planDiagnostics?.selectedOperatorNames.first == "dismiss_modal")
+        #expect(decision?.promptDiagnostics?.templateKind == .planning)
     }
 
     @Test("Planner preserves workflow fallback when trusted workflow exists")

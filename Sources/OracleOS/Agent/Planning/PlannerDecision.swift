@@ -40,6 +40,7 @@ public struct PlannerDecision: Sendable {
     public let knowledgeTier: KnowledgeTier
     public let notes: [String]
     public let planDiagnostics: PlanDiagnostics?
+    public let promptDiagnostics: PromptDiagnostics?
     public let recoveryTagged: Bool
     public let recoveryStrategy: String?
     public let recoverySource: String?
@@ -71,6 +72,7 @@ public struct PlannerDecision: Sendable {
         knowledgeTier: KnowledgeTier? = nil,
         notes: [String] = [],
         planDiagnostics: PlanDiagnostics? = nil,
+        promptDiagnostics: PromptDiagnostics? = nil,
         recoveryTagged: Bool = false,
         recoveryStrategy: String? = nil,
         recoverySource: String? = nil
@@ -101,8 +103,44 @@ public struct PlannerDecision: Sendable {
         self.knowledgeTier = knowledgeTier ?? (recoveryTagged ? .recovery : (source == .exploration ? .exploration : .candidate))
         self.notes = notes
         self.planDiagnostics = planDiagnostics
+        self.promptDiagnostics = promptDiagnostics
         self.recoveryTagged = recoveryTagged
         self.recoveryStrategy = recoveryStrategy
         self.recoverySource = recoverySource
+    }
+
+    public func with(promptDiagnostics: PromptDiagnostics?) -> PlannerDecision {
+        PlannerDecision(
+            agentKind: agentKind,
+            skillName: skillName,
+            plannerFamily: plannerFamily,
+            stepPhase: stepPhase,
+            executionMode: executionMode,
+            actionContract: actionContract,
+            source: source,
+            workflowID: workflowID,
+            workflowStepID: workflowStepID,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
+            fallbackReason: fallbackReason,
+            graphSearchDiagnostics: graphSearchDiagnostics,
+            semanticQuery: semanticQuery,
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureFindings,
+            refactorProposalID: refactorProposalID,
+            experimentSpec: experimentSpec,
+            experimentDecision: experimentDecision,
+            experimentCandidateID: experimentCandidateID,
+            experimentSandboxPath: experimentSandboxPath,
+            selectedExperimentCandidate: selectedExperimentCandidate,
+            experimentOutcome: experimentOutcome,
+            knowledgeTier: knowledgeTier,
+            notes: notes,
+            planDiagnostics: planDiagnostics,
+            promptDiagnostics: promptDiagnostics,
+            recoveryTagged: recoveryTagged,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource
+        )
     }
 }
