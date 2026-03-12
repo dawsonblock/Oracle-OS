@@ -58,10 +58,11 @@ struct AmbiguousUITasks {
                     UnifiedElement(id: "done", source: .ax, role: "AXStaticText", label: "Done", focused: true, confidence: 0.97),
                 ]
             )
+            var recordedSources = [PlannerSource]()
             let loop = AgentLoop(
                 observationProvider: EvalObservationProvider([ambiguous, resolved]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
-                    EvalExecutionDriver.recordedSources.append(decision.source)
+                    recordedSources.append(decision.source)
                     return ToolResult(success: true, data: [
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
@@ -72,14 +73,13 @@ struct AmbiguousUITasks {
                 recoveryEngine: RecoveryEngine(),
                 memoryStore: AppMemoryStore()
             )
-            EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
                 goal: Goal(description: "click the correct submit button", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
             )
             return EvalRunSnapshot(
                 outcome: outcome,
-                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow),
+                usedStableGraph: recordedSources.contains(.stableGraph),
+                usedWorkflow: recordedSources.contains(.workflow),
                 recoveryAttempted: true
             )
         }
