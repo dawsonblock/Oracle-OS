@@ -7,6 +7,7 @@ enum WorkspaceSection: String, CaseIterable, Identifiable {
     case control
     case recipes
     case traces
+    case diagnostics
     case health
     case settings
 
@@ -17,6 +18,7 @@ enum WorkspaceSection: String, CaseIterable, Identifiable {
         case .control: return "Control"
         case .recipes: return "Recipes"
         case .traces: return "Traces"
+        case .diagnostics: return "Diagnostics"
         case .health: return "Health"
         case .settings: return "Settings"
         }
@@ -27,6 +29,7 @@ enum WorkspaceSection: String, CaseIterable, Identifiable {
         case .control: return "switch.2"
         case .recipes: return "text.badge.checkmark"
         case .traces: return "waveform.path.ecg.rectangle"
+        case .diagnostics: return "chart.xyaxis.line"
         case .health: return "cross.case"
         case .settings: return "slider.horizontal.3"
         }
@@ -123,6 +126,7 @@ final class ControllerStore {
     var session: ControllerSession?
     var snapshot: ControlSnapshot?
     var health: HealthStatus?
+    var diagnostics: ControllerDiagnosticsSnapshot?
     var productStatus: ProductEnvironmentStatus?
     var recipes: [RecipeDocument] = []
     var traceSessions: [TraceSessionSummary] = []
@@ -136,6 +140,11 @@ final class ControllerStore {
     var selectedRecipeName: String?
     var selectedTraceSessionID: String?
     var selectedTraceStepID: String?
+    var selectedGraphEdgeID: String?
+    var selectedWorkflowID: String?
+    var selectedExperimentID: String?
+    var selectedProjectMemoryID: String?
+    var selectedArchitectureFindingID: String?
 
     var actionComposer = ActionComposer()
     var recipeEditorMode: RecipeEditorMode = .form
@@ -208,6 +217,34 @@ final class ControllerStore {
         return traceDetail?.steps.first(where: { $0.id == selectedTraceStepID })
     }
 
+    var selectedGraphEdge: ControllerGraphEdgeDiagnostics? {
+        let edges = (diagnostics?.graph.stableEdges ?? [])
+            + (diagnostics?.graph.candidateEdges ?? [])
+            + (diagnostics?.graph.recoveryEdges ?? [])
+        guard let selectedGraphEdgeID else { return edges.first }
+        return edges.first(where: { $0.id == selectedGraphEdgeID })
+    }
+
+    var selectedWorkflowDiagnostics: ControllerWorkflowDiagnostics? {
+        guard let selectedWorkflowID else { return diagnostics?.workflows.first }
+        return diagnostics?.workflows.first(where: { $0.id == selectedWorkflowID })
+    }
+
+    var selectedExperimentDiagnostics: ControllerExperimentDiagnostics? {
+        guard let selectedExperimentID else { return diagnostics?.experiments.first }
+        return diagnostics?.experiments.first(where: { $0.id == selectedExperimentID })
+    }
+
+    var selectedProjectMemoryDiagnostics: ControllerProjectMemoryDiagnostics? {
+        guard let selectedProjectMemoryID else { return diagnostics?.projectMemory.first }
+        return diagnostics?.projectMemory.first(where: { $0.id == selectedProjectMemoryID })
+    }
+
+    var selectedArchitectureFindingDiagnostics: ControllerArchitectureFindingDiagnostics? {
+        guard let selectedArchitectureFindingID else { return diagnostics?.architectureFindings.first }
+        return diagnostics?.architectureFindings.first(where: { $0.id == selectedArchitectureFindingID })
+    }
+
     init() {
         self.hostClient = HostProcessClient { [weak self] event in
             self?.handle(event)
@@ -233,6 +270,7 @@ final class ControllerStore {
             }
             let response = try await send(.init(command: .bootstrap, appName: monitorAppName.nilIfBlank))
             applyBootstrap(response.bootstrap)
+            await loadDiagnostics()
             isLoaded = true
         } catch {
             errorMessage = error.localizedDescription
@@ -337,7 +375,8 @@ final class ControllerStore {
                 approvals: approvalQueue,
                 traceDetail: traceDetail,
                 recipes: recipes,
-                productStatus: productStatus
+                productStatus: productStatus,
+                diagnostics: diagnostics
             )
             inlineMessage = "Exported diagnostics to \(destination.lastPathComponent)."
             NSWorkspace.shared.activateFileViewerSelecting([destination])
@@ -392,6 +431,24 @@ final class ControllerStore {
             if let health = response.health {
                 self.health = health
             }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadDiagnostics() async {
+        do {
+            let response = try await send(.init(command: .getDiagnostics))
+            guard let diagnostics = response.diagnostics else { return }
+            self.diagnostics = diagnostics
+            selectedGraphEdgeID = selectedGraphEdgeID
+                ?? diagnostics.graph.stableEdges.first?.id
+                ?? diagnostics.graph.candidateEdges.first?.id
+                ?? diagnostics.graph.recoveryEdges.first?.id
+            selectedWorkflowID = selectedWorkflowID ?? diagnostics.workflows.first?.id
+            selectedExperimentID = selectedExperimentID ?? diagnostics.experiments.first?.id
+            selectedProjectMemoryID = selectedProjectMemoryID ?? diagnostics.projectMemory.first?.id
+            selectedArchitectureFindingID = selectedArchitectureFindingID ?? diagnostics.architectureFindings.first?.id
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -611,6 +668,7 @@ final class ControllerStore {
                 if let traceSessionID = recipeRun.traceSessionID {
                     await loadTraceSession(id: traceSessionID)
                 }
+                await loadDiagnostics()
             } else {
                 errorMessage = response.errorMessage ?? "Recipe run failed"
             }
@@ -644,6 +702,7 @@ final class ControllerStore {
             self.selectedTraceSessionID = id
             self.selectedTraceStepID = traceDetail.steps.first?.id
             self.selectedSection = .traces
+            await loadDiagnostics()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -706,6 +765,7 @@ final class ControllerStore {
             if let action = event.action {
                 record(action)
             }
+            Task { await loadDiagnostics() }
 
         case .observationUpdated:
             session = event.session ?? session
@@ -717,12 +777,14 @@ final class ControllerStore {
             if let traceStep = event.traceStep {
                 append(traceStep)
             }
+            Task { await loadDiagnostics() }
 
         case .healthChanged:
             session = event.session ?? session
             if let health = event.health {
                 self.health = health
             }
+            Task { await loadDiagnostics() }
 
         case .recipesChanged:
             if let recipes = event.recipes {

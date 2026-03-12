@@ -28,6 +28,41 @@ public struct WorkflowPromotionPolicy: Sendable {
         guard !plan.evidenceTiers.contains(.recovery), !plan.evidenceTiers.contains(.experiment) else {
             return false
         }
+        guard !containsUntypedEpisodeResidue(plan) else {
+            return false
+        }
         return true
+    }
+
+    private func containsUntypedEpisodeResidue(_ plan: WorkflowPlan) -> Bool {
+        let parameterPrefixes = Set(plan.parameterSlots.compactMap { $0.split(separator: "_").first.map(String.init) })
+        let inspectedTexts = [
+            plan.goalPattern,
+        ] + plan.steps.flatMap { step in
+            [
+                step.actionContract.workspaceRelativePath,
+                step.actionContract.targetLabel,
+                step.semanticQuery?.text,
+            ].compactMap { $0 } + step.notes
+        }
+
+        let containsTempPath = inspectedTexts.contains {
+            $0.contains("/tmp/")
+                || $0.contains("/private/var/")
+                || $0.contains("/var/folders/")
+                || $0.contains("/.oracle/experiments/")
+        }
+        if containsTempPath, !parameterPrefixes.contains("path"), !parameterPrefixes.contains("repository") {
+            return true
+        }
+
+        let uuidLikePattern = #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#
+        if inspectedTexts.contains(where: { $0.range(of: uuidLikePattern, options: .regularExpression) != nil }),
+           parameterPrefixes.isEmpty
+        {
+            return true
+        }
+
+        return false
     }
 }

@@ -1,5 +1,8 @@
 import Foundation
 
+// Planner chooses execution structure only: workflow, graph path, graph edge,
+// or bounded exploration. It must not resolve exact UI targets, mutate files,
+// execute commands, or inline recovery mechanics.
 public final class Planner: @unchecked Sendable {
     private var currentGoal: Goal?
     public let workflowIndex: WorkflowIndex

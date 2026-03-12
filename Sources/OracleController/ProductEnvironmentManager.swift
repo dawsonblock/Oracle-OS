@@ -111,7 +111,8 @@ final class ProductEnvironmentManager {
         approvals: [ApprovalRequestDocument],
         traceDetail: TraceSessionDetail?,
         recipes: [RecipeDocument],
-        productStatus: ProductEnvironmentStatus?
+        productStatus: ProductEnvironmentStatus?,
+        diagnostics: ControllerDiagnosticsSnapshot?
     ) throws -> URL {
         try OracleProductPaths.ensureUserDirectories()
         let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
@@ -126,6 +127,7 @@ final class ProductEnvironmentManager {
             "trace_detail": traceDetail.map(Self.encodeDictionary) as Any,
             "recipes": recipes.map(Self.encodeDictionary),
             "product_status": productStatus.map(Self.encodeProductStatus) as Any,
+            "diagnostics": diagnostics.map(Self.encodeDictionary) as Any,
         ]
 
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])

@@ -1,5 +1,8 @@
 import Foundation
 
+// WorkflowSynthesizer may only promote reusable, parameterized structure from
+// repeated verified traces. Episode-specific residue must remain in trace or
+// artifact storage unless it is explicitly lifted into typed parameters.
 public struct WorkflowSynthesizer: Sendable {
     private let replayValidator: WorkflowReplayValidator
     private let promotionPolicy: WorkflowPromotionPolicy

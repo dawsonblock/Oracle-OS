@@ -198,6 +198,37 @@ struct WorkflowSynthesisTests {
         #expect(match == nil)
     }
 
+    @Test("Workflow promotion rejects untyped episode residue")
+    func workflowPromotionRejectsEpisodeResidue() {
+        let policy = WorkflowPromotionPolicy()
+        let plan = WorkflowPlan(
+            agentKind: .code,
+            goalPattern: "repair parser failure",
+            steps: [
+                WorkflowStep(
+                    agentKind: .code,
+                    stepPhase: .engineering,
+                    actionContract: ActionContract(
+                        id: "edit|parser",
+                        agentKind: .code,
+                        skillName: "edit_file",
+                        targetRole: nil,
+                        targetLabel: "Parser.swift",
+                        locatorStrategy: "path",
+                        workspaceRelativePath: "/tmp/oracle-run-123/.oracle/experiments/exp-1/candidate-a/Sources/Parser.swift"
+                    )
+                ),
+            ],
+            successRate: 0.95,
+            sourceTraceRefs: ["s1:1", "s2:1", "s3:1"],
+            repeatedTraceSegmentCount: 3,
+            replayValidationSuccess: 1,
+            promotionStatus: .candidate
+        )
+
+        #expect(policy.shouldPromote(plan) == false)
+    }
+
     private func workflowEvent(
         sessionID: String,
         taskID: String,

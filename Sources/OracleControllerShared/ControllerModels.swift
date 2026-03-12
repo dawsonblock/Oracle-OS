@@ -470,6 +470,346 @@ public struct HealthStatus: Codable, Sendable, Equatable {
     }
 }
 
+public struct ControllerGraphEdgeDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let actionContractID: String
+    public let fromPlanningStateID: String
+    public let toPlanningStateID: String
+    public let agentKind: String
+    public let domain: String
+    public let workspaceRelativePath: String?
+    public let commandCategory: String?
+    public let plannerFamily: String?
+    public let knowledgeTier: String
+    public let attempts: Int
+    public let successRate: Double
+    public let averageLatencyMs: Double
+    public let targetAmbiguityRate: Double
+    public let rollingSuccessRate: Double
+    public let recoveryTagged: Bool
+    public let approvalRequired: Bool
+    public let approvalOutcome: String?
+    public let lastSuccessAt: Date?
+    public let lastAttemptAt: Date?
+    public let failureHistogram: [String: Int]
+    public let promotionEligible: Bool
+
+    public init(
+        id: String,
+        actionContractID: String,
+        fromPlanningStateID: String,
+        toPlanningStateID: String,
+        agentKind: String,
+        domain: String,
+        workspaceRelativePath: String? = nil,
+        commandCategory: String? = nil,
+        plannerFamily: String? = nil,
+        knowledgeTier: String,
+        attempts: Int,
+        successRate: Double,
+        averageLatencyMs: Double,
+        targetAmbiguityRate: Double,
+        rollingSuccessRate: Double,
+        recoveryTagged: Bool,
+        approvalRequired: Bool,
+        approvalOutcome: String? = nil,
+        lastSuccessAt: Date? = nil,
+        lastAttemptAt: Date? = nil,
+        failureHistogram: [String: Int] = [:],
+        promotionEligible: Bool
+    ) {
+        self.id = id
+        self.actionContractID = actionContractID
+        self.fromPlanningStateID = fromPlanningStateID
+        self.toPlanningStateID = toPlanningStateID
+        self.agentKind = agentKind
+        self.domain = domain
+        self.workspaceRelativePath = workspaceRelativePath
+        self.commandCategory = commandCategory
+        self.plannerFamily = plannerFamily
+        self.knowledgeTier = knowledgeTier
+        self.attempts = attempts
+        self.successRate = successRate
+        self.averageLatencyMs = averageLatencyMs
+        self.targetAmbiguityRate = targetAmbiguityRate
+        self.rollingSuccessRate = rollingSuccessRate
+        self.recoveryTagged = recoveryTagged
+        self.approvalRequired = approvalRequired
+        self.approvalOutcome = approvalOutcome
+        self.lastSuccessAt = lastSuccessAt
+        self.lastAttemptAt = lastAttemptAt
+        self.failureHistogram = failureHistogram
+        self.promotionEligible = promotionEligible
+    }
+}
+
+public struct ControllerGraphDiagnostics: Codable, Sendable, Equatable {
+    public let stableEdges: [ControllerGraphEdgeDiagnostics]
+    public let candidateEdges: [ControllerGraphEdgeDiagnostics]
+    public let recoveryEdges: [ControllerGraphEdgeDiagnostics]
+    public let promotionEligibleCount: Int
+    public let promotionsFrozen: Bool
+    public let globalSuccessRate: Double
+
+    public init(
+        stableEdges: [ControllerGraphEdgeDiagnostics],
+        candidateEdges: [ControllerGraphEdgeDiagnostics],
+        recoveryEdges: [ControllerGraphEdgeDiagnostics],
+        promotionEligibleCount: Int,
+        promotionsFrozen: Bool,
+        globalSuccessRate: Double
+    ) {
+        self.stableEdges = stableEdges
+        self.candidateEdges = candidateEdges
+        self.recoveryEdges = recoveryEdges
+        self.promotionEligibleCount = promotionEligibleCount
+        self.promotionsFrozen = promotionsFrozen
+        self.globalSuccessRate = globalSuccessRate
+    }
+}
+
+public struct ControllerWorkflowDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let goalPattern: String
+    public let agentKind: String
+    public let promotionStatus: String
+    public let successRate: Double
+    public let replayValidationSuccess: Double
+    public let repeatedTraceSegmentCount: Int
+    public let stepCount: Int
+    public let parameterSlots: [String]
+    public let sourceTraceRefs: [String]
+    public let sourceGraphEdgeRefs: [String]
+    public let stale: Bool
+
+    public init(
+        id: String,
+        goalPattern: String,
+        agentKind: String,
+        promotionStatus: String,
+        successRate: Double,
+        replayValidationSuccess: Double,
+        repeatedTraceSegmentCount: Int,
+        stepCount: Int,
+        parameterSlots: [String],
+        sourceTraceRefs: [String],
+        sourceGraphEdgeRefs: [String],
+        stale: Bool
+    ) {
+        self.id = id
+        self.goalPattern = goalPattern
+        self.agentKind = agentKind
+        self.promotionStatus = promotionStatus
+        self.successRate = successRate
+        self.replayValidationSuccess = replayValidationSuccess
+        self.repeatedTraceSegmentCount = repeatedTraceSegmentCount
+        self.stepCount = stepCount
+        self.parameterSlots = parameterSlots
+        self.sourceTraceRefs = sourceTraceRefs
+        self.sourceGraphEdgeRefs = sourceGraphEdgeRefs
+        self.stale = stale
+    }
+}
+
+public struct ControllerExperimentCandidateDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let summary: String
+    public let workspaceRelativePath: String
+    public let hypothesis: String?
+    public let selected: Bool
+    public let succeeded: Bool
+    public let architectureRiskScore: Double
+    public let sandboxPath: String
+    public let diffSummary: String
+    public let buildSummary: String?
+    public let testSummary: String?
+    public let architectureFindings: [String]
+
+    public init(
+        id: String,
+        title: String,
+        summary: String,
+        workspaceRelativePath: String,
+        hypothesis: String? = nil,
+        selected: Bool,
+        succeeded: Bool,
+        architectureRiskScore: Double,
+        sandboxPath: String,
+        diffSummary: String,
+        buildSummary: String? = nil,
+        testSummary: String? = nil,
+        architectureFindings: [String]
+    ) {
+        self.id = id
+        self.title = title
+        self.summary = summary
+        self.workspaceRelativePath = workspaceRelativePath
+        self.hypothesis = hypothesis
+        self.selected = selected
+        self.succeeded = succeeded
+        self.architectureRiskScore = architectureRiskScore
+        self.sandboxPath = sandboxPath
+        self.diffSummary = diffSummary
+        self.buildSummary = buildSummary
+        self.testSummary = testSummary
+        self.architectureFindings = architectureFindings
+    }
+}
+
+public struct ControllerExperimentDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let candidateCount: Int
+    public let selectedCandidateID: String?
+    public let winningSandboxPath: String?
+    public let succeededCandidateCount: Int
+    public let candidates: [ControllerExperimentCandidateDiagnostics]
+
+    public init(
+        id: String,
+        candidateCount: Int,
+        selectedCandidateID: String? = nil,
+        winningSandboxPath: String? = nil,
+        succeededCandidateCount: Int,
+        candidates: [ControllerExperimentCandidateDiagnostics]
+    ) {
+        self.id = id
+        self.candidateCount = candidateCount
+        self.selectedCandidateID = selectedCandidateID
+        self.winningSandboxPath = winningSandboxPath
+        self.succeededCandidateCount = succeededCandidateCount
+        self.candidates = candidates
+    }
+}
+
+public struct ControllerRecoveryStrategyDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let attempts: Int
+    public let successes: Int
+    public let failures: Int
+    public let failureHistogram: [String: Int]
+
+    public init(
+        id: String,
+        attempts: Int,
+        successes: Int,
+        failures: Int,
+        failureHistogram: [String: Int]
+    ) {
+        self.id = id
+        self.attempts = attempts
+        self.successes = successes
+        self.failures = failures
+        self.failureHistogram = failureHistogram
+    }
+}
+
+public struct ControllerRecoveryDiagnostics: Codable, Sendable, Equatable {
+    public let recoveryStepCount: Int
+    public let strategies: [ControllerRecoveryStrategyDiagnostics]
+
+    public init(recoveryStepCount: Int, strategies: [ControllerRecoveryStrategyDiagnostics]) {
+        self.recoveryStepCount = recoveryStepCount
+        self.strategies = strategies
+    }
+}
+
+public struct ControllerProjectMemoryDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let summary: String
+    public let kind: String
+    public let knowledgeClass: String
+    public let status: String
+    public let path: String
+    public let affectedModules: [String]
+    public let evidenceRefs: [String]
+
+    public init(
+        id: String,
+        title: String,
+        summary: String,
+        kind: String,
+        knowledgeClass: String,
+        status: String,
+        path: String,
+        affectedModules: [String],
+        evidenceRefs: [String]
+    ) {
+        self.id = id
+        self.title = title
+        self.summary = summary
+        self.kind = kind
+        self.knowledgeClass = knowledgeClass
+        self.status = status
+        self.path = path
+        self.affectedModules = affectedModules
+        self.evidenceRefs = evidenceRefs
+    }
+}
+
+public struct ControllerArchitectureFindingDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let summary: String
+    public let severity: String
+    public let affectedModules: [String]
+    public let evidence: [String]
+    public let riskScore: Double
+    public let occurrences: Int
+    public let governanceRuleID: String?
+
+    public init(
+        id: String,
+        title: String,
+        summary: String,
+        severity: String,
+        affectedModules: [String],
+        evidence: [String],
+        riskScore: Double,
+        occurrences: Int,
+        governanceRuleID: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.summary = summary
+        self.severity = severity
+        self.affectedModules = affectedModules
+        self.evidence = evidence
+        self.riskScore = riskScore
+        self.occurrences = occurrences
+        self.governanceRuleID = governanceRuleID
+    }
+}
+
+public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
+    public let generatedAt: Date
+    public let graph: ControllerGraphDiagnostics
+    public let workflows: [ControllerWorkflowDiagnostics]
+    public let experiments: [ControllerExperimentDiagnostics]
+    public let recovery: ControllerRecoveryDiagnostics
+    public let projectMemory: [ControllerProjectMemoryDiagnostics]
+    public let architectureFindings: [ControllerArchitectureFindingDiagnostics]
+
+    public init(
+        generatedAt: Date = Date(),
+        graph: ControllerGraphDiagnostics,
+        workflows: [ControllerWorkflowDiagnostics],
+        experiments: [ControllerExperimentDiagnostics],
+        recovery: ControllerRecoveryDiagnostics,
+        projectMemory: [ControllerProjectMemoryDiagnostics],
+        architectureFindings: [ControllerArchitectureFindingDiagnostics]
+    ) {
+        self.generatedAt = generatedAt
+        self.graph = graph
+        self.workflows = workflows
+        self.experiments = experiments
+        self.recovery = recovery
+        self.projectMemory = projectMemory
+        self.architectureFindings = architectureFindings
+    }
+}
+
 public struct TraceSessionSummary: Codable, Sendable, Equatable, Identifiable {
     public let id: String
     public let stepCount: Int

@@ -27,6 +27,21 @@ public struct InvariantChecker: Sendable {
             )
         }
 
+        if moduleSet.contains("Agent/Loop"),
+           moduleSet.intersection(["Experiments", "Architecture", "Core/Ranking", "Agent/Planning"]).isEmpty == false
+        {
+            violations.append(
+                GovernanceViolation(
+                    ruleID: .executionTruthPath,
+                    severity: .hardFail,
+                    title: "Loop orchestration drift",
+                    summary: "AgentLoop changes are coupled to subsystem internals. Keep the loop orchestration-only and route subsystem work through dedicated coordinators.",
+                    affectedModules: Array(moduleSet).sorted(),
+                    evidence: candidatePaths
+                )
+            )
+        }
+
         if moduleSet.contains("Core/Execution"),
            moduleSet.contains("Core/Policy"),
            !moduleSet.contains("Runtime")
@@ -71,6 +86,19 @@ public struct InvariantChecker: Sendable {
                     severity: .hardFail,
                     title: "Target resolution bypass risk",
                     summary: "Target-bearing OS skills changed without ranking or world-query changes in scope. Ranking bypass is not allowed.",
+                    affectedModules: Array(moduleSet).sorted(),
+                    evidence: candidatePaths
+                )
+            )
+        } else if moduleSet.contains("Agent/Planning"),
+                  moduleSet.intersection(["Core/Ranking", "CodeExecution", "Core/World"]).isEmpty == false
+        {
+            violations.append(
+                GovernanceViolation(
+                    ruleID: .hierarchicalPlanning,
+                    severity: .hardFail,
+                    title: "Planner/local-resolution boundary drift",
+                    summary: "Planner changes are crossing into ranking, world-query, or command-execution layers. Planners choose structure; local resolvers choose concrete actions.",
                     affectedModules: Array(moduleSet).sorted(),
                     evidence: candidatePaths
                 )

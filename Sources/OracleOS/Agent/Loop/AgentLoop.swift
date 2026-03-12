@@ -1,5 +1,9 @@
 import Foundation
 
+// AgentLoop is the authoritative runtime spine for orchestration only.
+// It may observe state, ask planners for structure, invoke policy/execution,
+// coordinate recovery, and terminate runs. It must not absorb local ranking,
+// patch scoring, experiment result comparison, or direct world mutation logic.
 @MainActor
 public final class AgentLoop {
     private struct RunState {

@@ -146,16 +146,6 @@ public final class VerifiedActionExecutor {
             blockedByPolicy: policyDecision?.blockedByPolicy ?? false
         )
 
-        recordGraphOutcome(
-            transition: verifiedTransition,
-            actionContract: actionContract,
-            actionResult: actionResult,
-            preState: prePlanningState,
-            postState: postPlanningState,
-            ambiguityScore: candidateAmbiguityScore,
-            failureClass: failureClass
-        )
-
         let event = TraceEvent(
             sessionID: sessionID,
             taskID: taskID,
@@ -365,42 +355,6 @@ public final class VerifiedActionExecutor {
         execute: () -> ToolResult
     ) -> ToolResult {
         VerifiedActionExecutor().run(intent: intent, execute: execute)
-    }
-
-    private func recordGraphOutcome(
-        transition: VerifiedTransition,
-        actionContract: ActionContract,
-        actionResult: ActionResult,
-        preState: PlanningState,
-        postState: PlanningState,
-        ambiguityScore: Double?,
-        failureClass: FailureClass?
-    ) {
-        guard let graphStore else {
-            return
-        }
-
-        if actionResult.success, actionResult.verified {
-            graphStore.recordTransition(
-                transition,
-                actionContract: actionContract,
-                fromState: preState,
-                toState: postState
-            )
-        } else if let failureClass {
-            graphStore.recordFailure(
-                state: preState,
-                actionContract: actionContract,
-                failure: failureClass,
-                ambiguityScore: ambiguityScore,
-                recoveryTagged: transition.recoveryTagged
-            )
-        } else {
-            return
-        }
-
-        _ = graphStore.promoteEligibleEdges()
-        _ = graphStore.pruneOrDemoteEdges()
     }
 
     private func captureVerifiedPostObservation(

@@ -16,6 +16,7 @@ public enum ControllerHostCommand: String, Codable, Sendable {
     case listTraceSessions
     case loadTraceSession
     case getHealth
+    case getDiagnostics
     case setMonitoring
     case ping
 }
@@ -109,6 +110,7 @@ public struct ControllerHostResponse: Codable, Sendable {
     public let traceSessions: [TraceSessionSummary]?
     public let traceDetail: TraceSessionDetail?
     public let health: HealthStatus?
+    public let diagnostics: ControllerDiagnosticsSnapshot?
     public let errorMessage: String?
 
     public init(
@@ -125,6 +127,7 @@ public struct ControllerHostResponse: Codable, Sendable {
         traceSessions: [TraceSessionSummary]? = nil,
         traceDetail: TraceSessionDetail? = nil,
         health: HealthStatus? = nil,
+        diagnostics: ControllerDiagnosticsSnapshot? = nil,
         errorMessage: String? = nil
     ) {
         self.requestID = requestID
@@ -140,6 +143,7 @@ public struct ControllerHostResponse: Codable, Sendable {
         self.traceSessions = traceSessions
         self.traceDetail = traceDetail
         self.health = health
+        self.diagnostics = diagnostics
         self.errorMessage = errorMessage
     }
 }
