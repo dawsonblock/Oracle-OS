@@ -287,6 +287,6 @@ public final class LoopExperimentCoordinator {
         else {
             return nil
         }
-        return repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
+        return repositoryIndexer.indexIfNeeded(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
     }
 }

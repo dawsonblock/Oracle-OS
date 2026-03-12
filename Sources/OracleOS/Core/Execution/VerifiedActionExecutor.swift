@@ -497,7 +497,7 @@ public final class VerifiedActionExecutor {
             return nil
         }
 
-        return RepositoryIndexer().index(
+        return RepositoryIndexer().indexIfNeeded(
             workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
         )
     }

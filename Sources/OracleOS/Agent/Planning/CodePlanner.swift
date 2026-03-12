@@ -6,6 +6,8 @@ public final class CodePlanner: @unchecked Sendable {
     public let maxTestAttempts: Int
     public let directRepairThreshold: Double
     private let repositoryIndexer: RepositoryIndexer
+    private let codeQueryEngine: CodeQueryEngine
+    private let impactAnalyzer: RepositoryChangeImpactAnalyzer
     private let architectureEngine: ArchitectureEngine
     private let graphPlanner: GraphPlanner
     private let workflowIndex: WorkflowIndex
@@ -18,6 +20,8 @@ public final class CodePlanner: @unchecked Sendable {
         maxTestAttempts: Int = 5,
         directRepairThreshold: Double = 0.7,
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
+        codeQueryEngine: CodeQueryEngine = CodeQueryEngine(),
+        impactAnalyzer: RepositoryChangeImpactAnalyzer = RepositoryChangeImpactAnalyzer(),
         architectureEngine: ArchitectureEngine = ArchitectureEngine(),
         graphPlanner: GraphPlanner = GraphPlanner(),
         workflowIndex: WorkflowIndex = WorkflowIndex(),
@@ -29,6 +33,8 @@ public final class CodePlanner: @unchecked Sendable {
         self.maxTestAttempts = maxTestAttempts
         self.directRepairThreshold = directRepairThreshold
         self.repositoryIndexer = repositoryIndexer
+        self.codeQueryEngine = codeQueryEngine
+        self.impactAnalyzer = impactAnalyzer
         self.architectureEngine = architectureEngine
         self.graphPlanner = graphPlanner
         self.workflowIndex = workflowIndex
@@ -44,7 +50,7 @@ public final class CodePlanner: @unchecked Sendable {
     ) -> PlannerDecision? {
         guard let workspaceRoot = taskContext.workspaceRoot else { return nil }
         let snapshot = worldState.repositorySnapshot
-            ?? repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
+            ?? repositoryIndexer.indexIfNeeded(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
         let enrichedWorldState = WorldState(
             observationHash: worldState.observationHash,
             planningState: worldState.planningState,
@@ -461,7 +467,11 @@ public final class CodePlanner: @unchecked Sendable {
             candidates.append(preferredPath)
         }
 
-        candidates.append(contentsOf: RepositoryQuery.likelyFiles(for: taskContext.goal.description, in: snapshot))
+        let likelyRootCauses = codeQueryEngine.findLikelyRootCause(
+            failureDescription: taskContext.goal.description,
+            in: snapshot
+        )
+        candidates.append(contentsOf: likelyRootCauses.map(\.path))
         candidates.append(contentsOf: memoryInfluence.preferredPaths)
 
         if candidates.isEmpty {
@@ -473,23 +483,38 @@ public final class CodePlanner: @unchecked Sendable {
 
         let preferredPaths = Set(memoryInfluence.preferredPaths)
         let avoidedPaths = Set(memoryInfluence.avoidedPaths)
-
-        return orderedUnique(candidates).sorted { lhs, rhs in
-            let lhsScore = candidatePathScore(
-                path: lhs,
-                preferredPaths: preferredPaths,
-                avoidedPaths: avoidedPaths
-            )
-            let rhsScore = candidatePathScore(
-                path: rhs,
-                preferredPaths: preferredPaths,
-                avoidedPaths: avoidedPaths
-            )
-            if lhsScore == rhsScore {
-                return lhs < rhs
-            }
-            return lhsScore > rhsScore
+        let ranked = impactAnalyzer.rankCandidates(
+            orderedUnique(candidates),
+            in: snapshot,
+            preferredPaths: preferredPaths,
+            avoidedPaths: avoidedPaths
+        )
+        let strongCandidates: [RankedCodeCandidate]
+        if let topScore = ranked.first?.score {
+            let threshold = max(0.35, topScore - 0.2)
+            strongCandidates = ranked.filter { $0.score >= threshold }
+        } else {
+            strongCandidates = ranked
         }
+
+        if let preferredPath = memoryInfluence.preferredFixPath,
+           let preferredMatch = strongCandidates.first(where: { $0.path == preferredPath }),
+           let topCandidate = strongCandidates.first,
+           preferredMatch.score >= topCandidate.score - 0.1
+        {
+            return [preferredPath]
+        }
+
+        if let best = strongCandidates.first {
+            let secondBestScore = strongCandidates.dropFirst().first?.score ?? 0
+            let clearMargin = best.score - secondBestScore >= 0.15
+            let preferredWinner = preferredPaths.contains(best.path)
+                || memoryInfluence.preferredFixPath == best.path
+            if preferredWinner && clearMargin {
+                return [best.path]
+            }
+        }
+        return strongCandidates.map(\.path)
     }
 
     private func graphNotes(prefix: String, diagnostics: GraphSearchDiagnostics) -> [String] {
@@ -521,10 +546,38 @@ public final class CodePlanner: @unchecked Sendable {
         }
 
         let workspaceURL = URL(fileURLWithPath: workspaceRoot, isDirectory: true)
+        let rankedCandidatePaths: [String]
+        if candidatePaths.isEmpty == false {
+            rankedCandidatePaths = Array(candidatePaths.prefix(2))
+        } else {
+            let searchScores = Dictionary(
+                uniqueKeysWithValues: CodeSearch()
+                    .search(query: taskContext.goal.description, in: snapshot)
+                    .map { ($0.path, $0.score) }
+            )
+            let impactScores = Dictionary(
+                uniqueKeysWithValues: impactAnalyzer.rankCandidates(
+                    taskContext.experimentCandidates.map(\.workspaceRelativePath),
+                    in: snapshot
+                ).map { ($0.path, $0.score) }
+            )
+            rankedCandidatePaths = orderedUnique(taskContext.experimentCandidates.map(\.workspaceRelativePath)).sorted { lhs, rhs in
+                let lhsScore = impactScores[lhs, default: 0] + searchScores[lhs, default: 0]
+                let rhsScore = impactScores[rhs, default: 0] + searchScores[rhs, default: 0]
+                if lhsScore == rhsScore {
+                    return lhs < rhs
+                }
+                return lhsScore > rhsScore
+            }
+        }
         return ExperimentSpec(
             goalDescription: taskContext.goal.description,
             workspaceRoot: workspaceRoot,
-            candidates: Array(taskContext.experimentCandidates.prefix(taskContext.maxExperimentCandidates)),
+            candidates: rankedExperimentCandidates(
+                taskContext.experimentCandidates,
+                candidatePaths: rankedCandidatePaths,
+                maxCount: taskContext.maxExperimentCandidates
+            ),
             buildCommand: BuildToolDetector.defaultBuildCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL),
             testCommand: BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL)
         )
@@ -653,19 +706,26 @@ public final class CodePlanner: @unchecked Sendable {
             || description.contains("error")
     }
 
-    private func candidatePathScore(
-        path: String,
-        preferredPaths: Set<String>,
-        avoidedPaths: Set<String>
-    ) -> Int {
-        var score = 0
-        if preferredPaths.contains(path) {
-            score += 2
+    private func rankedExperimentCandidates(
+        _ candidates: [CandidatePatch],
+        candidatePaths: [String],
+        maxCount: Int
+    ) -> [CandidatePatch] {
+        let order = Dictionary(uniqueKeysWithValues: candidatePaths.enumerated().map { ($1, $0) })
+        let effectiveLimit = min(maxCount, max(1, min(2, candidatePaths.count)))
+        let preferred = candidates.filter { order[$0.workspaceRelativePath] != nil }
+            .sorted { lhs, rhs in
+                let lhsRank = order[lhs.workspaceRelativePath] ?? .max
+                let rhsRank = order[rhs.workspaceRelativePath] ?? .max
+                if lhsRank == rhsRank {
+                    return lhs.workspaceRelativePath < rhs.workspaceRelativePath
+                }
+                return lhsRank < rhsRank
+            }
+        if !preferred.isEmpty {
+            return Array(preferred.prefix(effectiveLimit))
         }
-        if avoidedPaths.contains(path) {
-            score -= 2
-        }
-        return score
+        return Array(candidates.prefix(maxCount))
     }
 
     private func commandCategory(for skillName: String) -> CodeCommandCategory? {

@@ -622,7 +622,7 @@ public final class OracleRuntime {
         do {
             switch command.category {
             case .indexRepository:
-                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let snapshot = context.repositoryIndexer.indexIfNeeded(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
                 return ToolResult(
                     success: true,
                     data: [
@@ -636,13 +636,14 @@ public final class OracleRuntime {
                     ]
                 )
             case .searchCode:
-                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
-                let matches = RepositoryQuery.files(matching: intent.text ?? intent.query ?? "", in: snapshot)
+                let snapshot = context.repositoryIndexer.indexIfNeeded(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let query = intent.text ?? intent.query ?? ""
+                let matches = CodeSearch().search(query: query, in: snapshot)
                 return ToolResult(
                     success: true,
                     data: [
                         "method": "repository-search",
-                        "matches": matches,
+                        "matches": matches.map { ["path": $0.path, "score": $0.score, "symbol_names": $0.symbolNames] },
                         "code_execution": [
                             "workspace_root": snapshot.workspaceRoot,
                             "repository_snapshot_id": snapshot.id,
@@ -699,14 +700,26 @@ public final class OracleRuntime {
                     ]
                 )
             case .parseBuildFailure, .parseTestFailure:
-                let snapshot = context.repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
+                let snapshot = context.repositoryIndexer.indexIfNeeded(workspaceRoot: URL(fileURLWithPath: command.workspaceRoot, isDirectory: true))
                 let output = intent.text ?? ""
-                let likelyFiles = RepositoryQuery.likelyFiles(for: output, in: snapshot)
+                let likelyRootCause = CodeQueryEngine().findLikelyRootCause(
+                    failureDescription: output,
+                    in: snapshot
+                )
+                let likelyFiles = likelyRootCause.map(\.path)
                 return ToolResult(
                     success: !likelyFiles.isEmpty,
                     data: [
                         "method": "failure-parser",
                         "likely_files": likelyFiles,
+                        "ranked_candidates": likelyRootCause.map { candidate in
+                            [
+                                "path": candidate.path,
+                                "score": candidate.score,
+                                "affected_tests": candidate.impact.affectedTests.map(\.path),
+                                "build_targets": candidate.impact.buildTargets.map(\.name),
+                            ]
+                        },
                         "code_execution": [
                             "workspace_root": snapshot.workspaceRoot,
                             "repository_snapshot_id": snapshot.id,
@@ -791,7 +804,7 @@ public final class OracleRuntime {
 
     private func repositorySnapshot(forWorkspaceRoot workspaceRoot: String?) -> RepositorySnapshot? {
         guard let workspaceRoot else { return nil }
-        return context.repositoryIndexer.index(
+        return context.repositoryIndexer.indexIfNeeded(
             workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
         )
     }

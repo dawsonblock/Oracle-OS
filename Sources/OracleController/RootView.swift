@@ -1354,7 +1354,11 @@ private struct DiagnosticsWorkspaceView: View {
                             }
                             GridRow {
                                 KVRow(key: "Architecture Findings", value: "\(diagnostics.architectureFindings.count)")
+                                KVRow(key: "Repo Indexes", value: "\(diagnostics.repositoryIndexes.count)")
+                            }
+                            GridRow {
                                 KVRow(key: "Promotion Eligible", value: "\(diagnostics.graph.promotionEligibleCount)")
+                                KVRow(key: "Indexed Targets", value: "\(diagnostics.repositoryIndexes.reduce(0) { $0 + $1.buildTargetCount })")
                             }
                         }
                         HStack(spacing: 8) {
@@ -1374,12 +1378,16 @@ private struct DiagnosticsWorkspaceView: View {
                     }
 
                     HStack(alignment: .top, spacing: 18) {
+                        diagnosticsRepositoryIndexesCard(diagnostics)
                         diagnosticsExperimentCard(diagnostics)
-                        diagnosticsRecoveryCard(diagnostics)
                     }
 
                     HStack(alignment: .top, spacing: 18) {
+                        diagnosticsRecoveryCard(diagnostics)
                         diagnosticsProjectMemoryCard(diagnostics)
+                    }
+
+                    HStack(alignment: .top, spacing: 18) {
                         diagnosticsArchitectureCard(diagnostics)
                     }
                 }
@@ -1388,7 +1396,7 @@ private struct DiagnosticsWorkspaceView: View {
                 EmptyStateView(
                     systemImage: "chart.xyaxis.line",
                     title: "No Diagnostics Yet",
-                    message: "Refresh the controller or run a few actions to populate graph, workflow, experiment, and architecture diagnostics."
+                    message: "Refresh the controller or run a few actions to populate graph, workflow, repository, experiment, and architecture diagnostics."
                 )
                 .padding(40)
             }
@@ -1504,6 +1512,69 @@ private struct DiagnosticsWorkspaceView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func diagnosticsRepositoryIndexesCard(_ diagnostics: ControllerDiagnosticsSnapshot) -> some View {
+        PanelCard("Repository Intelligence", subtitle: "Persisted symbol, dependency, call, test, and build indexes") {
+            if diagnostics.repositoryIndexes.isEmpty {
+                EmptyStateView(
+                    systemImage: "point.3.connected.trianglepath.dotted",
+                    title: "No Repository Indexes",
+                    message: "Open a workspace or run code-planning actions to persist repository structure here."
+                )
+                .frame(height: 220)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(diagnostics.repositoryIndexes.prefix(6)) { index in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(URL(fileURLWithPath: index.workspaceRoot).lastPathComponent)
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text(index.workspaceRoot)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 6) {
+                                    StatusBadge(label: index.buildTool, tone: .neutral)
+                                    if let branch = index.activeBranch, !branch.isEmpty {
+                                        StatusBadge(label: branch, tone: index.isGitDirty ? .warning : .good)
+                                    }
+                                }
+                            }
+
+                            Text("\(index.fileCount) files · \(index.symbolCount) symbols · \(index.dependencyCount) deps · \(index.callEdgeCount) calls · \(index.testEdgeCount) test edges")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+
+                            if !index.buildTargets.isEmpty {
+                                Text("Targets: \(index.buildTargets.joined(separator: ", "))")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            if !index.topSymbols.isEmpty {
+                                Text("Symbols: \(index.topSymbols.joined(separator: ", "))")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            if !index.topTests.isEmpty {
+                                Text("Tests: \(index.topTests.joined(separator: ", "))")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
             }

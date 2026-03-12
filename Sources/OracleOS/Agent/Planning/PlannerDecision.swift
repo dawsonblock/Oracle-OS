@@ -39,6 +39,7 @@ public struct PlannerDecision: Sendable {
     public let experimentOutcome: String?
     public let knowledgeTier: KnowledgeTier
     public let notes: [String]
+    public let planDiagnostics: PlanDiagnostics?
     public let recoveryTagged: Bool
     public let recoveryStrategy: String?
     public let recoverySource: String?
@@ -69,6 +70,7 @@ public struct PlannerDecision: Sendable {
         experimentOutcome: String? = nil,
         knowledgeTier: KnowledgeTier? = nil,
         notes: [String] = [],
+        planDiagnostics: PlanDiagnostics? = nil,
         recoveryTagged: Bool = false,
         recoveryStrategy: String? = nil,
         recoverySource: String? = nil
@@ -98,6 +100,7 @@ public struct PlannerDecision: Sendable {
         self.experimentOutcome = experimentOutcome
         self.knowledgeTier = knowledgeTier ?? (recoveryTagged ? .recovery : (source == .exploration ? .exploration : .candidate))
         self.notes = notes
+        self.planDiagnostics = planDiagnostics
         self.recoveryTagged = recoveryTagged
         self.recoveryStrategy = recoveryStrategy
         self.recoverySource = recoverySource

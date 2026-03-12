@@ -851,7 +851,7 @@ public final class AgentLoop {
         else {
             return nil
         }
-        return repositoryIndexer.index(
+        return repositoryIndexer.indexIfNeeded(
             workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
         )
     }

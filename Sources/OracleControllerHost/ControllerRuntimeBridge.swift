@@ -571,7 +571,8 @@ final class ControllerRuntimeBridge {
                 strategies: snapshot.recovery.strategies.map(map)
             ),
             projectMemory: snapshot.projectMemory.map(map),
-            architectureFindings: snapshot.architectureFindings.map(map)
+            architectureFindings: snapshot.architectureFindings.map(map),
+            repositoryIndexes: snapshot.repositoryIndexes.map(map)
         )
     }
 
@@ -683,6 +684,26 @@ final class ControllerRuntimeBridge {
             riskScore: finding.riskScore,
             occurrences: finding.occurrences,
             governanceRuleID: finding.governanceRuleID
+        )
+    }
+
+    private func map(_ index: DiagnosticsRepositoryIndex) -> ControllerRepositoryIndexDiagnostics {
+        ControllerRepositoryIndexDiagnostics(
+            id: index.id,
+            workspaceRoot: index.workspaceRoot,
+            buildTool: index.buildTool,
+            activeBranch: index.activeBranch,
+            isGitDirty: index.isGitDirty,
+            indexedAt: index.indexedAt,
+            fileCount: index.fileCount,
+            symbolCount: index.symbolCount,
+            dependencyCount: index.dependencyCount,
+            callEdgeCount: index.callEdgeCount,
+            testEdgeCount: index.testEdgeCount,
+            buildTargetCount: index.buildTargetCount,
+            topSymbols: index.topSymbols,
+            buildTargets: index.buildTargets,
+            topTests: index.topTests
         )
     }
 

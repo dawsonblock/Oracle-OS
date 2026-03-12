@@ -33,7 +33,7 @@ enum CodeSkillSupport {
         if let repositorySnapshot = state.repositorySnapshot {
             return repositorySnapshot
         }
-        return RepositoryIndexer().index(workspaceRoot: workspaceRoot)
+        return RepositoryIndexer().indexIfNeeded(workspaceRoot: workspaceRoot)
     }
 
     static func preferredPath(
@@ -56,24 +56,37 @@ enum CodeSkillSupport {
             return preferredPath
         }
 
-        var matches: [String] = []
+        let queryEngine = CodeQueryEngine()
+        var rankedMatches: [RankedCodeCandidate] = []
         if let failureOutput, !failureOutput.isEmpty {
-            matches = RepositoryQuery.likelyFiles(for: failureOutput, in: snapshot)
+            rankedMatches = queryEngine.findLikelyRootCause(
+                failureDescription: failureOutput,
+                in: snapshot
+            )
         }
 
-        if matches.isEmpty {
-            matches = snapshot.files
+        if let best = rankedMatches.first {
+            if let next = rankedMatches.dropFirst().first,
+               abs(best.score - next.score) < 0.15,
+               best.path != next.path
+            {
+                throw CodeSkillResolutionError.ambiguousEditTarget(
+                    rankedMatches.prefix(3).map(\.path).joined(separator: ", ")
+                )
+            }
+            return best.path
+        }
+
+        let fallbackMatches = snapshot.files
                 .filter { !$0.isDirectory && ($0.path.hasSuffix(".swift") || $0.path.hasSuffix(".ts") || $0.path.hasSuffix(".js")) }
                 .map(\.path)
-        }
-
-        guard let first = matches.first else {
+        guard let first = fallbackMatches.first else {
             throw CodeSkillResolutionError.noRelevantFiles(taskContext.goal.description)
         }
-        if matches.count > 1 {
-            let rest = matches.dropFirst()
+        if fallbackMatches.count > 1 {
+            let rest = fallbackMatches.dropFirst()
             if rest.contains(where: { $0 != first }) {
-                throw CodeSkillResolutionError.ambiguousEditTarget(matches.prefix(3).joined(separator: ", "))
+                throw CodeSkillResolutionError.ambiguousEditTarget(fallbackMatches.prefix(3).joined(separator: ", "))
             }
         }
         return first
