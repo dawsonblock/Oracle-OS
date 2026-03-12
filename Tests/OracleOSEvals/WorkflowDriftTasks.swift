@@ -72,14 +72,16 @@ struct WorkflowDriftTasks {
             let workflowIndex = WorkflowIndex()
             workflowIndex.add(workflow)
 
+            var recordedSources = EvalExecutionDriver.recordedSources
+            recordedSources = []
+
             let provider = EvalObservationProvider([current, destination])
             let driver = EvalExecutionDriver { _, decision, _ in
-                EvalExecutionDriver.recordedSources.append(decision.source)
+                recordedSources.append(decision.source)
                 return ToolResult(success: true, data: [
                     "action_result": ActionResult(success: true, verified: true).toDict(),
                 ])
             }
-            EvalExecutionDriver.recordedSources = []
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
@@ -94,8 +96,8 @@ struct WorkflowDriftTasks {
             )
             return EvalRunSnapshot(
                 outcome: outcome,
-                usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow)
+                usedStableGraph: recordedSources.contains(.stableGraph),
+                usedWorkflow: recordedSources.contains(.workflow)
             )
         }
     }
