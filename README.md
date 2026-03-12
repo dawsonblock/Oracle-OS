@@ -51,6 +51,16 @@ git clone https://github.com/dawsonblock/Oracle-OS.git
 cd Oracle-OS
 swift build
 
+- 22 public MCP tools remain available under stable `ghost_*` names
+- native local controller and bundled host process are working
+- verified execution is active for the core interaction actions
+- canonical observation snapshots are real and used by runtime logic
+- planning-state abstraction is implemented and used as reusable graph state
+- graph persistence is SQLite-backed
+- policy and approval gating are active runtime concerns, not just scaffolding
+- code-domain execution uses a workspace-scoped runner instead of unsafe shell UI control
+- project memory, experiment fanout, and architecture review are implemented as bounded upper layers
+- Reasoning Layer: Multi-coordinator architecture for decision, execution, learning, and recovery
 # First-time setup
 ./.build/debug/oracle setup
 ./.build/debug/oracle doctor
@@ -62,6 +72,12 @@ swift build
 
 ### 🖥️ macOS Operator Agent
 
+- full autonomous long-horizon project execution
+- autonomous refactor control with enforced architectural governance
+- workflow synthesis and promotion from traces
+- neural policies
+- OpenFst planning
+- distributed execution
 Control apps, browsers, windows, and files through safe, verified action paths.
 
 - **AX-first perception** — inspect UI state, capture screenshots and element context
