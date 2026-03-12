@@ -45,7 +45,7 @@ public enum FailureClassifier {
                 signals: ["wrong window/focus signal"]
             )
         }
-        if lowered.contains("dialog") || lowered.contains("unexpected") && lowered.contains("alert") {
+        if lowered.contains("unexpected") && (lowered.contains("dialog") || lowered.contains("alert")) {
             return FailureClassification(
                 failureClass: .unexpectedDialog,
                 confidence: 0.80,
