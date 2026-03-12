@@ -45,13 +45,27 @@ public final class CodePlanner: @unchecked Sendable {
         guard let workspaceRoot = taskContext.workspaceRoot else { return nil }
         let snapshot = worldState.repositorySnapshot
             ?? repositoryIndexer.index(workspaceRoot: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
+        let enrichedWorldState = WorldState(
+            observationHash: worldState.observationHash,
+            planningState: worldState.planningState,
+            beliefStateID: worldState.beliefStateID,
+            observation: worldState.observation,
+            repositorySnapshot: snapshot,
+            lastAction: worldState.lastAction
+        )
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(
+                taskContext: taskContext,
+                worldState: enrichedWorldState,
+                errorSignature: taskContext.goal.description
+            )
+        )
         let description = taskContext.goal.description.lowercased()
-        let projectMemorySignals = projectMemorySignals(taskContext: taskContext, snapshot: snapshot)
+        let projectMemorySignals = memoryInfluence.projectMemorySignals
         let candidatePaths = likelyCandidatePaths(
             taskContext: taskContext,
             snapshot: snapshot,
-            memoryStore: memoryStore,
-            projectMemorySignals: projectMemorySignals
+            memoryInfluence: memoryInfluence
         )
         let isRepairGoal = repairGoal(description)
         let projectMemoryRefs = projectMemorySignals.refs
@@ -90,6 +104,7 @@ public final class CodePlanner: @unchecked Sendable {
                projectMemoryRefs: projectMemoryRefs,
                projectMemoryContext: projectMemoryContext,
                projectMemorySignals: projectMemorySignals,
+               memoryInfluence: memoryInfluence,
                architectureReview: architectureReview,
                candidatePaths: candidatePaths
            ) {
@@ -367,6 +382,7 @@ public final class CodePlanner: @unchecked Sendable {
         projectMemoryRefs: [ProjectMemoryRef],
         projectMemoryContext: ProjectMemoryPlanningContext,
         projectMemorySignals: ProjectMemoryPlanningSignals,
+        memoryInfluence: MemoryInfluence,
         architectureReview: ArchitectureReview,
         candidatePaths: [String]
     ) -> PlannerDecision? {
@@ -376,6 +392,7 @@ public final class CodePlanner: @unchecked Sendable {
             architectureReview: architectureReview,
             projectMemoryContext: projectMemoryContext,
             projectMemorySignals: projectMemorySignals,
+            memoryInfluence: memoryInfluence,
             candidatePaths: candidatePaths
         )
 
@@ -434,19 +451,15 @@ public final class CodePlanner: @unchecked Sendable {
     private func likelyCandidatePaths(
         taskContext: TaskContext,
         snapshot: RepositorySnapshot,
-        memoryStore: AppMemoryStore,
-        projectMemorySignals: ProjectMemoryPlanningSignals
+        memoryInfluence: MemoryInfluence
     ) -> [String] {
         var candidates: [String] = []
-        if let preferredPath = MemoryQuery.preferredFixPath(
-            errorSignature: taskContext.goal.description,
-            store: memoryStore
-        ) {
+        if let preferredPath = memoryInfluence.preferredFixPath {
             candidates.append(preferredPath)
         }
 
         candidates.append(contentsOf: RepositoryQuery.likelyFiles(for: taskContext.goal.description, in: snapshot))
-        candidates.append(contentsOf: projectMemorySignals.preferredPaths(in: snapshot))
+        candidates.append(contentsOf: memoryInfluence.preferredPaths)
 
         if candidates.isEmpty {
             candidates.append(contentsOf: snapshot.files
@@ -455,8 +468,8 @@ public final class CodePlanner: @unchecked Sendable {
                 .prefix(3))
         }
 
-        let preferredPaths = Set(projectMemorySignals.preferredPaths(in: snapshot))
-        let avoidedPaths = Set(projectMemorySignals.avoidedPaths(in: snapshot))
+        let preferredPaths = Set(memoryInfluence.preferredPaths)
+        let avoidedPaths = Set(memoryInfluence.avoidedPaths)
 
         return orderedUnique(candidates).sorted { lhs, rhs in
             let lhsScore = candidatePathScore(
@@ -473,25 +486,6 @@ public final class CodePlanner: @unchecked Sendable {
                 return lhs < rhs
             }
             return lhsScore > rhsScore
-        }
-    }
-
-    private func projectMemorySignals(
-        taskContext: TaskContext,
-        snapshot: RepositorySnapshot
-    ) -> ProjectMemoryPlanningSignals {
-        guard let workspaceRoot = taskContext.workspaceRoot else {
-            return ProjectMemoryPlanningSignals()
-        }
-        do {
-            let store = try ProjectMemoryStore(projectRootURL: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
-            return ProjectMemoryQuery.planningSignals(
-                goalDescription: taskContext.goal.description,
-                snapshot: snapshot,
-                store: store
-            )
-        } catch {
-            return ProjectMemoryPlanningSignals()
         }
     }
 
@@ -539,6 +533,7 @@ public final class CodePlanner: @unchecked Sendable {
         architectureReview: ArchitectureReview,
         projectMemoryContext: ProjectMemoryPlanningContext,
         projectMemorySignals: ProjectMemoryPlanningSignals,
+        memoryInfluence: MemoryInfluence,
         candidatePaths: [String]
     ) -> RepairRoutingAssessment {
         var confidence = 0.45
@@ -588,6 +583,10 @@ public final class CodePlanner: @unchecked Sendable {
             confidence -= 0.15
             reasons.append("open problems suggest unresolved prior attempts")
         }
+        if memoryInfluence.shouldPreferExperiments {
+            confidence -= 0.1
+            reasons.append("memory routing prefers experiment fanout")
+        }
         if projectMemorySignals.hasRisks,
            description.contains("push") || description.contains("delete") || description.contains("release") {
             confidence -= 0.1
@@ -610,6 +609,7 @@ public final class CodePlanner: @unchecked Sendable {
             confidence < directRepairThreshold
                 || effectiveCandidateCount > 1
                 || projectMemoryContext.shouldEscalateToExperiment
+                || memoryInfluence.shouldPreferExperiments
                 || architectureRequiresExperiment
                 || description.contains("compare")
                 || description.contains("experiment")

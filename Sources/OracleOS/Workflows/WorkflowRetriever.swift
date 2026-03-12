@@ -28,10 +28,13 @@ public struct WorkflowRetriever: Sendable {
         worldState: WorldState,
         workflowIndex: WorkflowIndex
     ) -> WorkflowMatch? {
-        let projectMemorySignals = projectMemorySignals(
-            taskContext: taskContext,
-            worldState: worldState
+        let memoryInfluence = MemoryRouter().influence(
+            for: MemoryQueryContext(
+                taskContext: taskContext,
+                worldState: worldState
+            )
         )
+        let projectMemorySignals = memoryInfluence.projectMemorySignals
         return workflowIndex.promotedPlans(for: taskContext.agentKind)
             .compactMap { plan -> WorkflowMatch? in
                 guard let stepIndex = matchingStepIndex(plan: plan, planningStateID: worldState.planningState.id.rawValue) else {
@@ -51,7 +54,7 @@ public struct WorkflowRetriever: Sendable {
                     plan: plan,
                     stepIndex: stepIndex,
                     score: score,
-                    projectMemoryRefs: projectMemorySignals.refs
+                    projectMemoryRefs: memoryInfluence.projectMemoryRefs
                 )
             }
             .sorted { lhs, rhs in
@@ -129,28 +132,4 @@ public struct WorkflowRetriever: Sendable {
         return bias
     }
 
-    private func projectMemorySignals(
-        taskContext: TaskContext,
-        worldState: WorldState
-    ) -> ProjectMemoryPlanningSignals {
-        guard taskContext.agentKind == .code || taskContext.agentKind == .mixed,
-              let workspaceRoot = taskContext.workspaceRoot,
-              let snapshot = worldState.repositorySnapshot
-        else {
-            return ProjectMemoryPlanningSignals()
-        }
-
-        do {
-            let store = try ProjectMemoryStore(
-                projectRootURL: URL(fileURLWithPath: workspaceRoot, isDirectory: true)
-            )
-            return ProjectMemoryQuery.planningSignals(
-                goalDescription: taskContext.goal.description,
-                snapshot: snapshot,
-                store: store
-            )
-        } catch {
-            return ProjectMemoryPlanningSignals()
-        }
-    }
 }

@@ -49,10 +49,12 @@ public struct ElementMatcher {
         }
 
         if let memoryStore {
-            let memoryBias = MemoryQuery.rankingBias(
+            let memoryBias = MemoryRouter(memoryStore: memoryStore).rankingBias(
                 label: element.label,
                 app: worldState?.observation.app ?? query.app,
-                store: memoryStore
+                goalDescription: query.text ?? query.role ?? "",
+                repositorySnapshot: worldState?.repositorySnapshot,
+                planningState: worldState?.planningState
             )
             if memoryBias > 0 {
                 score += memoryBias

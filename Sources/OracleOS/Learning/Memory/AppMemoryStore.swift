@@ -31,6 +31,19 @@ public final class AppMemoryStore {
         controls[key]
     }
 
+    public func preferredKnownControl(label: String, app: String) -> KnownControl? {
+        let lowered = label.lowercased()
+        return controls.values
+            .filter { $0.app == app && $0.label?.lowercased() == lowered }
+            .sorted { lhs, rhs in
+                if lhs.successCount == rhs.successCount {
+                    return lhs.lastUsed > rhs.lastUsed
+                }
+                return lhs.successCount > rhs.successCount
+            }
+            .first
+    }
+
     public func recordFailure(_ failure: FailurePattern) {
         failures.append(failure)
     }
@@ -100,6 +113,13 @@ public final class AppMemoryStore {
             .strategy
     }
 
+    public func latestSuccessfulStrategy(app: String) -> StrategyRecord? {
+        strategies
+            .filter { $0.app == app && $0.success }
+            .sorted { $0.timestamp > $1.timestamp }
+            .first
+    }
+
     public func recordCodeError(_ pattern: ErrorPattern) {
         codeMemory.errorPatterns[pattern.signature] = pattern
     }
@@ -143,6 +163,11 @@ public final class AppMemoryStore {
             .workspaceRelativePath
     }
 
+    public func fixPatterns(for errorSignature: String) -> [FixPattern] {
+        codeMemory.fixPatterns.values
+            .filter { $0.errorSignature == errorSignature }
+    }
+
     public func commandBias(category: String, workspaceRoot: String) -> Double {
         let key = "\(workspaceRoot)|\(category)"
         let successes = codeMemory.commandSuccesses[key, default: 0]
@@ -152,5 +177,13 @@ public final class AppMemoryStore {
         let failureRate = Double(failures) / Double(total)
         guard failureRate <= 0.25 else { return 0 }
         return min(log(Double(successes) + 1) * 0.05, 0.15)
+    }
+
+    public func commandSuccessCount(category: String, workspaceRoot: String) -> Int {
+        codeMemory.commandSuccesses["\(workspaceRoot)|\(category)", default: 0]
+    }
+
+    public func commandFailureCount(category: String, workspaceRoot: String) -> Int {
+        codeMemory.commandFailures["\(workspaceRoot)|\(category)", default: 0]
     }
 }

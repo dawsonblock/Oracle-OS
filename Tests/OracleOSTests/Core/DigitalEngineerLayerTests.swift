@@ -94,6 +94,103 @@ struct DigitalEngineerLayerTests {
         #expect(signals.avoidedPaths(in: snapshot).contains("Tests/ExampleTests/CalculatorTests.swift"))
     }
 
+    @Test("Memory router combines project memory and fix patterns for code planning")
+    func memoryRouterCombinesProjectAndPatternMemory() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix failing build in Sources/Example/Calculator.swift",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            repositorySnapshot: snapshot
+        )
+
+        let projectMemoryStore = try ProjectMemoryStore(projectRootURL: workspace.root)
+        _ = try projectMemoryStore.writeKnownGoodPatternDraft(
+            title: "Calculator source repair is reliable",
+            summary: "Prefer Sources/Example/Calculator.swift for repeated calculator repair.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Prefer Sources/Example/Calculator.swift when calculator repair is requested."
+        )
+
+        let memoryStore = AppMemoryStore()
+        for _ in 0..<3 {
+            memoryStore.recordFixPattern(
+                FixPattern(
+                    errorSignature: taskContext.goal.description,
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    commandCategory: CodeCommandCategory.editFile.rawValue
+                ),
+                success: true
+            )
+        }
+
+        let influence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(
+                taskContext: taskContext,
+                worldState: worldState,
+                errorSignature: taskContext.goal.description
+            )
+        )
+
+        #expect(influence.preferredFixPath == "Sources/Example/Calculator.swift")
+        #expect(influence.preferredPaths.contains("Sources/Example/Calculator.swift"))
+        #expect(influence.projectMemoryRefs.contains(where: { $0.kind == .knownGoodPattern }))
+        #expect(influence.notes.contains(where: { $0.contains("project memory") }))
+    }
+
+    @Test("Execution memory biases target ranking after repeated success")
+    func executionMemoryBiasesTargetRanking() {
+        let store = AppMemoryStore()
+        for _ in 0..<3 {
+            store.recordControl(
+                KnownControl(
+                    key: "Finder|Open",
+                    app: "Finder",
+                    label: "Open",
+                    role: "button",
+                    elementID: "open-primary",
+                    successCount: 1
+                )
+            )
+        }
+
+        let router = MemoryRouter(memoryStore: store)
+        let bias = router.rankingBias(label: "Open", app: "Finder")
+
+        #expect(bias > 0)
+    }
+
+    @MainActor
+    @Test("Recovery selector prefers remembered successful strategy")
+    func recoverySelectorPrefersRememberedSuccessfulStrategy() {
+        let registry = RecoveryRegistry.live()
+        let selector = RecoveryStrategySelector(registry: registry)
+        let memoryStore = AppMemoryStore()
+        memoryStore.recordStrategy(
+            StrategyRecord(app: "Safari", strategy: "dismiss_modal", success: true)
+        )
+
+        let state = WorldState(
+            observation: Observation(app: "Safari", windowTitle: "Inbox", url: nil, focusedElementID: nil, elements: [])
+        )
+
+        let ordered = selector.orderedStrategies(
+            for: .modalBlocking,
+            state: state,
+            memoryStore: memoryStore
+        )
+
+        #expect(ordered.first?.name == "dismiss_modal")
+    }
+
     @Test("Architecture engine emits cycle and boundary findings")
     func architectureEngineEmitsFindings() {
         let engine = ArchitectureEngine()
