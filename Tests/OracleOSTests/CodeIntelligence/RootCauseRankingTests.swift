@@ -41,10 +41,12 @@ struct RootCauseRankingTests {
         let analyzer = RootCauseAnalyzer()
         let snapshot = makeMinimalSnapshot()
 
+        let preferredPath = "Sources/Calculator.swift"
+
         let withPreferred = analyzer.analyze(
             failureDescription: "Calculator error",
             in: snapshot,
-            preferredPaths: Set(["Sources/Calculator.swift"])
+            preferredPaths: Set([preferredPath])
         )
         let withoutPreferred = analyzer.analyze(
             failureDescription: "Calculator error",
@@ -52,9 +54,15 @@ struct RootCauseRankingTests {
             preferredPaths: Set()
         )
 
-        // Both should produce results without crashing
-        #expect(withPreferred.count >= 0)
-        #expect(withoutPreferred.count >= 0)
+        // Both should produce non-empty results without crashing
+        #expect(!withPreferred.isEmpty)
+        #expect(!withoutPreferred.isEmpty)
+
+        // Preferred path should be boosted to the top of the ranking
+        #expect(withPreferred.first?.path == preferredPath)
+
+        // The preferred path should still be present without preferences
+        #expect(withoutPreferred.map(\.path).contains(preferredPath))
     }
 
     private func makeMinimalSnapshot() -> RepositorySnapshot {
