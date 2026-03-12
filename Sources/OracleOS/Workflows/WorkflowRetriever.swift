@@ -26,9 +26,11 @@ public struct WorkflowRetriever: Sendable {
         goal: Goal,
         taskContext: TaskContext,
         worldState: WorldState,
-        workflowIndex: WorkflowIndex
+        workflowIndex: WorkflowIndex,
+        memoryStore: AppMemoryStore? = nil
     ) -> WorkflowMatch? {
-        let memoryInfluence = MemoryRouter().influence(
+        let memoryRouter = MemoryRouter(memoryStore: memoryStore)
+        let memoryInfluence = memoryRouter.influence(
             for: MemoryQueryContext(
                 taskContext: taskContext,
                 worldState: worldState
@@ -44,8 +46,11 @@ public struct WorkflowRetriever: Sendable {
                     plan: plan,
                     goal: goal,
                     stepIndex: stepIndex,
+                    taskContext: taskContext,
                     worldState: worldState,
-                    projectMemorySignals: projectMemorySignals
+                    projectMemorySignals: projectMemorySignals,
+                    memoryInfluence: memoryInfluence,
+                    memoryRouter: memoryRouter
                 )
                 guard score > 0 else {
                     return nil
@@ -80,8 +85,11 @@ public struct WorkflowRetriever: Sendable {
         plan: WorkflowPlan,
         goal: Goal,
         stepIndex: Int,
+        taskContext: TaskContext,
         worldState: WorldState,
-        projectMemorySignals: ProjectMemoryPlanningSignals
+        projectMemorySignals: ProjectMemoryPlanningSignals,
+        memoryInfluence: MemoryInfluence,
+        memoryRouter: MemoryRouter
     ) -> Double {
         let normalizedGoal = goal.description.lowercased()
         let normalizedPattern = plan.goalPattern.lowercased()
@@ -91,19 +99,33 @@ public struct WorkflowRetriever: Sendable {
         let stepPenalty = Double(stepIndex) * 0.05
         let memoryBias = workflowMemoryBias(
             plan: plan,
+            stepIndex: stepIndex,
+            taskContext: taskContext,
             worldState: worldState,
-            projectMemorySignals: projectMemorySignals
+            projectMemorySignals: projectMemorySignals,
+            memoryInfluence: memoryInfluence,
+            memoryRouter: memoryRouter
         )
         return max(0, (0.5 * matchRatio) + (0.35 * plan.successRate) + memoryBias - stepPenalty)
     }
 
     private func workflowMemoryBias(
         plan: WorkflowPlan,
+        stepIndex: Int,
+        taskContext: TaskContext,
         worldState: WorldState,
-        projectMemorySignals: ProjectMemoryPlanningSignals
+        projectMemorySignals: ProjectMemoryPlanningSignals,
+        memoryInfluence: MemoryInfluence,
+        memoryRouter: MemoryRouter
     ) -> Double {
+        let currentStep = plan.steps[stepIndex]
         guard let snapshot = worldState.repositorySnapshot else {
-            return 0
+            return memoryRouter.workflowActionBias(
+                contract: currentStep.actionContract,
+                app: worldState.observation.app,
+                goalDescription: taskContext.goal.description,
+                workspaceRoot: taskContext.workspaceRoot
+            )
         }
 
         let workflowPaths = Set(plan.steps.compactMap { $0.actionContract.workspaceRelativePath })
@@ -117,6 +139,10 @@ public struct WorkflowRetriever: Sendable {
         if workflowPaths.contains(where: avoidedPaths.contains) {
             bias -= 0.25
         }
+        if let preferredFixPath = memoryInfluence.preferredFixPath,
+           workflowPaths.contains(preferredFixPath) {
+            bias += 0.15
+        }
         if projectMemorySignals.hasKnownGoodPatterns {
             bias += 0.05
         }
@@ -129,6 +155,12 @@ public struct WorkflowRetriever: Sendable {
         if projectMemorySignals.hasOpenProblems {
             bias -= 0.1
         }
+        bias += memoryRouter.workflowActionBias(
+            contract: currentStep.actionContract,
+            app: worldState.observation.app,
+            goalDescription: taskContext.goal.description,
+            workspaceRoot: taskContext.workspaceRoot
+        )
         return bias
     }
 

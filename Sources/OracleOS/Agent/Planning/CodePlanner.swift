@@ -80,7 +80,8 @@ public final class CodePlanner: @unchecked Sendable {
         if let workflowDecision = workflowDecision(
             taskContext: taskContext,
             worldState: worldState,
-            projectMemoryRefs: projectMemoryRefs
+            projectMemoryRefs: projectMemoryRefs,
+            memoryStore: memoryStore
         ) {
             return workflowDecision
         }
@@ -306,13 +307,15 @@ public final class CodePlanner: @unchecked Sendable {
     private func workflowDecision(
         taskContext: TaskContext,
         worldState: WorldState,
-        projectMemoryRefs: [ProjectMemoryRef]
+        projectMemoryRefs: [ProjectMemoryRef],
+        memoryStore: AppMemoryStore
     ) -> PlannerDecision? {
         guard let workflowMatch = workflowRetriever.retrieve(
             goal: taskContext.goal,
             taskContext: taskContext,
             worldState: worldState,
-            workflowIndex: workflowIndex
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
         ) else {
             return nil
         }

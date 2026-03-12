@@ -155,6 +155,30 @@ public struct MemoryRouter {
         return influence.commandBias
     }
 
+    public func workflowActionBias(
+        contract: ActionContract,
+        app: String?,
+        goalDescription: String = "",
+        workspaceRoot: String? = nil
+    ) -> Double {
+        var bias = 0.0
+
+        if let label = contract.targetLabel {
+            bias += executionStore?.rankingBias(label: label, app: app) ?? 0
+        }
+
+        if let category = contract.commandCategory, let workspaceRoot {
+            bias += patternStore?.commandBias(category: category, workspaceRoot: workspaceRoot) ?? 0
+        }
+
+        if let preferredFixPath = patternStore?.preferredFixPath(errorSignature: goalDescription),
+           preferredFixPath == contract.workspaceRelativePath {
+            bias += 0.15
+        }
+
+        return min(bias, 0.3)
+    }
+
     private func projectMemorySignals(
         for context: MemoryQueryContext
     ) -> ProjectMemoryPlanningSignals {

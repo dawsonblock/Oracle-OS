@@ -581,6 +581,116 @@ struct DigitalEngineerLayerTests {
         #expect(match?.projectMemoryRefs.contains(where: { $0.kind == .rejectedApproach }) == true)
     }
 
+    @Test("Workflow retriever uses execution and pattern memory to prefer the known fix path")
+    func workflowRetrieverUsesExecutionPatternMemoryBias() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let workflowIndex = WorkflowIndex()
+        workflowIndex.add(
+            WorkflowPlan(
+                id: "source-workflow",
+                agentKind: .code,
+                goalPattern: "repair calculator behavior",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract(
+                            id: "edit-source",
+                            agentKind: .code,
+                            skillName: "edit_file",
+                            targetRole: nil,
+                            targetLabel: "Calculator.swift",
+                            locatorStrategy: "path",
+                            workspaceRelativePath: "Sources/Example/Calculator.swift",
+                            commandCategory: CodeCommandCategory.editFile.rawValue
+                        ),
+                        fromPlanningStateID: "workspace|dirty"
+                    ),
+                ],
+                successRate: 0.9,
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+        workflowIndex.add(
+            WorkflowPlan(
+                id: "test-workflow",
+                agentKind: .code,
+                goalPattern: "repair calculator behavior",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract(
+                            id: "edit-test",
+                            agentKind: .code,
+                            skillName: "edit_file",
+                            targetRole: nil,
+                            targetLabel: "CalculatorTests.swift",
+                            locatorStrategy: "path",
+                            workspaceRelativePath: "Tests/ExampleTests/CalculatorTests.swift",
+                            commandCategory: CodeCommandCategory.editFile.rawValue
+                        ),
+                        fromPlanningStateID: "workspace|dirty"
+                    ),
+                ],
+                successRate: 0.95,
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix calculator behavior",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observationHash: "workspace-hash",
+            planningState: PlanningState(
+                id: PlanningStateID(rawValue: "workspace|dirty"),
+                clusterKey: StateClusterKey(rawValue: "workspace|dirty"),
+                appID: "Workspace",
+                domain: nil,
+                windowClass: nil,
+                taskPhase: "engineering",
+                focusedRole: nil,
+                modalClass: nil,
+                navigationClass: "code",
+                controlContext: nil
+            ),
+            observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            repositorySnapshot: snapshot
+        )
+        let memoryStore = AppMemoryStore()
+        for _ in 0..<3 {
+            memoryStore.recordFixPattern(
+                FixPattern(
+                    errorSignature: taskContext.goal.description,
+                    workspaceRelativePath: "Sources/Example/Calculator.swift",
+                    commandCategory: CodeCommandCategory.editFile.rawValue
+                ),
+                success: true
+            )
+        }
+
+        let match = WorkflowRetriever().retrieve(
+            goal: taskContext.goal,
+            taskContext: taskContext,
+            worldState: worldState,
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
+        )
+
+        #expect(match?.plan.id == "source-workflow")
+    }
+
     @Test("Major architecture findings are drafted into project memory")
     func majorArchitectureFindingsAreDraftedIntoProjectMemory() throws {
         let workspace = try makeCodePlannerWorkspace()

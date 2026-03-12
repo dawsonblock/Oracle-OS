@@ -31,7 +31,8 @@ public final class OSPlanner: @unchecked Sendable {
             goal: taskContext.goal,
             taskContext: taskContext,
             worldState: worldState,
-            workflowIndex: workflowIndex
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
         ) {
             return workflowExecutor.nextDecision(
                 match: workflowMatch,
