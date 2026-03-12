@@ -25,6 +25,7 @@ struct WorkflowSynthesisTests {
         #expect(plans.first?.replayValidationSuccess == 1)
         #expect(plans.first?.promotionStatus == .promoted)
         #expect(plans.first?.parameterSlots.contains(where: { $0.hasPrefix("url_") }) == true)
+        #expect(plans.first?.steps.first?.actionContract.targetLabel?.contains("{{url_0}}") == true)
     }
 
     @Test("Replay validation gates workflow promotion")
@@ -108,6 +109,72 @@ struct WorkflowSynthesisTests {
                 against: [matching, mismatched]
             ) == false
         )
+    }
+
+    @Test("State-aware replay rejects planning-state drift")
+    func replayValidationRejectsPlanningStateDrift() {
+        let validSegment = TraceSegment(
+            id: "seg-valid",
+            taskID: "task-1",
+            sessionID: "session-1",
+            agentKind: .os,
+            events: [
+                workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 1, actionName: "click", actionTarget: "Compose", actionContractID: "click|compose", postconditionClass: "elementAppeared", planningStateID: "gmail|browse"),
+                workflowEvent(sessionID: "session-1", taskID: "task-1", stepID: 2, actionName: "type", actionTarget: "Body", actionContractID: "type|body", postconditionClass: "valueMatched", planningStateID: "gmail|compose"),
+            ]
+        )
+        let driftedSegment = TraceSegment(
+            id: "seg-drift",
+            taskID: "task-2",
+            sessionID: "session-2",
+            agentKind: .os,
+            events: [
+                workflowEvent(sessionID: "session-2", taskID: "task-2", stepID: 1, actionName: "click", actionTarget: "Compose", actionContractID: "click|compose", postconditionClass: "elementAppeared", planningStateID: "gmail|browse"),
+                workflowEvent(sessionID: "session-2", taskID: "task-2", stepID: 2, actionName: "type", actionTarget: "Body", actionContractID: "type|body", postconditionClass: "valueMatched", planningStateID: "gmail|trash"),
+            ]
+        )
+
+        let plan = WorkflowPlan(
+            agentKind: .os,
+            goalPattern: "open compose",
+            steps: [
+                WorkflowStep(
+                    agentKind: .os,
+                    stepPhase: .operatingSystem,
+                    actionContract: ActionContract(
+                        id: "click|compose",
+                        agentKind: .os,
+                        skillName: "click",
+                        targetRole: nil,
+                        targetLabel: "Compose",
+                        locatorStrategy: "query"
+                    ),
+                    fromPlanningStateID: "gmail|browse"
+                ),
+                WorkflowStep(
+                    agentKind: .os,
+                    stepPhase: .operatingSystem,
+                    actionContract: ActionContract(
+                        id: "type|body",
+                        agentKind: .os,
+                        skillName: "type",
+                        targetRole: nil,
+                        targetLabel: "Body",
+                        locatorStrategy: "query"
+                    ),
+                    fromPlanningStateID: "gmail|compose"
+                ),
+            ],
+            successRate: 0.9,
+            evidenceTiers: [.candidate],
+            repeatedTraceSegmentCount: 3,
+            replayValidationSuccess: 0
+        )
+
+        let validator = WorkflowReplayValidator()
+        let score = validator.validate(plan: plan, against: [validSegment, driftedSegment])
+
+        #expect(score == 0.5)
     }
 
     @Test("Stale promoted workflows are not retrieved")
@@ -198,6 +265,37 @@ struct WorkflowSynthesisTests {
         #expect(match == nil)
     }
 
+    @Test("Workflow promotion rejects untyped episode residue")
+    func workflowPromotionRejectsEpisodeResidue() {
+        let policy = WorkflowPromotionPolicy()
+        let plan = WorkflowPlan(
+            agentKind: .code,
+            goalPattern: "repair parser failure",
+            steps: [
+                WorkflowStep(
+                    agentKind: .code,
+                    stepPhase: .engineering,
+                    actionContract: ActionContract(
+                        id: "edit|parser",
+                        agentKind: .code,
+                        skillName: "edit_file",
+                        targetRole: nil,
+                        targetLabel: "Parser.swift",
+                        locatorStrategy: "path",
+                        workspaceRelativePath: "/tmp/oracle-run-123/.oracle/experiments/exp-1/candidate-a/Sources/Parser.swift"
+                    )
+                ),
+            ],
+            successRate: 0.95,
+            sourceTraceRefs: ["s1:1", "s2:1", "s3:1"],
+            repeatedTraceSegmentCount: 3,
+            replayValidationSuccess: 1,
+            promotionStatus: .candidate
+        )
+
+        #expect(policy.shouldPromote(plan) == false)
+    }
+
     private func workflowEvent(
         sessionID: String,
         taskID: String,
@@ -205,7 +303,8 @@ struct WorkflowSynthesisTests {
         actionName: String,
         actionTarget: String,
         actionContractID: String,
-        postconditionClass: String
+        postconditionClass: String,
+        planningStateID: String? = nil
     ) -> TraceEvent {
         TraceEvent(
             sessionID: sessionID,
@@ -222,7 +321,7 @@ struct WorkflowSynthesisTests {
             ambiguityScore: 0.05,
             preObservationHash: "pre-\(sessionID)-\(stepID)",
             postObservationHash: "post-\(sessionID)-\(stepID)",
-            planningStateID: "state-\(taskID)-\(stepID)",
+            planningStateID: planningStateID ?? "state-\(taskID)-\(stepID)",
             beliefSnapshotID: nil,
             postcondition: postconditionClass,
             postconditionClass: postconditionClass,

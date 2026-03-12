@@ -272,8 +272,8 @@ public final class OracleRuntime {
             execute: execute
         )
 
-        if shouldRecordMemoryOutcome(from: result, policyDecision: policyDecision) {
-            recordMemoryOutcome(from: result, policyDecision: policyDecision)
+        if shouldRecordPostExecutionOutcome(from: result, policyDecision: policyDecision) {
+            recordPostExecutionOutcome(from: result, policyDecision: policyDecision)
         }
 
         result = mergingPolicy(
@@ -467,7 +467,7 @@ public final class OracleRuntime {
         return ObservationBuilder.capture(appName: nil).app
     }
 
-    private func shouldRecordMemoryOutcome(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
+    private func shouldRecordPostExecutionOutcome(from result: ToolResult, policyDecision: PolicyDecision) -> Bool {
         guard policyDecision.blockedByPolicy == false else {
             return false
         }
@@ -485,16 +485,35 @@ public final class OracleRuntime {
         return true
     }
 
-    private func recordMemoryOutcome(from result: ToolResult, policyDecision: PolicyDecision) {
+    private func recordPostExecutionOutcome(from result: ToolResult, policyDecision: PolicyDecision) {
         guard let data = result.data,
               let executionSemantics = data["execution_semantics"] as? [String: Any],
+              let actionContractDict = executionSemantics["action_contract"] as? [String: Any],
+              let actionContract = ExecutionSemanticsEncoder.decodeActionContract(from: actionContractDict),
               let transitionDict = executionSemantics["verified_transition"] as? [String: Any],
               let transition = ExecutionSemanticsEncoder.decodeTransition(from: transitionDict),
+              let planning = data["planning"] as? [String: Any],
+              let preStateDict = planning["pre_state"] as? [String: Any],
+              let postStateDict = planning["post_state"] as? [String: Any],
+              let preState = PlanningState.from(dict: preStateDict),
+              let postState = PlanningState.from(dict: postStateDict),
               let actionResultDict = data["action_result"] as? [String: Any],
               let actionResult = ActionResult.from(dict: actionResultDict)
         else {
             return
         }
+
+        let ranking = data["ranking"] as? [String: Any]
+        let ambiguityScore = ranking?["ambiguity_score"] as? Double
+
+        recordGraphOutcome(
+            transition: transition,
+            actionContract: actionContract,
+            actionResult: actionResult,
+            preState: preState,
+            postState: postState,
+            ambiguityScore: ambiguityScore
+        )
 
         let observation = ObservationBuilder.capture(appName: nil)
         let observationHash = ObservationHash.hash(observation)
@@ -520,6 +539,39 @@ public final class OracleRuntime {
             observation: observation,
             repositorySnapshot: repositorySnapshot
         )
+    }
+
+    private func recordGraphOutcome(
+        transition: VerifiedTransition,
+        actionContract: ActionContract,
+        actionResult: ActionResult,
+        preState: PlanningState,
+        postState: PlanningState,
+        ambiguityScore: Double?
+    ) {
+        if actionResult.success, actionResult.verified {
+            context.graphStore.recordTransition(
+                transition,
+                actionContract: actionContract,
+                fromState: preState,
+                toState: postState
+            )
+        } else if let failureRaw = actionResult.failureClass,
+                  let failure = FailureClass(rawValue: failureRaw)
+        {
+            context.graphStore.recordFailure(
+                state: preState,
+                actionContract: actionContract,
+                failure: failure,
+                ambiguityScore: ambiguityScore,
+                recoveryTagged: transition.recoveryTagged
+            )
+        } else {
+            return
+        }
+
+        _ = context.graphStore.promoteEligibleEdges()
+        _ = context.graphStore.pruneOrDemoteEdges()
     }
 
     private func applyMemoryOutcome(

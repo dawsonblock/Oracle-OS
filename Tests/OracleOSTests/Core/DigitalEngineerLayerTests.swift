@@ -370,6 +370,120 @@ struct DigitalEngineerLayerTests {
         #expect(decision?.actionContract.workspaceRelativePath == "Sources/Example/Calculator.swift")
     }
 
+    @Test("Workflow retriever uses project memory to prefer the safer workflow")
+    func workflowRetrieverUsesProjectMemoryBias() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
+        _ = try store.writeKnownGoodPatternDraft(
+            title: "Calculator source repair flow",
+            summary: "Prefer workflows that operate on Sources/Example/Calculator.swift.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Sources/Example"],
+            body: "Source repair workflows are preferred for calculator failures."
+        )
+        _ = try store.writeRejectedApproachDraft(
+            title: "Avoid test-first workflow",
+            summary: "Do not prioritize Tests/ExampleTests/CalculatorTests.swift in repair workflows.",
+            knowledgeClass: .reusable,
+            affectedModules: ["Tests/ExampleTests"],
+            body: "Test-first calculator repair workflows are rejected."
+        )
+
+        let workflowIndex = WorkflowIndex()
+        workflowIndex.add(
+            WorkflowPlan(
+                id: "source-workflow",
+                agentKind: .code,
+                goalPattern: "repair calculator behavior",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract(
+                            id: "edit-source",
+                            agentKind: .code,
+                            skillName: "edit_file",
+                            targetRole: nil,
+                            targetLabel: "Calculator.swift",
+                            locatorStrategy: "path",
+                            workspaceRelativePath: "Sources/Example/Calculator.swift"
+                        ),
+                        fromPlanningStateID: "workspace|dirty"
+                    ),
+                ],
+                successRate: 0.9,
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+        workflowIndex.add(
+            WorkflowPlan(
+                id: "test-workflow",
+                agentKind: .code,
+                goalPattern: "repair calculator behavior",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract(
+                            id: "edit-test",
+                            agentKind: .code,
+                            skillName: "edit_file",
+                            targetRole: nil,
+                            targetLabel: "CalculatorTests.swift",
+                            locatorStrategy: "path",
+                            workspaceRelativePath: "Tests/ExampleTests/CalculatorTests.swift"
+                        ),
+                        fromPlanningStateID: "workspace|dirty"
+                    ),
+                ],
+                successRate: 0.95,
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
+        let taskContext = TaskContext.from(
+            goal: Goal(
+                description: "fix calculator behavior",
+                workspaceRoot: workspace.root.path,
+                preferredAgentKind: .code
+            ),
+            workspaceRoot: workspace.root
+        )
+        let worldState = WorldState(
+            observationHash: "workspace-hash",
+            planningState: PlanningState(
+                id: PlanningStateID(rawValue: "workspace|dirty"),
+                clusterKey: StateClusterKey(rawValue: "workspace|dirty"),
+                appID: "Workspace",
+                domain: nil,
+                windowClass: nil,
+                taskPhase: "engineering",
+                focusedRole: nil,
+                modalClass: nil,
+                navigationClass: "code",
+                controlContext: nil
+            ),
+            observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+            repositorySnapshot: snapshot
+        )
+
+        let match = WorkflowRetriever().retrieve(
+            goal: taskContext.goal,
+            taskContext: taskContext,
+            worldState: worldState,
+            workflowIndex: workflowIndex
+        )
+
+        #expect(match?.plan.id == "source-workflow")
+        #expect(match?.projectMemoryRefs.contains(where: { $0.kind == .knownGoodPattern }) == true)
+        #expect(match?.projectMemoryRefs.contains(where: { $0.kind == .rejectedApproach }) == true)
+    }
+
     @Test("Major architecture findings are drafted into project memory")
     func majorArchitectureFindingsAreDraftedIntoProjectMemory() throws {
         let workspace = try makeCodePlannerWorkspace()

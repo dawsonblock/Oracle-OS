@@ -1,5 +1,9 @@
 import Foundation
 
+// AgentLoop is the authoritative runtime spine for orchestration only.
+// It may observe state, ask planners for structure, invoke policy/execution,
+// coordinate recovery, and terminate runs. It must not absorb local ranking,
+// patch scoring, experiment result comparison, or direct world mutation logic.
 @MainActor
 public final class AgentLoop {
     private struct RunState {
@@ -109,15 +113,18 @@ public final class AgentLoop {
                 )
             }
 
+            runState.diagnostics.beginStep(
+                stepIndex: stepIndex,
+                decision: decision
+            )
+
             if let budgetReason = runState.budgetState.registerPlannerSource(
                 decision.source,
                 budget: budget
             ) {
-                runState.diagnostics.recordDecision(
+                runState.diagnostics.recordTermination(
                     stepIndex: stepIndex,
-                    decision: decision,
-                    success: false,
-                    notes: decision.notes + ["exploration budget exceeded"]
+                    reason: budgetReason
                 )
                 return finalize(
                     reason: budgetReason,
@@ -195,7 +202,17 @@ public final class AgentLoop {
                 state: worldState,
                 taskContext: taskContext
             )
+            runState.diagnostics.recordPreparation(
+                stepIndex: stepIndex,
+                outcome: .ready
+            )
         } catch let error as SkillResolutionError {
+            runState.diagnostics.recordPreparation(
+                stepIndex: stepIndex,
+                outcome: .failed,
+                failure: error.failureClass,
+                notes: decision.notes + ["preparation failure"]
+            )
             return await handlePreparationFailure(
                 failure: error.failureClass,
                 decision: decision,
@@ -207,6 +224,12 @@ public final class AgentLoop {
                 runState: &runState
             )
         } catch let error as CodeSkillResolutionError {
+            runState.diagnostics.recordPreparation(
+                stepIndex: stepIndex,
+                outcome: .failed,
+                failure: error.failureClass,
+                notes: decision.notes + ["preparation failure"]
+            )
             return await handlePreparationFailure(
                 failure: error.failureClass,
                 decision: decision,
@@ -218,6 +241,12 @@ public final class AgentLoop {
                 runState: &runState
             )
         } catch {
+            runState.diagnostics.recordPreparation(
+                stepIndex: stepIndex,
+                outcome: .failed,
+                failure: .actionFailed,
+                notes: decision.notes + ["unexpected preparation failure"]
+            )
             return .finished(
                 finalize(
                     reason: .unrecoverableFailure,
@@ -284,14 +313,16 @@ public final class AgentLoop {
         )
 
         guard policyDecision.blockedByPolicy || policyDecision.requiresApproval else {
+            runState.diagnostics.recordPolicy(
+                stepIndex: stepIndex,
+                outcome: .allowed
+            )
             return false
         }
 
-        runState.diagnostics.recordDecision(
+        runState.diagnostics.recordPolicy(
             stepIndex: stepIndex,
-            decision: decision,
-            success: false,
-            failure: .actionFailed,
+            outcome: .blocked,
             notes: decision.notes + ["policy precheck blocked execution"]
         )
         return true
@@ -318,12 +349,15 @@ public final class AgentLoop {
             intent: prepared.intent,
             budget: budget
         ) {
-            runState.diagnostics.recordDecision(
+            runState.diagnostics.recordExecution(
                 stepIndex: stepIndex,
-                decision: decision,
                 success: false,
                 failure: .patchApplyFailed,
                 notes: decision.notes + ["code budget exceeded"]
+            )
+            runState.diagnostics.recordTermination(
+                stepIndex: stepIndex,
+                reason: budgetReason
             )
             return .finished(
                 finalize(
@@ -340,9 +374,8 @@ public final class AgentLoop {
 
         let actionResult = actionResult(from: toolResult)
         if actionResult.success {
-            runState.diagnostics.recordDecision(
+            runState.diagnostics.recordExecution(
                 stepIndex: stepIndex,
-                decision: decision,
                 success: true,
                 notes: decision.notes
             )
@@ -379,9 +412,8 @@ public final class AgentLoop {
             state: afterWorldState,
             store: memoryStore
         )
-        runState.diagnostics.recordDecision(
+        runState.diagnostics.recordExecution(
             stepIndex: stepIndex,
-            decision: decision,
             success: false,
             failure: failure,
             notes: decision.notes
@@ -412,14 +444,11 @@ public final class AgentLoop {
         surface: RuntimeSurface,
         runState: inout RunState
     ) async -> LoopTermination {
-        runState.diagnostics.recordDecision(
+        runState.diagnostics.recordExecutionSkipped(
             stepIndex: stepIndex,
-            decision: decision,
-            success: false,
             failure: failure,
-            notes: decision.notes + ["preparation failure"]
+            notes: ["execution skipped after preparation failure"]
         )
-
         return await attemptRecovery(
             failure: failure,
             decision: decision,
@@ -449,6 +478,13 @@ public final class AgentLoop {
         failureNote: String
     ) async -> LoopTermination {
         guard runState.budgetState.canRecover(under: budget) else {
+            runState.diagnostics.recordRecovery(
+                stepIndex: stepIndex,
+                strategyName: nil,
+                success: false,
+                failure: failure,
+                notes: ["recovery budget exhausted"]
+            )
             return .finished(
                 finalize(
                     reason: .unrecoverableFailure,
@@ -552,6 +588,11 @@ public final class AgentLoop {
                     success: false
                 )
             )
+            runState.diagnostics.recordPolicy(
+                stepIndex: stepIndex,
+                outcome: .blocked,
+                notes: ["recovery blocked by policy"]
+            )
             runState.diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: preparation.strategyName,
@@ -571,6 +612,11 @@ public final class AgentLoop {
                 )
             )
         }
+
+        runState.diagnostics.recordPolicy(
+            stepIndex: stepIndex,
+            outcome: .allowed
+        )
 
         let toolResult = executionDriver.execute(
             intent: preparation.resolution.intent,
@@ -682,13 +728,18 @@ public final class AgentLoop {
         taskContext: TaskContext,
         runState: RunState
     ) -> LoopOutcome {
+        var diagnostics = runState.diagnostics
+        diagnostics.recordTermination(
+            stepIndex: diagnostics.stepSummaries.last?.stepIndex,
+            reason: reason
+        )
         let outcome = LoopOutcome(
             reason: reason,
             finalWorldState: finalWorldState,
             steps: steps,
             recoveries: runState.budgetState.recoveries,
             lastFailure: lastFailure,
-            diagnostics: runState.diagnostics
+            diagnostics: diagnostics
         )
 
         if reason != .goalAchieved {

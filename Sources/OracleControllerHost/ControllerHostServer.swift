@@ -82,6 +82,14 @@ actor ControllerHostServer {
                 health: health
             ))
 
+        case .getDiagnostics:
+            let diagnostics = await MainActor.run { bridge.diagnosticsSnapshot() }
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                diagnostics: diagnostics
+            ))
+
         case .performAction:
             guard let action = request.action else {
                 await output.send(response: ControllerHostResponse(

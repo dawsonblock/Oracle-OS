@@ -129,6 +129,72 @@ struct GovernanceEnforcementTests {
         #expect(review.governanceReport.hardFailures.contains(where: { $0.ruleID == .evalBeforeGrowth }))
     }
 
+    @Test("Loop changes cannot absorb experiment or ranking internals")
+    func loopOwnershipDriftIsBlocking() {
+        let engine = ArchitectureEngine()
+        let snapshot = RepositorySnapshot(
+            id: "loop-review",
+            workspaceRoot: "/tmp/workspace",
+            buildTool: .swiftPackage,
+            files: [
+                RepositoryFile(path: "Sources/OracleOS/Agent/Loop/AgentLoop.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Experiments/ExperimentManager.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Core/Ranking/ElementRanker.swift", isDirectory: false),
+                RepositoryFile(path: "Tests/OracleOSTests/Core/GraphAwareLoopTests.swift", isDirectory: false),
+            ],
+            symbolGraph: SymbolGraph(),
+            dependencyGraph: DependencyGraph(),
+            testGraph: TestGraph(),
+            activeBranch: "main",
+            isGitDirty: true
+        )
+
+        let review = engine.review(
+            goalDescription: "tighten loop orchestration around experiments",
+            snapshot: snapshot,
+            candidatePaths: [
+                "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+                "Sources/OracleOS/Experiments/ExperimentManager.swift",
+            ]
+        )
+
+        #expect(review.governanceReport.isBlocking)
+        #expect(review.governanceReport.hardFailures.contains(where: { $0.title == "Loop orchestration drift" }))
+    }
+
+    @Test("Planner changes cannot absorb local ranking or execution layers")
+    func plannerBoundaryDriftIsBlocking() {
+        let engine = ArchitectureEngine()
+        let snapshot = RepositorySnapshot(
+            id: "planner-review",
+            workspaceRoot: "/tmp/workspace",
+            buildTool: .swiftPackage,
+            files: [
+                RepositoryFile(path: "Sources/OracleOS/Agent/Planning/Planner.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Core/Ranking/ElementRanker.swift", isDirectory: false),
+                RepositoryFile(path: "Tests/OracleOSTests/Core/GovernanceEnforcementTests.swift", isDirectory: false),
+            ],
+            symbolGraph: SymbolGraph(),
+            dependencyGraph: DependencyGraph(),
+            testGraph: TestGraph(),
+            activeBranch: "main",
+            isGitDirty: true
+        )
+
+        let review = engine.review(
+            goalDescription: "planner chooses exact ranked target",
+            snapshot: snapshot,
+            candidatePaths: [
+                "Sources/OracleOS/Agent/Planning/Planner.swift",
+                "Sources/OracleOS/Core/Ranking/ElementRanker.swift",
+                "Tests/OracleOSTests/Core/GovernanceEnforcementTests.swift",
+            ]
+        )
+
+        #expect(review.governanceReport.isBlocking)
+        #expect(review.governanceReport.hardFailures.contains(where: { $0.title == "Planner/local-resolution boundary drift" }))
+    }
+
     @Test("Workspace runner blocks unsupported arbitrary shell execution")
     func workspaceRunnerBlocksArbitraryShellExecution() throws {
         let root = makeTempDirectory()

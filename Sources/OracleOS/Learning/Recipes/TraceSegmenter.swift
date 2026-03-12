@@ -25,9 +25,10 @@ public struct TraceSegment: Sendable, Identifiable {
         events.map {
             [
                 $0.agentKind ?? "unknown",
-                $0.actionContractID ?? $0.actionName,
+                $0.actionName,
                 $0.postconditionClass ?? "none",
-                $0.workspaceRelativePath ?? "none",
+                Self.normalizedFingerprintValue($0.actionTarget ?? $0.selectedElementLabel),
+                Self.normalizedFingerprintValue($0.workspaceRelativePath),
                 $0.commandCategory ?? "none",
             ].joined(separator: "|")
         }
@@ -44,6 +45,23 @@ public struct TraceSegment: Sendable, Identifiable {
 
     public var planningStateDeltas: [String] {
         events.compactMap(\.planningStateID)
+    }
+
+    private static func normalizedFingerprintValue(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "none" }
+        if ParameterExtractor.firstURLCandidate(in: value) != nil {
+            return "{url}"
+        }
+        if ParameterExtractor.firstFilePathCandidate(in: value) != nil {
+            return "{path}"
+        }
+        if ParameterExtractor.firstBranchCandidate(in: value) != nil {
+            return "{branch}"
+        }
+        if ParameterExtractor.firstTestNameCandidate(in: value) != nil {
+            return "{test}"
+        }
+        return value
     }
 }
 

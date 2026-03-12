@@ -41,6 +41,8 @@ public struct WorkflowPlan: Sendable, Identifiable {
     public let goalPattern: String
     public let steps: [WorkflowStep]
     public let parameterSlots: [String]
+    public let parameterKinds: [String: String]
+    public let parameterExamples: [String: [String]]
     public let successRate: Double
     public let sourceTraceRefs: [String]
     public let sourceGraphEdgeRefs: [String]
@@ -57,6 +59,8 @@ public struct WorkflowPlan: Sendable, Identifiable {
         goalPattern: String,
         steps: [WorkflowStep],
         parameterSlots: [String] = [],
+        parameterKinds: [String: String] = [:],
+        parameterExamples: [String: [String]] = [:],
         successRate: Double,
         sourceTraceRefs: [String] = [],
         sourceGraphEdgeRefs: [String] = [],
@@ -72,6 +76,8 @@ public struct WorkflowPlan: Sendable, Identifiable {
         self.goalPattern = goalPattern
         self.steps = steps
         self.parameterSlots = parameterSlots
+        self.parameterKinds = parameterKinds
+        self.parameterExamples = parameterExamples
         self.successRate = successRate
         self.sourceTraceRefs = sourceTraceRefs
         self.sourceGraphEdgeRefs = sourceGraphEdgeRefs

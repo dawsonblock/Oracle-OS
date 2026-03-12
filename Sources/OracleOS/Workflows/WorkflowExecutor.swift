@@ -19,6 +19,7 @@ public struct WorkflowExecutor: Sendable {
             workflowID: match.plan.id,
             workflowStepID: step.id,
             semanticQuery: step.semanticQuery,
+            projectMemoryRefs: match.projectMemoryRefs,
             notes: ["workflow \(match.plan.goalPattern)"] + sourceNotes + step.notes
         )
     }

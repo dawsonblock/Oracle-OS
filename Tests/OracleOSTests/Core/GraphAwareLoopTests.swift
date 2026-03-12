@@ -384,7 +384,7 @@ struct GraphAwareLoopTests {
 
         #expect(outcome.reason == .explorationBudgetExceeded)
         #expect(driver.intents.isEmpty)
-        #expect(outcome.diagnostics.stepSummaries.last?.notes.contains("exploration budget exceeded") == true)
+        #expect(outcome.diagnostics.stepSummaries.last?.terminationReason == .explorationBudgetExceeded)
     }
 
     @Test("AgentLoop blocks risky actions before execution")
@@ -459,6 +459,7 @@ struct GraphAwareLoopTests {
 
         #expect(outcome.reason == .policyBlocked)
         #expect(driver.intents.isEmpty)
+        #expect(outcome.diagnostics.stepSummaries.last?.policyOutcome == .blocked)
     }
 
     @Test("AgentLoop invokes recovery after verified failure")
@@ -556,7 +557,10 @@ struct GraphAwareLoopTests {
         #expect(outcome.recoveries == 1)
         #expect(driver.intents.count == 2)
         #expect(driver.decisions.last?.source == .recovery)
-        #expect(outcome.diagnostics.stepSummaries.contains(where: { $0.source == .recovery && $0.success }))
+        let recoverySucceeded = outcome.diagnostics.stepSummaries.contains { summary in
+            summary.recoveryOutcome == .succeeded && summary.recoveryStrategy == "refocus_app"
+        }
+        #expect(recoverySucceeded)
     }
 
     @Test("AgentLoop bounds recovery attempts and terminates after failed recovery")
@@ -646,7 +650,10 @@ struct GraphAwareLoopTests {
         #expect(outcome.recoveries == 1)
         #expect(driver.intents.count == 2)
         #expect(driver.decisions.last?.source == .recovery)
-        #expect(outcome.diagnostics.stepSummaries.contains(where: { $0.source == .recovery && $0.success == false }))
+        let recoveryFailed = outcome.diagnostics.stepSummaries.contains { summary in
+            summary.recoveryOutcome == .failed && summary.recoveryStrategy == "refocus_app"
+        }
+        #expect(recoveryFailed)
     }
 
     @Test("Blocked runtime actions do not create graph edges")

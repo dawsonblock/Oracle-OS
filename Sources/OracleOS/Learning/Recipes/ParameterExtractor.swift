@@ -4,11 +4,13 @@ public struct ExtractedParameter: Sendable, Equatable {
     public let name: String
     public let kind: String
     public let values: [String]
+    public let stepIndex: Int?
 
-    public init(name: String, kind: String, values: [String]) {
+    public init(name: String, kind: String, values: [String], stepIndex: Int? = nil) {
         self.name = name
         self.kind = kind
         self.values = values
+        self.stepIndex = stepIndex
     }
 }
 
@@ -43,41 +45,22 @@ public enum ParameterExtractor {
     }
 
     public static func extract(from segments: [TraceSegment]) -> [ExtractedParameter] {
-        let urls = uniqueValues(in: segments) { event in
-            [event.actionTarget, event.actionText].compactMap { value in
-                value.flatMap(firstURL(in:))
-            }
-        }
-        let filePaths = uniqueValues(in: segments) { event in
-            [event.workspaceRelativePath, event.actionTarget, event.actionText]
-                .compactMap { $0 }
-                .compactMap(firstFilePath(in:))
-        }
-        let branches = uniqueValues(in: segments) { event in
-            [event.commandSummary, event.actionText].compactMap { value in
-                value.flatMap(firstBranch(in:))
-            }
-        }
-        let tests = uniqueValues(in: segments) { event in
-            [event.actionText, event.commandSummary]
-                .compactMap { $0 }
-                .compactMap(firstTestName(in:))
-        }
-        let repositories = uniqueValues(in: segments) { event in
-            [event.sandboxPath, event.workspaceRelativePath]
-                .compactMap { $0 }
-                .compactMap(firstRepositoryName(in:))
-        }
-        let labels = uniqueValues(in: segments) { event in
-            [event.selectedElementLabel, event.actionTarget].compactMap { $0 }
+        guard let minimumStepCount = segments.map({ $0.events.count }).min(),
+              minimumStepCount > 0
+        else {
+            return []
         }
 
-        return buildParameters(kind: "url", prefix: "url", values: urls)
-            + buildParameters(kind: "file-path", prefix: "path", values: filePaths)
-            + buildParameters(kind: "branch", prefix: "branch", values: branches)
-            + buildParameters(kind: "test-name", prefix: "test", values: tests)
-            + buildParameters(kind: "repository", prefix: "repository", values: repositories)
-            + buildParameters(kind: "ui-label", prefix: "label", values: labels)
+        var parameters: [ExtractedParameter] = []
+        for stepIndex in 0..<minimumStepCount {
+            let events: [TraceEvent] = segments.compactMap { segment -> TraceEvent? in
+                guard segment.events.indices.contains(stepIndex) else { return nil }
+                return segment.events[stepIndex]
+            }
+            parameters.append(contentsOf: groupedParameters(for: events, stepIndex: stepIndex))
+        }
+
+        return parameters
     }
 
     private static func extractParameters(from text: String?) -> [ExtractedParameter] {
@@ -98,16 +81,122 @@ public enum ParameterExtractor {
         return text
     }
 
-    private static func buildParameters(kind: String, prefix: String, values: [String]) -> [ExtractedParameter] {
+    public static func applySlots(
+        to text: String?,
+        parameters: [ExtractedParameter],
+        stepIndex: Int? = nil
+    ) -> String? {
+        guard var text else { return text }
+        let eligibleParameters = parameters.filter { parameter in
+            parameter.stepIndex == nil || parameter.stepIndex == stepIndex
+        }
+        for parameter in eligibleParameters {
+            for value in parameter.values where !value.isEmpty {
+                text = text.replacingOccurrences(
+                    of: value,
+                    with: "{{\(parameter.name)}}"
+                )
+            }
+        }
+        return text
+    }
+
+    static func firstURLCandidate(in text: String) -> String? {
+        firstURL(in: text)
+    }
+
+    static func firstFilePathCandidate(in text: String) -> String? {
+        firstFilePath(in: text)
+    }
+
+    static func firstBranchCandidate(in text: String) -> String? {
+        firstBranch(in: text)
+    }
+
+    static func firstTestNameCandidate(in text: String) -> String? {
+        firstTestName(in: text)
+    }
+
+    private static func buildParameters(
+        kind: String,
+        prefix: String,
+        values: [String],
+        stepIndex: Int? = nil
+    ) -> [ExtractedParameter] {
         let filtered = values.filter { !$0.isEmpty }
         guard !filtered.isEmpty else { return [] }
-        return filtered.enumerated().map { index, value in
+        return [
             ExtractedParameter(
-                name: "\(prefix)_\(index)",
+                name: "\(prefix)_\(stepIndex ?? 0)",
                 kind: kind,
-                values: [value]
+                values: filtered,
+                stepIndex: stepIndex
             )
+        ]
+    }
+
+    private static func groupedParameters(
+        for events: [TraceEvent],
+        stepIndex: Int
+    ) -> [ExtractedParameter] {
+        let urls = orderedUnique(events.compactMap { event in
+            [event.actionTarget, event.actionText]
+                .compactMap { $0 }
+                .compactMap(firstURL(in:))
+                .first
+        })
+        let filePaths = orderedUnique(events.compactMap { event in
+            [event.workspaceRelativePath, event.actionTarget, event.actionText]
+                .compactMap { $0 }
+                .compactMap(firstFilePath(in:))
+                .first
+        })
+        let branches = orderedUnique(events.compactMap { event in
+            [event.commandSummary, event.actionText]
+                .compactMap { $0 }
+                .compactMap(firstBranch(in:))
+                .first
+        })
+        let tests = orderedUnique(events.compactMap { event in
+            [event.actionText, event.commandSummary]
+                .compactMap { $0 }
+                .compactMap(firstTestName(in:))
+                .first
+        })
+        let repositories = orderedUnique(events.compactMap { event in
+            [event.sandboxPath, event.workspaceRelativePath]
+                .compactMap { $0 }
+                .compactMap(firstRepositoryName(in:))
+                .first
+        })
+        let labels = orderedUnique(events.compactMap { event in
+            [event.selectedElementLabel, event.actionTarget].compactMap { $0 }.first
+        })
+
+        return varyingParameters(kind: "url", prefix: "url", values: urls, stepIndex: stepIndex)
+            + varyingParameters(kind: "file-path", prefix: "path", values: filePaths, stepIndex: stepIndex)
+            + varyingParameters(kind: "branch", prefix: "branch", values: branches, stepIndex: stepIndex)
+            + varyingParameters(kind: "test-name", prefix: "test", values: tests, stepIndex: stepIndex)
+            + varyingParameters(kind: "repository", prefix: "repository", values: repositories, stepIndex: stepIndex)
+            + varyingParameters(kind: "ui-label", prefix: "label", values: labels, stepIndex: stepIndex)
+    }
+
+    private static func varyingParameters(
+        kind: String,
+        prefix: String,
+        values: [String],
+        stepIndex: Int
+    ) -> [ExtractedParameter] {
+        let filtered = values.filter { !$0.isEmpty }
+        guard Set(filtered).count > 1 else {
+            return []
         }
+        return buildParameters(
+            kind: kind,
+            prefix: prefix,
+            values: filtered,
+            stepIndex: stepIndex
+        )
     }
 
     private static func uniqueValues(

@@ -15,6 +15,7 @@ final class ControllerRuntimeBridge {
     let runtimeContext: RuntimeContext
     let oracleRuntime: OracleRuntime
     let runtimeLifecycle: RuntimeLifecycle
+    let diagnosticsBuilder: RuntimeDiagnosticsBuilder
 
     init() {
         self.traceRecorder = TraceRecorder()
@@ -25,6 +26,7 @@ final class ControllerRuntimeBridge {
             traceStore: traceStore,
             artifactWriter: artifactWriter
         )
+        self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
         self.oracleRuntime = OracleRuntime(context: runtimeContext)
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
@@ -93,6 +95,15 @@ final class ControllerRuntimeBridge {
             buildVersion: OracleProductPaths.buildVersion,
             buildNumber: OracleProductPaths.buildNumber
         )
+    }
+
+    func diagnosticsSnapshot() -> ControllerDiagnosticsSnapshot {
+        let traceEvents = diagnosticsBuilder.loadTraceEvents()
+        let snapshot = diagnosticsBuilder.build(
+            graphStore: runtimeContext.graphStore,
+            traceEvents: traceEvents
+        )
+        return map(snapshot)
     }
 
     func performAction(_ request: ActionRequest) -> ActionRunResult {
@@ -539,6 +550,139 @@ final class ControllerRuntimeBridge {
             protectedOperation: approval.protectedOperation.rawValue,
             status: approval.status.rawValue,
             appProtectionProfile: approval.appProtectionProfile.rawValue
+        )
+    }
+
+    private func map(_ snapshot: RuntimeDiagnosticsSnapshot) -> ControllerDiagnosticsSnapshot {
+        ControllerDiagnosticsSnapshot(
+            generatedAt: snapshot.generatedAt,
+            graph: ControllerGraphDiagnostics(
+                stableEdges: snapshot.graph.stableEdges.map(map),
+                candidateEdges: snapshot.graph.candidateEdges.map(map),
+                recoveryEdges: snapshot.graph.recoveryEdges.map(map),
+                promotionEligibleCount: snapshot.graph.promotionEligibleCount,
+                promotionsFrozen: snapshot.graph.promotionsFrozen,
+                globalSuccessRate: snapshot.graph.globalSuccessRate
+            ),
+            workflows: snapshot.workflows.map(map),
+            experiments: snapshot.experiments.map(map),
+            recovery: ControllerRecoveryDiagnostics(
+                recoveryStepCount: snapshot.recovery.recoveryStepCount,
+                strategies: snapshot.recovery.strategies.map(map)
+            ),
+            projectMemory: snapshot.projectMemory.map(map),
+            architectureFindings: snapshot.architectureFindings.map(map)
+        )
+    }
+
+    private func map(_ edge: DiagnosticsGraphEdge) -> ControllerGraphEdgeDiagnostics {
+        ControllerGraphEdgeDiagnostics(
+            id: edge.id,
+            actionContractID: edge.actionContractID,
+            fromPlanningStateID: edge.fromPlanningStateID,
+            toPlanningStateID: edge.toPlanningStateID,
+            agentKind: edge.agentKind,
+            domain: edge.domain,
+            workspaceRelativePath: edge.workspaceRelativePath,
+            commandCategory: edge.commandCategory,
+            plannerFamily: edge.plannerFamily,
+            knowledgeTier: edge.knowledgeTier,
+            attempts: edge.attempts,
+            successRate: edge.successRate,
+            averageLatencyMs: edge.averageLatencyMs,
+            targetAmbiguityRate: edge.targetAmbiguityRate,
+            rollingSuccessRate: edge.rollingSuccessRate,
+            recoveryTagged: edge.recoveryTagged,
+            approvalRequired: edge.approvalRequired,
+            approvalOutcome: edge.approvalOutcome,
+            lastSuccessAt: edge.lastSuccessAt,
+            lastAttemptAt: edge.lastAttemptAt,
+            failureHistogram: edge.failureHistogram,
+            promotionEligible: edge.promotionEligible
+        )
+    }
+
+    private func map(_ workflow: DiagnosticsWorkflowSummary) -> ControllerWorkflowDiagnostics {
+        ControllerWorkflowDiagnostics(
+            id: workflow.id,
+            goalPattern: workflow.goalPattern,
+            agentKind: workflow.agentKind,
+            promotionStatus: workflow.promotionStatus,
+            successRate: workflow.successRate,
+            replayValidationSuccess: workflow.replayValidationSuccess,
+            repeatedTraceSegmentCount: workflow.repeatedTraceSegmentCount,
+            stepCount: workflow.stepCount,
+            parameterSlots: workflow.parameterSlots,
+            sourceTraceRefs: workflow.sourceTraceRefs,
+            sourceGraphEdgeRefs: workflow.sourceGraphEdgeRefs,
+            stale: workflow.stale
+        )
+    }
+
+    private func map(_ experiment: DiagnosticsExperimentSummary) -> ControllerExperimentDiagnostics {
+        ControllerExperimentDiagnostics(
+            id: experiment.id,
+            candidateCount: experiment.candidateCount,
+            selectedCandidateID: experiment.selectedCandidateID,
+            winningSandboxPath: experiment.winningSandboxPath,
+            succeededCandidateCount: experiment.succeededCandidateCount,
+            candidates: experiment.candidates.map(map)
+        )
+    }
+
+    private func map(_ candidate: DiagnosticsExperimentCandidate) -> ControllerExperimentCandidateDiagnostics {
+        ControllerExperimentCandidateDiagnostics(
+            id: candidate.id,
+            title: candidate.title,
+            summary: candidate.summary,
+            workspaceRelativePath: candidate.workspaceRelativePath,
+            hypothesis: candidate.hypothesis,
+            selected: candidate.selected,
+            succeeded: candidate.succeeded,
+            architectureRiskScore: candidate.architectureRiskScore,
+            sandboxPath: candidate.sandboxPath,
+            diffSummary: candidate.diffSummary,
+            buildSummary: candidate.buildSummary,
+            testSummary: candidate.testSummary,
+            architectureFindings: candidate.architectureFindings
+        )
+    }
+
+    private func map(_ strategy: DiagnosticsRecoveryStrategy) -> ControllerRecoveryStrategyDiagnostics {
+        ControllerRecoveryStrategyDiagnostics(
+            id: strategy.id,
+            attempts: strategy.attempts,
+            successes: strategy.successes,
+            failures: strategy.failures,
+            failureHistogram: strategy.failureHistogram
+        )
+    }
+
+    private func map(_ record: DiagnosticsProjectMemoryRecord) -> ControllerProjectMemoryDiagnostics {
+        ControllerProjectMemoryDiagnostics(
+            id: record.id,
+            title: record.title,
+            summary: record.summary,
+            kind: record.kind,
+            knowledgeClass: record.knowledgeClass,
+            status: record.status,
+            path: record.path,
+            affectedModules: record.affectedModules,
+            evidenceRefs: record.evidenceRefs
+        )
+    }
+
+    private func map(_ finding: DiagnosticsArchitectureFinding) -> ControllerArchitectureFindingDiagnostics {
+        ControllerArchitectureFindingDiagnostics(
+            id: finding.id,
+            title: finding.title,
+            summary: finding.summary,
+            severity: finding.severity,
+            affectedModules: finding.affectedModules,
+            evidence: finding.evidence,
+            riskScore: finding.riskScore,
+            occurrences: finding.occurrences,
+            governanceRuleID: finding.governanceRuleID
         )
     }
 

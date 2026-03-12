@@ -47,6 +47,8 @@ public enum RecipeValidator {
             goalPattern: plan.goalPattern,
             steps: plan.steps,
             parameterSlots: plan.parameterSlots,
+            parameterKinds: plan.parameterKinds,
+            parameterExamples: plan.parameterExamples,
             successRate: plan.successRate,
             sourceTraceRefs: plan.sourceTraceRefs,
             sourceGraphEdgeRefs: plan.sourceGraphEdgeRefs,
