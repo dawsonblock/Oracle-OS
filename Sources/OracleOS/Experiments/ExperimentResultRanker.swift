@@ -12,16 +12,16 @@ public struct ExperimentResultRanker: Sendable {
         faultLocationConfidence: Double = 0,
         memorySuccessPatterns: Double = 0
     ) -> [ExperimentResult] {
-        let signals = Dictionary(
-            uniqueKeysWithValues: results.map { result in
-                (result.candidate.id, PatchRankingSignals(
-                    faultLocationConfidence: faultLocationConfidence,
-                    patchComplexity: patchComplexity(result),
-                    coverageImpact: coverageImpact(result),
-                    memorySuccessPatterns: memorySuccessPatterns
-                ))
-            }
-        )
+        let signals = results.reduce(into: [Candidate.ID: PatchRankingSignals]()) { dict, result in
+            dict[result.candidate.id] = PatchRankingSignals(
+                faultLocationConfidence: faultLocationConfidence,
+                patchComplexity: patchComplexity(result),
+                coverageImpact: coverageImpact(result),
+                memorySuccessPatterns: memorySuccessPatterns
+            )
+        }
+
+
         return patchRanker.rankWithSignals(results, signals: signals)
     }
 
