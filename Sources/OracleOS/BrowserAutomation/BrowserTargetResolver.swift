@@ -44,6 +44,8 @@ public enum BrowserTargetResolver {
 
         let secondScore = matches.dropFirst().first?.score ?? 0
         let gap = best.score - secondScore
+        // Ambiguity maps the score gap to [0, 1]: a smaller gap between first and
+        // second candidates means higher ambiguity. Fail closed when gap < threshold.
         let ambiguity = gap < maximumAmbiguity ? max(0, 1 - gap) : 0
         if gap < maximumAmbiguity {
             throw SkillResolutionError.ambiguousTarget(query.text ?? query.role ?? "browser target", ambiguity)

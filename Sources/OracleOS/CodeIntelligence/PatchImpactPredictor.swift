@@ -33,22 +33,29 @@ public struct PatchImpactPredictor: Sendable {
         patchTargets: [PatchTarget],
         in snapshot: RepositorySnapshot
     ) -> [PatchImpactPrediction] {
-        patchTargets.map { target in
+        // Adjustment factors for success probability prediction:
+        let highBlastRadiusFactor = 0.8      // 20% reduction for high-impact files
+        let testCoverageBonus = 0.1          // bonus when tests can validate the patch
+        let manyDependentsFactor = 0.9       // 10% reduction for heavily-depended-on files
+        let blastRadiusThreshold = 0.5       // files above this have broad impact
+        let dependentFileThreshold = 10      // files with more dependents than this are risky
+
+        return patchTargets.map { target in
             let impact = target.impact
             let testCount = impact.affectedTests.count
             var reasons: [String] = []
             var successProbability = target.rootCauseCandidate.score
 
-            if impact.blastRadiusScore > 0.5 {
-                successProbability *= 0.8
+            if impact.blastRadiusScore > blastRadiusThreshold {
+                successProbability *= highBlastRadiusFactor
                 reasons.append("high blast radius reduces confidence")
             }
             if testCount > 0 {
-                successProbability += 0.1
+                successProbability += testCoverageBonus
                 reasons.append("\(testCount) affected tests available for validation")
             }
-            if impact.dependentFiles.count > 10 {
-                successProbability *= 0.9
+            if impact.dependentFiles.count > dependentFileThreshold {
+                successProbability *= manyDependentsFactor
                 reasons.append("many dependents increase regression risk")
             }
 

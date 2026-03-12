@@ -159,6 +159,8 @@ public final class Planner: @unchecked Sendable {
         switch (familyDecision, reasoningDecision) {
         case let (family?, reasoning?):
             let familyScore = sourceConfidence(family.source) + memoryBias
+            // When reasoning has no plan diagnostics (e.g. no viable plans generated),
+            // score defaults to 0 so the family decision is preferred.
             let reasoningScore = (reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0)
                 + memoryBias
             if family.source == .workflow || family.source == .stableGraph {
@@ -174,6 +176,11 @@ public final class Planner: @unchecked Sendable {
         }
     }
 
+    // Confidence values represent how reliable each planner source is based on
+    // validation level: workflows are fully validated replay sequences (0.9),
+    // stable graph edges are promoted from multiple observed transitions (0.75),
+    // candidate edges have fewer observations (0.5), recovery is contextual (0.4),
+    // and exploration is unbacked by prior evidence (0.3).
     private func sourceConfidence(_ source: PlannerSource) -> Double {
         switch source {
         case .workflow: return 0.9

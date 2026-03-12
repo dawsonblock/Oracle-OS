@@ -45,6 +45,8 @@ public struct FaultCandidateRanker: Sendable {
         return constrainToTopCandidates(candidates)
     }
 
+    // Filter out candidates scoring below half the top score to avoid wasting
+    // experiment budget on low-confidence locations.
     private func constrainToTopCandidates(_ candidates: [RootCauseCandidate]) -> [RootCauseCandidate] {
         guard candidates.count > maximumCandidates else { return candidates }
         let topCandidates = Array(candidates.prefix(maximumCandidates))

@@ -31,6 +31,12 @@ public enum MemoryScorer {
         return min(log(Double(successes) + 1) * 0.05, 0.15)
     }
 
+    // Weights reflect relative importance of each memory signal for plan scoring:
+    // execution history (0.3) and command patterns (0.2) are strongest indicators,
+    // path preferences and fix history (0.1) are secondary signals,
+    // experiment preference (0.05) is a weak negative signal,
+    // and risk penalty (0.5) is the strongest negative factor.
+    // The result is clamped to [-0.3, 0.3] to prevent memory from dominating.
     public static func planBias(influence: MemoryInfluence) -> Double {
         var bias = 0.0
         bias += influence.executionRankingBias * 0.3
