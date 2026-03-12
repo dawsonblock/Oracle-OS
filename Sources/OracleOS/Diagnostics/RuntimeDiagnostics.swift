@@ -252,6 +252,42 @@ public struct DiagnosticsArchitectureFinding: Codable, Sendable, Equatable, Iden
     }
 }
 
+public struct DiagnosticsRepositoryIndex: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let workspaceRoot: String
+    public let buildTool: String
+    public let activeBranch: String?
+    public let isGitDirty: Bool
+    public let indexedAt: Date
+    public let fileCount: Int
+    public let symbolCount: Int
+    public let dependencyCount: Int
+    public let callEdgeCount: Int
+    public let testEdgeCount: Int
+    public let buildTargetCount: Int
+    public let topSymbols: [String]
+    public let buildTargets: [String]
+    public let topTests: [String]
+
+    public init(snapshot: RepositorySnapshot) {
+        id = snapshot.id
+        workspaceRoot = snapshot.workspaceRoot
+        buildTool = snapshot.buildTool.rawValue
+        activeBranch = snapshot.activeBranch
+        isGitDirty = snapshot.isGitDirty
+        indexedAt = snapshot.indexedAt
+        fileCount = snapshot.indexDiagnostics.fileCount
+        symbolCount = snapshot.indexDiagnostics.symbolCount
+        dependencyCount = snapshot.indexDiagnostics.dependencyCount
+        callEdgeCount = snapshot.indexDiagnostics.callEdgeCount
+        testEdgeCount = snapshot.indexDiagnostics.testEdgeCount
+        buildTargetCount = snapshot.indexDiagnostics.buildTargetCount
+        topSymbols = snapshot.symbolGraph.nodes.prefix(8).map(\.name)
+        buildTargets = snapshot.buildGraph.targets.prefix(8).map(\.name)
+        topTests = snapshot.testGraph.tests.prefix(8).map(\.name)
+    }
+}
+
 public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let generatedAt: Date
     public let graph: DiagnosticsGraphSnapshot
@@ -260,6 +296,7 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let recovery: DiagnosticsRecoverySnapshot
     public let projectMemory: [DiagnosticsProjectMemoryRecord]
     public let architectureFindings: [DiagnosticsArchitectureFinding]
+    public let repositoryIndexes: [DiagnosticsRepositoryIndex]
 
     public init(
         generatedAt: Date = Date(),
@@ -268,7 +305,8 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
         experiments: [DiagnosticsExperimentSummary],
         recovery: DiagnosticsRecoverySnapshot,
         projectMemory: [DiagnosticsProjectMemoryRecord],
-        architectureFindings: [DiagnosticsArchitectureFinding]
+        architectureFindings: [DiagnosticsArchitectureFinding],
+        repositoryIndexes: [DiagnosticsRepositoryIndex]
     ) {
         self.generatedAt = generatedAt
         self.graph = graph
@@ -277,6 +315,7 @@ public struct RuntimeDiagnosticsSnapshot: Codable, Sendable, Equatable {
         self.recovery = recovery
         self.projectMemory = projectMemory
         self.architectureFindings = architectureFindings
+        self.repositoryIndexes = repositoryIndexes
     }
 }
 
@@ -336,6 +375,7 @@ public struct RuntimeDiagnosticsBuilder: Sendable {
             traceEvents: traceEvents,
             experiments: experiments
         )
+        let repositoryIndexes = buildRepositoryIndexes(traceEvents: traceEvents)
 
         return RuntimeDiagnosticsSnapshot(
             graph: graph,
@@ -343,7 +383,8 @@ public struct RuntimeDiagnosticsBuilder: Sendable {
             experiments: experiments,
             recovery: recovery,
             projectMemory: projectMemory,
-            architectureFindings: architectureFindings
+            architectureFindings: architectureFindings,
+            repositoryIndexes: repositoryIndexes
         )
     }
 
@@ -601,5 +642,27 @@ public struct RuntimeDiagnosticsBuilder: Sendable {
             }
             return lhs.occurrences > rhs.occurrences
         }
+    }
+
+    private func buildRepositoryIndexes(traceEvents: [TraceEvent]) -> [DiagnosticsRepositoryIndex] {
+        let roots = Set(traceEvents.compactMap { event -> URL? in
+            if let repositorySnapshotID = event.repositorySnapshotID,
+               let workspaceRoot = repositorySnapshotID.split(separator: "|", maxSplits: 1).first
+            {
+                return URL(fileURLWithPath: String(workspaceRoot), isDirectory: true)
+            }
+            return workspaceRoot(fromSandboxPath: event.sandboxPath)
+        })
+
+        let indexer = RepositoryIndexer()
+        return roots
+            .compactMap { indexer.loadPersistedSnapshot(workspaceRoot: $0) }
+            .map(DiagnosticsRepositoryIndex.init)
+            .sorted { lhs, rhs in
+                if lhs.indexedAt == rhs.indexedAt {
+                    return lhs.workspaceRoot < rhs.workspaceRoot
+                }
+                return lhs.indexedAt > rhs.indexedAt
+            }
     }
 }

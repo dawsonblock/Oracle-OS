@@ -77,7 +77,7 @@ public final class ParallelRunner: @unchecked Sendable {
                     }
 
                     let diffSummary = sandbox.diffSummary()
-                    let candidateSnapshot = repositoryIndexer.index(
+                    let candidateSnapshot = repositoryIndexer.indexIfNeeded(
                         workspaceRoot: URL(fileURLWithPath: sandbox.sandboxPath, isDirectory: true)
                     )
                     let architectureReview = architectureEngine.reviewCandidatePatch(

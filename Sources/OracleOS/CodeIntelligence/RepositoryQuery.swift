@@ -2,66 +2,48 @@ import Foundation
 
 public enum RepositoryQuery {
     public static func files(matching symbol: String, in snapshot: RepositorySnapshot) -> [String] {
-        let normalized = symbol.lowercased()
-        return snapshot.symbolGraph.symbols
-            .filter { $0.name.lowercased().contains(normalized) }
-            .map(\.path)
+        CodeQueryEngine()
+            .findSymbol(named: symbol, in: snapshot)
+            .map(\.file)
             .uniqued()
     }
 
     public static func references(to symbol: String, in snapshot: RepositorySnapshot) -> [String] {
-        let normalized = symbol.lowercased()
-        return snapshot.dependencyGraph.edges
-            .filter { $0.dependency.lowercased().contains(normalized) }
-            .map(\.sourcePath)
+        CodeQueryEngine()
+            .findFilesReferencing(symbol: symbol, in: snapshot)
             .uniqued()
     }
 
     public static func buildEntrypoints(in snapshot: RepositorySnapshot) -> [String] {
-        var results: [String] = []
-        if snapshot.files.contains(where: { $0.path == "Package.swift" }) {
-            results.append("Package.swift")
-        }
-        if snapshot.files.contains(where: { $0.path == "package.json" }) {
-            results.append("package.json")
-        }
-        results.append(contentsOf: snapshot.files.filter {
+        let knownFiles = [
+            "Package.swift",
+            "package.json",
+            "pyproject.toml",
+            "pytest.ini",
+        ]
+        let projectFiles = snapshot.files.filter {
             $0.path.hasSuffix(".xcodeproj") || $0.path.hasSuffix(".xcworkspace")
-        }.map(\.path))
-        return results.uniqued()
+        }.map(\.path)
+
+        return (knownFiles + projectFiles).filter { path in
+            snapshot.files.contains(where: { $0.path == path })
+        }.uniqued()
     }
 
     public static func likelyFiles(
         for failureOutput: String,
         in snapshot: RepositorySnapshot
     ) -> [String] {
-        let lines = failureOutput.split(separator: "\n").map(String.init)
-        var matches: [String] = []
-
-        for line in lines {
-            if let swiftRange = line.range(of: #"[A-Za-z0-9_./-]+\.swift"#, options: .regularExpression) {
-                matches.append(String(line[swiftRange]))
-            }
-            if let testRange = line.range(of: #"[A-Za-z0-9_./-]+Tests?\.swift"#, options: .regularExpression) {
-                matches.append(String(line[testRange]))
-            }
-        }
-
-        if matches.isEmpty {
-            if failureOutput.lowercased().contains("test") {
-                matches.append(contentsOf: snapshot.testGraph.tests.prefix(5).map(\.path))
-            }
-        }
-
-        return matches
-            .filter { path in snapshot.files.contains(where: { $0.path == path }) }
+        CodeQueryEngine()
+            .findLikelyRootCause(failureDescription: failureOutput, in: snapshot)
+            .map(\.path)
             .uniqued()
     }
 }
 
-private extension Array where Element: Hashable {
-    func uniqued() -> [Element] {
-        var seen = Set<Element>()
+private extension Array where Element == String {
+    func uniqued() -> [String] {
+        var seen = Set<String>()
         return filter { seen.insert($0).inserted }
     }
 }

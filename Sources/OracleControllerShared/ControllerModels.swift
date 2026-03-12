@@ -782,6 +782,58 @@ public struct ControllerArchitectureFindingDiagnostics: Codable, Sendable, Equat
     }
 }
 
+public struct ControllerRepositoryIndexDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let workspaceRoot: String
+    public let buildTool: String
+    public let activeBranch: String?
+    public let isGitDirty: Bool
+    public let indexedAt: Date
+    public let fileCount: Int
+    public let symbolCount: Int
+    public let dependencyCount: Int
+    public let callEdgeCount: Int
+    public let testEdgeCount: Int
+    public let buildTargetCount: Int
+    public let topSymbols: [String]
+    public let buildTargets: [String]
+    public let topTests: [String]
+
+    public init(
+        id: String,
+        workspaceRoot: String,
+        buildTool: String,
+        activeBranch: String?,
+        isGitDirty: Bool,
+        indexedAt: Date,
+        fileCount: Int,
+        symbolCount: Int,
+        dependencyCount: Int,
+        callEdgeCount: Int,
+        testEdgeCount: Int,
+        buildTargetCount: Int,
+        topSymbols: [String],
+        buildTargets: [String],
+        topTests: [String]
+    ) {
+        self.id = id
+        self.workspaceRoot = workspaceRoot
+        self.buildTool = buildTool
+        self.activeBranch = activeBranch
+        self.isGitDirty = isGitDirty
+        self.indexedAt = indexedAt
+        self.fileCount = fileCount
+        self.symbolCount = symbolCount
+        self.dependencyCount = dependencyCount
+        self.callEdgeCount = callEdgeCount
+        self.testEdgeCount = testEdgeCount
+        self.buildTargetCount = buildTargetCount
+        self.topSymbols = topSymbols
+        self.buildTargets = buildTargets
+        self.topTests = topTests
+    }
+}
+
 public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let generatedAt: Date
     public let graph: ControllerGraphDiagnostics
@@ -790,6 +842,7 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let recovery: ControllerRecoveryDiagnostics
     public let projectMemory: [ControllerProjectMemoryDiagnostics]
     public let architectureFindings: [ControllerArchitectureFindingDiagnostics]
+    public let repositoryIndexes: [ControllerRepositoryIndexDiagnostics]
 
     public init(
         generatedAt: Date = Date(),
@@ -798,7 +851,8 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
         experiments: [ControllerExperimentDiagnostics],
         recovery: ControllerRecoveryDiagnostics,
         projectMemory: [ControllerProjectMemoryDiagnostics],
-        architectureFindings: [ControllerArchitectureFindingDiagnostics]
+        architectureFindings: [ControllerArchitectureFindingDiagnostics],
+        repositoryIndexes: [ControllerRepositoryIndexDiagnostics]
     ) {
         self.generatedAt = generatedAt
         self.graph = graph
@@ -807,6 +861,7 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
         self.recovery = recovery
         self.projectMemory = projectMemory
         self.architectureFindings = architectureFindings
+        self.repositoryIndexes = repositoryIndexes
     }
 }
 

@@ -6,15 +6,21 @@ import Foundation
 public final class Planner: @unchecked Sendable {
     private var currentGoal: Goal?
     public let workflowIndex: WorkflowIndex
+    private let workflowRetriever: WorkflowRetriever
     private let osPlanner: OSPlanner
     private let codePlanner: CodePlanner
     private let mixedTaskPlanner: MixedTaskPlanner
+    private let reasoningEngine: ReasoningEngine
+    private let planEvaluator: PlanEvaluator
+    private let reasoningThreshold: Double
 
     public init(
         workflowIndex: WorkflowIndex? = nil,
         osPlanner: OSPlanner? = nil,
         codePlanner: CodePlanner? = nil,
-        mixedTaskPlanner: MixedTaskPlanner? = nil
+        mixedTaskPlanner: MixedTaskPlanner? = nil,
+        reasoningEngine: ReasoningEngine? = nil,
+        reasoningThreshold: Double = 0.6
     ) {
         let sharedWorkflowIndex = workflowIndex ?? WorkflowIndex()
         let sharedGraphPlanner = GraphPlanner(maxDepth: 6, beamWidth: 5)
@@ -33,12 +39,16 @@ public final class Planner: @unchecked Sendable {
             workflowExecutor: sharedWorkflowExecutor
         )
         self.workflowIndex = sharedWorkflowIndex
+        self.workflowRetriever = sharedWorkflowRetriever
         self.osPlanner = resolvedOSPlanner
         self.codePlanner = resolvedCodePlanner
         self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(
             osPlanner: resolvedOSPlanner,
             codePlanner: resolvedCodePlanner
         )
+        self.reasoningEngine = reasoningEngine ?? ReasoningEngine()
+        self.planEvaluator = PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
+        self.reasoningThreshold = reasoningThreshold
     }
 
     public func setGoal(_ goal: Goal) {
@@ -99,7 +109,36 @@ public final class Planner: @unchecked Sendable {
         guard let currentGoal else { return nil }
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
+        let fallbackDecision = familyPlannerDecision(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
 
+        guard fallbackDecision?.source == .exploration || fallbackDecision == nil else {
+            return fallbackDecision
+        }
+
+        if let reasoningDecision = reasoningDecision(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore,
+            fallbackDecision: fallbackDecision
+        ) {
+            return reasoningDecision
+        }
+
+        return fallbackDecision
+    }
+
+    private func familyPlannerDecision(
+        taskContext: TaskContext,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: AppMemoryStore
+    ) -> PlannerDecision? {
         switch taskContext.agentKind {
         case .os:
             return osPlanner.nextStep(
@@ -122,6 +161,88 @@ public final class Planner: @unchecked Sendable {
                 graphStore: graphStore,
                 memoryStore: memoryStore
             )
+        }
+    }
+
+    private func reasoningDecision(
+        taskContext: TaskContext,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: AppMemoryStore,
+        fallbackDecision: PlannerDecision?
+    ) -> PlannerDecision? {
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(
+                taskContext: taskContext,
+                worldState: worldState,
+                errorSignature: currentGoal?.description
+            )
+        )
+        let reasoningState = ReasoningPlanningState(
+            taskContext: taskContext,
+            worldState: worldState,
+            memoryInfluence: memoryInfluence
+        )
+        let plans = reasoningEngine.generatePlans(from: reasoningState)
+        let scoredPlans = planEvaluator.evaluate(
+            plans: plans,
+            taskContext: taskContext,
+            goal: taskContext.goal,
+            worldState: worldState,
+            graphStore: graphStore,
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
+        )
+        guard let selectedPlan = planEvaluator.chooseBestPlan(
+            scoredPlans,
+            minimumScore: reasoningThreshold
+        ),
+        let selectedOperator = selectedPlan.operators.first,
+        let actionContract = selectedOperator.actionContract(for: reasoningState, goal: taskContext.goal)
+        else {
+            return nil
+        }
+
+        let fallbackReason = fallbackDecision?.fallbackReason
+            ?? "family planner had no viable workflow or graph-backed step"
+        let selectedNames = selectedPlan.operators.map(\.name)
+        let diagnostics = PlanDiagnostics(
+            selectedOperatorNames: selectedNames,
+            candidatePlans: scoredPlans.map {
+                ScoredPlanSummary(
+                    operatorNames: $0.operators.map(\.name),
+                    score: $0.score,
+                    reasons: $0.reasons
+                )
+            },
+            fallbackReason: fallbackReason
+        )
+
+        return PlannerDecision(
+            agentKind: selectedOperator.agentKind,
+            plannerFamily: plannerFamily(for: taskContext.agentKind),
+            stepPhase: selectedOperator.stepPhase,
+            actionContract: actionContract,
+            source: .exploration,
+            fallbackReason: fallbackReason,
+            semanticQuery: selectedOperator.semanticQuery(for: reasoningState, goal: taskContext.goal),
+            projectMemoryRefs: memoryInfluence.projectMemoryRefs,
+            notes: [
+                "reasoning-selected short plan",
+                "selected operators: \(selectedNames.joined(separator: " -> "))",
+            ] + selectedPlan.reasons,
+            planDiagnostics: diagnostics
+        )
+    }
+
+    private func plannerFamily(for agentKind: AgentKind) -> PlannerFamily {
+        switch agentKind {
+        case .os:
+            return .os
+        case .code:
+            return .code
+        case .mixed:
+            return .mixed
         }
     }
 
