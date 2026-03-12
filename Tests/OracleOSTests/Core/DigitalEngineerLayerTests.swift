@@ -191,6 +191,21 @@ struct DigitalEngineerLayerTests {
         #expect(ordered.first?.name == "dismiss_modal")
     }
 
+    @MainActor
+    @Test("Recovery engine attaches prompt diagnostics to recovery attempts")
+    func recoveryEngineAttachesPromptDiagnostics() async {
+        let engine = RecoveryEngine()
+        let attempt = await engine.recover(
+            failure: .modalBlocking,
+            state: WorldState(
+                observation: Observation(app: "Safari", windowTitle: "Inbox", url: nil, focusedElementID: nil, elements: [])
+            ),
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(attempt.promptDiagnostics?.templateKind == .recoverySelection)
+    }
+
     @Test("Architecture engine emits cycle and boundary findings")
     func architectureEngineEmitsFindings() {
         let engine = ArchitectureEngine()
@@ -284,6 +299,7 @@ struct DigitalEngineerLayerTests {
         #expect(FileManager.default.fileExists(atPath: manager.resultsURL(for: spec).path))
         #expect(try manager.loadResults(for: spec).count == results.count)
         #expect((try String(contentsOf: filePath, encoding: .utf8)) == baseline)
+        #expect(results.allSatisfy { $0.promptDiagnostics?.templateKind == .experimentGeneration })
     }
 
     @Test("Experiment manager prefers structurally safer passing patch")
@@ -349,6 +365,7 @@ struct DigitalEngineerLayerTests {
         #expect(decision?.executionMode == .direct)
         #expect(decision?.skillName == "edit_file")
         #expect(decision?.experimentSpec == nil)
+        #expect(decision?.promptDiagnostics?.templateKind == .codeRepair)
     }
 
     @Test("CodePlanner escalates uncertain repair into experiments")
@@ -384,6 +401,7 @@ struct DigitalEngineerLayerTests {
         #expect(decision?.skillName == "generate_patch")
         #expect(decision?.experimentSpec?.candidates.count == 2)
         #expect(decision?.experimentDecision?.reason == "ambiguous edit target")
+        #expect(decision?.promptDiagnostics?.templateKind == .codeRepair)
     }
 
     @Test("Rejected approaches bias CodePlanner toward experiments")
@@ -465,6 +483,76 @@ struct DigitalEngineerLayerTests {
         #expect(decision?.executionMode == .direct)
         #expect(decision?.skillName == "edit_file")
         #expect(decision?.actionContract.workspaceRelativePath == "Sources/Example/Calculator.swift")
+        #expect(decision?.promptDiagnostics?.templateKind == .codeRepair)
+    }
+
+    @Test("CodePlanner attaches workflow prompt diagnostics when workflow reuse wins")
+    func codePlannerAttachesWorkflowPromptDiagnostics() throws {
+        let workspace = try makeCodePlannerWorkspace()
+        let workflowIndex = WorkflowIndex()
+        workflowIndex.add(
+            WorkflowPlan(
+                id: "source-workflow",
+                agentKind: .code,
+                goalPattern: "fix calculator behavior",
+                steps: [
+                    WorkflowStep(
+                        agentKind: .code,
+                        stepPhase: .engineering,
+                        actionContract: ActionContract(
+                            id: "edit-source",
+                            agentKind: .code,
+                            skillName: "edit_file",
+                            targetRole: nil,
+                            targetLabel: "Calculator.swift",
+                            locatorStrategy: "path",
+                            workspaceRelativePath: "Sources/Example/Calculator.swift",
+                            commandCategory: CodeCommandCategory.editFile.rawValue
+                        ),
+                        fromPlanningStateID: "workspace|dirty"
+                    ),
+                ],
+                successRate: 0.9,
+                repeatedTraceSegmentCount: 3,
+                replayValidationSuccess: 1,
+                promotionStatus: .promoted
+            )
+        )
+
+        let planner = CodePlanner(workflowIndex: workflowIndex)
+        let decision = planner.nextStep(
+            taskContext: TaskContext.from(
+                goal: Goal(
+                    description: "fix calculator behavior",
+                    workspaceRoot: workspace.root.path,
+                    preferredAgentKind: .code
+                ),
+                workspaceRoot: workspace.root
+            ),
+            worldState: WorldState(
+                observationHash: "workspace-hash",
+                planningState: PlanningState(
+                    id: PlanningStateID(rawValue: "workspace|dirty"),
+                    clusterKey: StateClusterKey(rawValue: "workspace|dirty"),
+                    appID: "Workspace",
+                    domain: nil,
+                    windowClass: nil,
+                    taskPhase: "engineering",
+                    focusedRole: nil,
+                    modalClass: nil,
+                    navigationClass: "code",
+                    controlContext: nil
+                ),
+                observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
+                repositorySnapshot: RepositoryIndexer().index(workspaceRoot: workspace.root)
+            ),
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(decision?.source == .workflow)
+        #expect(decision?.workflowID == "source-workflow")
+        #expect(decision?.promptDiagnostics?.templateKind == .workflowSelection)
     }
 
     @Test("Workflow retriever uses project memory to prefer the safer workflow")

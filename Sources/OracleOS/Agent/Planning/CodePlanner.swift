@@ -13,6 +13,7 @@ public final class CodePlanner: @unchecked Sendable {
     private let workflowIndex: WorkflowIndex
     private let workflowRetriever: WorkflowRetriever
     private let workflowExecutor: WorkflowExecutor
+    private let promptEngine: PromptEngine
 
     public init(
         maxPatchIterations: Int = 5,
@@ -26,7 +27,8 @@ public final class CodePlanner: @unchecked Sendable {
         graphPlanner: GraphPlanner = GraphPlanner(),
         workflowIndex: WorkflowIndex = WorkflowIndex(),
         workflowRetriever: WorkflowRetriever = WorkflowRetriever(),
-        workflowExecutor: WorkflowExecutor = WorkflowExecutor()
+        workflowExecutor: WorkflowExecutor = WorkflowExecutor(),
+        promptEngine: PromptEngine = PromptEngine()
     ) {
         self.maxPatchIterations = maxPatchIterations
         self.maxBuildAttempts = maxBuildAttempts
@@ -40,6 +42,7 @@ public final class CodePlanner: @unchecked Sendable {
         self.workflowIndex = workflowIndex
         self.workflowRetriever = workflowRetriever
         self.workflowExecutor = workflowExecutor
+        self.promptEngine = promptEngine
     }
 
     public func nextStep(
@@ -95,6 +98,7 @@ public final class CodePlanner: @unchecked Sendable {
         if let graphDecision = graphDecision(
             taskContext: taskContext,
             worldState: worldState,
+            snapshot: snapshot,
             graphStore: graphStore,
             memoryStore: memoryStore,
             projectMemoryRefs: projectMemoryRefs,
@@ -107,6 +111,7 @@ public final class CodePlanner: @unchecked Sendable {
         if isRepairGoal,
            let repairDecision = repairDecision(
                taskContext: taskContext,
+               worldState: worldState,
                snapshot: snapshot,
                projectMemoryRefs: projectMemoryRefs,
                projectMemoryContext: projectMemoryContext,
@@ -120,6 +125,8 @@ public final class CodePlanner: @unchecked Sendable {
 
         if description.contains("push") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "git_push",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -130,6 +137,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("commit") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "git_commit",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -139,6 +148,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("branch") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "git_branch",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -148,6 +159,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("format") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "run_formatter",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -157,6 +170,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("lint") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "run_linter",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -166,6 +181,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("build") || description.contains("compile") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "run_build",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -175,6 +192,8 @@ public final class CodePlanner: @unchecked Sendable {
         }
         if description.contains("test") || description.contains("failing") {
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "run_tests",
                 snapshot: snapshot,
                 projectMemoryRefs: projectMemoryRefs,
@@ -183,6 +202,8 @@ public final class CodePlanner: @unchecked Sendable {
             )
         }
         return decision(
+            taskContext: taskContext,
+            worldState: worldState,
             for: "read_repository",
             snapshot: snapshot,
             projectMemoryRefs: projectMemoryRefs,
@@ -195,6 +216,7 @@ public final class CodePlanner: @unchecked Sendable {
     private func graphDecision(
         taskContext: TaskContext,
         worldState: WorldState,
+        snapshot: RepositorySnapshot,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
@@ -226,6 +248,7 @@ public final class CodePlanner: @unchecked Sendable {
             return candidateGraphDecision(
                 taskContext: taskContext,
                 worldState: worldState,
+                snapshot: snapshot,
                 graphStore: graphStore,
                 memoryStore: memoryStore,
                 projectMemoryRefs: projectMemoryRefs,
@@ -234,7 +257,7 @@ public final class CodePlanner: @unchecked Sendable {
             )
         }
 
-        return PlannerDecision(
+        let decision = PlannerDecision(
             agentKind: .code,
             plannerFamily: .code,
             stepPhase: .engineering,
@@ -253,11 +276,22 @@ public final class CodePlanner: @unchecked Sendable {
                 diagnostics: searchResult.diagnostics
             )
         )
+        return decision.with(promptDiagnostics: promptEngine.codeRepair(
+            taskContext: taskContext,
+            worldState: worldState,
+            snapshot: snapshot,
+            candidatePaths: [],
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureReview.findings,
+            notes: decision.notes,
+            executionMode: .direct
+        ).diagnostics)
     }
 
     private func candidateGraphDecision(
         taskContext: TaskContext,
         worldState: WorldState,
+        snapshot: RepositorySnapshot,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
@@ -289,7 +323,7 @@ public final class CodePlanner: @unchecked Sendable {
             return nil
         }
 
-        return PlannerDecision(
+        let decision = PlannerDecision(
             agentKind: .code,
             plannerFamily: .code,
             stepPhase: .engineering,
@@ -308,6 +342,16 @@ public final class CodePlanner: @unchecked Sendable {
                 diagnostics: selection.diagnostics
             ) + ["candidate score \(String(format: "%.2f", selection.score))"]
         )
+        return decision.with(promptDiagnostics: promptEngine.codeRepair(
+            taskContext: taskContext,
+            worldState: worldState,
+            snapshot: snapshot,
+            candidatePaths: [],
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureReview.findings,
+            notes: decision.notes,
+            executionMode: .direct
+        ).diagnostics)
     }
 
     private func workflowDecision(
@@ -325,14 +369,22 @@ public final class CodePlanner: @unchecked Sendable {
         ) else {
             return nil
         }
-        return workflowExecutor.nextDecision(
+        let decision = workflowExecutor.nextDecision(
             match: workflowMatch,
             plannerFamily: .code,
             sourceNotes: projectMemoryRefs.isEmpty ? [] : ["project memory informed workflow retrieval"]
         )
+        return decision.with(promptDiagnostics: promptEngine.workflowSelection(
+            goal: taskContext.goal,
+            taskContext: taskContext,
+            worldState: worldState,
+            match: workflowMatch
+        ).diagnostics)
     }
 
     private func decision(
+        taskContext: TaskContext,
+        worldState: WorldState,
         for skillName: String,
         snapshot: RepositorySnapshot,
         workspaceRelativePath: String? = nil,
@@ -348,6 +400,7 @@ public final class CodePlanner: @unchecked Sendable {
         experimentSpec: ExperimentSpec? = nil,
         experimentDecision: ExperimentDecision? = nil,
         fallbackReason: String? = nil,
+        candidatePaths: [String] = [],
         notes: [String] = ["bounded code exploration"]
     ) -> PlannerDecision? {
         let contract = ActionContract(
@@ -367,6 +420,16 @@ public final class CodePlanner: @unchecked Sendable {
             commandCategory: commandCategory(for: skillName)?.rawValue,
             plannerFamily: PlannerFamily.code.rawValue
         )
+        let promptDiagnostics = promptEngine.codeRepair(
+            taskContext: taskContext,
+            worldState: worldState,
+            snapshot: snapshot,
+            candidatePaths: candidatePaths.isEmpty ? [workspaceRelativePath].compactMap { $0 } : candidatePaths,
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureReview.findings,
+            notes: notes,
+            executionMode: executionMode
+        ).diagnostics
         return PlannerDecision(
             agentKind: .code,
             skillName: skillName,
@@ -381,12 +444,14 @@ public final class CodePlanner: @unchecked Sendable {
             refactorProposalID: architectureReview.refactorProposal?.id,
             experimentSpec: experimentSpec,
             experimentDecision: experimentDecision,
-            notes: notes
+            notes: notes,
+            promptDiagnostics: promptDiagnostics
         )
     }
 
     private func repairDecision(
         taskContext: TaskContext,
+        worldState: WorldState,
         snapshot: RepositorySnapshot,
         projectMemoryRefs: [ProjectMemoryRef],
         projectMemoryContext: ProjectMemoryPlanningContext,
@@ -420,6 +485,8 @@ public final class CodePlanner: @unchecked Sendable {
                 architectureRiskScore: architectureReview.riskScore
             )
             return decision(
+                taskContext: taskContext,
+                worldState: worldState,
                 for: "generate_patch",
                 snapshot: snapshot,
                 workspaceRelativePath: primaryPath,
@@ -429,6 +496,7 @@ public final class CodePlanner: @unchecked Sendable {
                 experimentSpec: experimentSpec,
                 experimentDecision: experimentDecision,
                 fallbackReason: "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable",
+                candidatePaths: experimentSpec.candidates.map(\.workspaceRelativePath),
                 notes: [
                     "parallel experiment fanout requested",
                     "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
@@ -444,12 +512,15 @@ public final class CodePlanner: @unchecked Sendable {
         let skillName = constrainedRefactor ? "search_code" : (preferredPath == nil ? "search_code" : "edit_file")
         let targetNote = preferredPath.map { "memory/query-biased target \($0)" } ?? "code exploration fallback"
         return decision(
+            taskContext: taskContext,
+            worldState: worldState,
             for: skillName,
             snapshot: snapshot,
             workspaceRelativePath: preferredPath,
             projectMemoryRefs: projectMemoryRefs,
             architectureReview: architectureReview,
             fallbackReason: "workflow retrieval, stable graph path reuse, and candidate graph reuse were unavailable",
+            candidatePaths: candidatePaths,
             notes: [
                 targetNote,
                 "direct repair confidence \(String(format: "%.2f", assessment.directRepairConfidence))",
@@ -579,7 +650,21 @@ public final class CodePlanner: @unchecked Sendable {
                 maxCount: taskContext.maxExperimentCandidates
             ),
             buildCommand: BuildToolDetector.defaultBuildCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL),
-            testCommand: BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL)
+            testCommand: BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL),
+            promptDiagnostics: promptEngine.experimentGeneration(
+                spec: ExperimentSpec(
+                    goalDescription: taskContext.goal.description,
+                    workspaceRoot: workspaceRoot,
+                    candidates: rankedExperimentCandidates(
+                        taskContext.experimentCandidates,
+                        candidatePaths: rankedCandidatePaths,
+                        maxCount: taskContext.maxExperimentCandidates
+                    ),
+                    buildCommand: BuildToolDetector.defaultBuildCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL),
+                    testCommand: BuildToolDetector.defaultTestCommand(for: snapshot.buildTool, workspaceRoot: workspaceURL)
+                ),
+                snapshot: snapshot
+            ).diagnostics
         )
     }
 
@@ -771,6 +856,7 @@ public final class CodePlanner: @unchecked Sendable {
         let projectMemoryPenalty = projectMemorySignals.hasRisks ? 0.1 : 0
         return min(0.25, architecturePenalty + projectMemoryPenalty)
     }
+
 }
 
 private struct RepairRoutingAssessment {

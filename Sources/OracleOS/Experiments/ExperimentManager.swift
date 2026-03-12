@@ -3,14 +3,17 @@ import Foundation
 public final class ExperimentManager: @unchecked Sendable {
     private let runner: ParallelRunner
     private let ranker: PatchRanker
+    private let promptEngine: PromptEngine
     private let fileManager = FileManager.default
 
     public init(
         runner: ParallelRunner = ParallelRunner(),
-        ranker: PatchRanker = PatchRanker()
+        ranker: PatchRanker = PatchRanker(),
+        promptEngine: PromptEngine = PromptEngine()
     ) {
         self.runner = runner
         self.ranker = ranker
+        self.promptEngine = promptEngine
     }
 
     public func defaultExperimentsRoot(for workspaceRoot: URL) -> URL {
@@ -28,10 +31,17 @@ public final class ExperimentManager: @unchecked Sendable {
         spec: ExperimentSpec,
         architectureRiskScore: Double = 0
     ) async throws -> [ExperimentResult] {
+        let workspaceRootURL = URL(fileURLWithPath: spec.workspaceRoot, isDirectory: true)
         let experimentsRoot = defaultExperimentsRoot(
-            for: URL(fileURLWithPath: spec.workspaceRoot, isDirectory: true)
+            for: workspaceRootURL
         )
         try fileManager.createDirectory(at: experimentsRoot, withIntermediateDirectories: true)
+        let snapshot = RepositoryIndexer().indexIfNeeded(workspaceRoot: workspaceRootURL)
+        let promptDiagnostics = spec.promptDiagnostics
+            ?? promptEngine.experimentGeneration(
+                spec: spec,
+                snapshot: snapshot
+            ).diagnostics
 
         let results = try await runner.run(
             spec: spec,
@@ -52,7 +62,8 @@ public final class ExperimentManager: @unchecked Sendable {
                 architectureRiskScore: result.architectureRiskScore,
                 architectureFindings: result.architectureFindings,
                 refactorProposalID: result.refactorProposalID,
-                selected: result.candidate.id == selectedID
+                selected: result.candidate.id == selectedID,
+                promptDiagnostics: promptDiagnostics
             )
         }
         try persistResults(finalized, spec: spec, experimentsRoot: experimentsRoot)

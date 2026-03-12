@@ -12,6 +12,7 @@ public final class Planner: @unchecked Sendable {
     private let mixedTaskPlanner: MixedTaskPlanner
     private let reasoningEngine: ReasoningEngine
     private let planEvaluator: PlanEvaluator
+    private let promptEngine: PromptEngine
     private let reasoningThreshold: Double
 
     public init(
@@ -20,6 +21,7 @@ public final class Planner: @unchecked Sendable {
         codePlanner: CodePlanner? = nil,
         mixedTaskPlanner: MixedTaskPlanner? = nil,
         reasoningEngine: ReasoningEngine? = nil,
+        promptEngine: PromptEngine = PromptEngine(),
         reasoningThreshold: Double = 0.6
     ) {
         let sharedWorkflowIndex = workflowIndex ?? WorkflowIndex()
@@ -48,6 +50,7 @@ public final class Planner: @unchecked Sendable {
         )
         self.reasoningEngine = reasoningEngine ?? ReasoningEngine()
         self.planEvaluator = PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
+        self.promptEngine = promptEngine
         self.reasoningThreshold = reasoningThreshold
     }
 
@@ -217,6 +220,22 @@ public final class Planner: @unchecked Sendable {
             },
             fallbackReason: fallbackReason
         )
+        let promptDiagnostics = promptEngine.planning(
+            goal: taskContext.goal,
+            taskContext: taskContext,
+            worldState: worldState,
+            selectedOperators: selectedNames,
+            candidatePlans: scoredPlans.map {
+                ScoredPlanSummary(
+                    operatorNames: $0.operators.map(\.name),
+                    score: $0.score,
+                    reasons: $0.reasons
+                )
+            },
+            fallbackReason: fallbackReason,
+            projectMemoryRefs: memoryInfluence.projectMemoryRefs,
+            notes: selectedPlan.reasons
+        ).diagnostics
 
         return PlannerDecision(
             agentKind: selectedOperator.agentKind,
@@ -231,7 +250,8 @@ public final class Planner: @unchecked Sendable {
                 "reasoning-selected short plan",
                 "selected operators: \(selectedNames.joined(separator: " -> "))",
             ] + selectedPlan.reasons,
-            planDiagnostics: diagnostics
+            planDiagnostics: diagnostics,
+            promptDiagnostics: promptDiagnostics
         )
     }
 

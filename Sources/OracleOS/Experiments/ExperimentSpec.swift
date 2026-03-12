@@ -7,6 +7,7 @@ public struct ExperimentSpec: Codable, Sendable, Equatable, Identifiable {
     public let candidates: [CandidatePatch]
     public let buildCommand: CommandSpec?
     public let testCommand: CommandSpec?
+    public let promptDiagnostics: PromptDiagnostics?
 
     public init(
         id: String = UUID().uuidString,
@@ -14,7 +15,8 @@ public struct ExperimentSpec: Codable, Sendable, Equatable, Identifiable {
         workspaceRoot: String,
         candidates: [CandidatePatch],
         buildCommand: CommandSpec? = nil,
-        testCommand: CommandSpec? = nil
+        testCommand: CommandSpec? = nil,
+        promptDiagnostics: PromptDiagnostics? = nil
     ) {
         self.id = id
         self.goalDescription = goalDescription
@@ -22,5 +24,6 @@ public struct ExperimentSpec: Codable, Sendable, Equatable, Identifiable {
         self.candidates = candidates
         self.buildCommand = buildCommand
         self.testCommand = testCommand
+        self.promptDiagnostics = promptDiagnostics
     }
 }

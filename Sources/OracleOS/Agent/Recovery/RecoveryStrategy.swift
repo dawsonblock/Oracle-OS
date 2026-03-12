@@ -20,15 +20,18 @@ public struct RecoveryAttempt: Sendable {
     public let strategyName: String?
     public let preparation: RecoveryPreparation?
     public let message: String
+    public let promptDiagnostics: PromptDiagnostics?
 
     public init(
         strategyName: String?,
         preparation: RecoveryPreparation?,
-        message: String
+        message: String,
+        promptDiagnostics: PromptDiagnostics? = nil
     ) {
         self.strategyName = strategyName
         self.preparation = preparation
         self.message = message
+        self.promptDiagnostics = promptDiagnostics
     }
 }
 

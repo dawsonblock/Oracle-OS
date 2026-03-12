@@ -17,17 +17,19 @@ public final class RecoveryEngine {
         memoryStore: AppMemoryStore? = nil
     ) async -> RecoveryAttempt {
         let memoryStore = memoryStore ?? AppMemoryStore()
-        let orderedStrategies = selector.orderedStrategies(
+        let selection = selector.select(
             for: failure,
             state: state,
             memoryStore: memoryStore
         )
+        let orderedStrategies = selection.orderedStrategies
 
         guard !orderedStrategies.isEmpty else {
             return RecoveryAttempt(
                 strategyName: nil,
                 preparation: nil,
-                message: "No recovery strategy"
+                message: "No recovery strategy",
+                promptDiagnostics: selection.promptDiagnostics
             )
         }
 
@@ -41,7 +43,8 @@ public final class RecoveryEngine {
                     return RecoveryAttempt(
                         strategyName: strategy.name,
                         preparation: preparation,
-                        message: "Prepared recovery strategy \(strategy.name)"
+                        message: "Prepared recovery strategy \(strategy.name)",
+                        promptDiagnostics: selection.promptDiagnostics
                     )
                 }
             } catch {
@@ -49,7 +52,8 @@ public final class RecoveryEngine {
                     return RecoveryAttempt(
                         strategyName: strategy.name,
                         preparation: nil,
-                        message: error.localizedDescription
+                        message: error.localizedDescription,
+                        promptDiagnostics: selection.promptDiagnostics
                     )
                 }
             }
@@ -58,7 +62,8 @@ public final class RecoveryEngine {
         return RecoveryAttempt(
             strategyName: nil,
             preparation: nil,
-            message: "Recovery exhausted"
+            message: "Recovery exhausted",
+            promptDiagnostics: selection.promptDiagnostics
         )
     }
 }

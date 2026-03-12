@@ -6,19 +6,22 @@ public final class OSPlanner: @unchecked Sendable {
     private let workflowIndex: WorkflowIndex
     private let workflowRetriever: WorkflowRetriever
     private let workflowExecutor: WorkflowExecutor
+    private let promptEngine: PromptEngine
 
     public init(
         graphPlanner: GraphPlanner = GraphPlanner(),
         explorationPolicy: ExplorationPolicy = ExplorationPolicy(),
         workflowIndex: WorkflowIndex = WorkflowIndex(),
         workflowRetriever: WorkflowRetriever = WorkflowRetriever(),
-        workflowExecutor: WorkflowExecutor = WorkflowExecutor()
+        workflowExecutor: WorkflowExecutor = WorkflowExecutor(),
+        promptEngine: PromptEngine = PromptEngine()
     ) {
         self.graphPlanner = graphPlanner
         self.explorationPolicy = explorationPolicy
         self.workflowIndex = workflowIndex
         self.workflowRetriever = workflowRetriever
         self.workflowExecutor = workflowExecutor
+        self.promptEngine = promptEngine
     }
 
     public func nextStep(
@@ -34,11 +37,17 @@ public final class OSPlanner: @unchecked Sendable {
             workflowIndex: workflowIndex,
             memoryStore: memoryStore
         ) {
-            return workflowExecutor.nextDecision(
+            let decision = workflowExecutor.nextDecision(
                 match: workflowMatch,
                 plannerFamily: .os,
                 sourceNotes: ["workflow-first planner hit"]
             )
+            return decision.with(promptDiagnostics: promptEngine.workflowSelection(
+                goal: taskContext.goal,
+                taskContext: taskContext,
+                worldState: worldState,
+                match: workflowMatch
+            ).diagnostics)
         }
 
         let graphGoal = Goal(
@@ -59,7 +68,7 @@ public final class OSPlanner: @unchecked Sendable {
            let currentEdge = searchResult.edges.first,
            let contract = graphStore.actionContract(for: currentEdge.actionContractID)
         {
-            return PlannerDecision(
+            let decision = PlannerDecision(
                 agentKind: .os,
                 plannerFamily: .os,
                 stepPhase: .operatingSystem,
@@ -75,6 +84,11 @@ public final class OSPlanner: @unchecked Sendable {
                     diagnostics: searchResult.diagnostics
                 )
             )
+            return decision.with(promptDiagnostics: promptDiagnostics(
+                goal: taskContext.goal,
+                worldState: worldState,
+                decision: decision
+            ))
         }
 
         if let candidateSelection = graphPlanner.bestCandidateEdge(
@@ -86,7 +100,7 @@ public final class OSPlanner: @unchecked Sendable {
         ),
            let contract = candidateSelection.actionContract
         {
-            return PlannerDecision(
+            let decision = PlannerDecision(
                 agentKind: .os,
                 plannerFamily: .os,
                 stepPhase: .operatingSystem,
@@ -102,12 +116,17 @@ public final class OSPlanner: @unchecked Sendable {
                     diagnostics: candidateSelection.diagnostics
                 ) + ["candidate score \(String(format: "%.2f", candidateSelection.score))"]
             )
+            return decision.with(promptDiagnostics: promptDiagnostics(
+                goal: taskContext.goal,
+                worldState: worldState,
+                decision: decision
+            ))
         }
 
         guard let fallback = explorationPolicy.choose(goal: taskContext.goal, worldState: worldState) else {
             return nil
         }
-        return PlannerDecision(
+        let decision = PlannerDecision(
             agentKind: .os,
             skillName: fallback.skillName,
             plannerFamily: .os,
@@ -123,6 +142,11 @@ public final class OSPlanner: @unchecked Sendable {
             recoveryStrategy: fallback.recoveryStrategy,
             recoverySource: fallback.recoverySource
         )
+        return decision.with(promptDiagnostics: promptDiagnostics(
+            goal: taskContext.goal,
+            worldState: worldState,
+            decision: decision
+        ))
     }
 
     private func semanticQuery(
@@ -152,5 +176,21 @@ public final class OSPlanner: @unchecked Sendable {
             notes.append(fallbackReason)
         }
         return notes
+    }
+
+    private func promptDiagnostics(
+        goal: Goal,
+        worldState: WorldState,
+        decision: PlannerDecision
+    ) -> PromptDiagnostics {
+        promptEngine.osAction(
+            goal: goal,
+            worldState: worldState,
+            actionContract: decision.actionContract,
+            semanticQuery: decision.semanticQuery,
+            source: decision.source,
+            fallbackReason: decision.fallbackReason,
+            notes: decision.notes
+        ).diagnostics
     }
 }
