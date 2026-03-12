@@ -834,6 +834,93 @@ public struct ControllerRepositoryIndexDiagnostics: Codable, Sendable, Equatable
     }
 }
 
+public struct ControllerHostWindowDiagnostics: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let appName: String
+    public let title: String?
+    public let elementCount: Int
+    public let focused: Bool
+
+    public init(
+        id: String,
+        appName: String,
+        title: String? = nil,
+        elementCount: Int,
+        focused: Bool
+    ) {
+        self.id = id
+        self.appName = appName
+        self.title = title
+        self.elementCount = elementCount
+        self.focused = focused
+    }
+}
+
+public struct ControllerHostDiagnostics: Codable, Sendable, Equatable {
+    public let snapshotID: String
+    public let activeApplication: String?
+    public let accessibilityGranted: Bool
+    public let screenRecordingGranted: Bool
+    public let windowCount: Int
+    public let menuCount: Int
+    public let dialogTitle: String?
+    public let capturedWindowTitle: String?
+    public let windows: [ControllerHostWindowDiagnostics]
+
+    public init(
+        snapshotID: String,
+        activeApplication: String? = nil,
+        accessibilityGranted: Bool,
+        screenRecordingGranted: Bool,
+        windowCount: Int,
+        menuCount: Int,
+        dialogTitle: String? = nil,
+        capturedWindowTitle: String? = nil,
+        windows: [ControllerHostWindowDiagnostics]
+    ) {
+        self.snapshotID = snapshotID
+        self.activeApplication = activeApplication
+        self.accessibilityGranted = accessibilityGranted
+        self.screenRecordingGranted = screenRecordingGranted
+        self.windowCount = windowCount
+        self.menuCount = menuCount
+        self.dialogTitle = dialogTitle
+        self.capturedWindowTitle = capturedWindowTitle
+        self.windows = windows
+    }
+}
+
+public struct ControllerBrowserDiagnostics: Codable, Sendable, Equatable {
+    public let appName: String
+    public let available: Bool
+    public let url: String?
+    public let title: String?
+    public let domain: String?
+    public let indexedElementCount: Int
+    public let topIndexedLabels: [String]
+    public let simplifiedTextPreview: String?
+
+    public init(
+        appName: String,
+        available: Bool,
+        url: String? = nil,
+        title: String? = nil,
+        domain: String? = nil,
+        indexedElementCount: Int,
+        topIndexedLabels: [String],
+        simplifiedTextPreview: String? = nil
+    ) {
+        self.appName = appName
+        self.available = available
+        self.url = url
+        self.title = title
+        self.domain = domain
+        self.indexedElementCount = indexedElementCount
+        self.topIndexedLabels = topIndexedLabels
+        self.simplifiedTextPreview = simplifiedTextPreview
+    }
+}
+
 public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let generatedAt: Date
     public let graph: ControllerGraphDiagnostics
@@ -843,6 +930,8 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
     public let projectMemory: [ControllerProjectMemoryDiagnostics]
     public let architectureFindings: [ControllerArchitectureFindingDiagnostics]
     public let repositoryIndexes: [ControllerRepositoryIndexDiagnostics]
+    public let host: ControllerHostDiagnostics?
+    public let browser: ControllerBrowserDiagnostics?
 
     public init(
         generatedAt: Date = Date(),
@@ -852,7 +941,9 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
         recovery: ControllerRecoveryDiagnostics,
         projectMemory: [ControllerProjectMemoryDiagnostics],
         architectureFindings: [ControllerArchitectureFindingDiagnostics],
-        repositoryIndexes: [ControllerRepositoryIndexDiagnostics]
+        repositoryIndexes: [ControllerRepositoryIndexDiagnostics],
+        host: ControllerHostDiagnostics? = nil,
+        browser: ControllerBrowserDiagnostics? = nil
     ) {
         self.generatedAt = generatedAt
         self.graph = graph
@@ -862,6 +953,8 @@ public struct ControllerDiagnosticsSnapshot: Codable, Sendable, Equatable {
         self.projectMemory = projectMemory
         self.architectureFindings = architectureFindings
         self.repositoryIndexes = repositoryIndexes
+        self.host = host
+        self.browser = browser
     }
 }
 

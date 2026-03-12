@@ -343,6 +343,58 @@ struct GraphAwareLoopTests {
         #expect(driver.decisions.first?.source == .exploration)
     }
 
+    @Test("AgentLoop recognizes goal reached immediately after a successful step")
+    func agentLoopRecognizesGoalAfterSuccessfulStep() async {
+        let abstraction = StateAbstraction()
+        let finderObservation = Observation(
+            app: "Finder",
+            windowTitle: "Finder",
+            url: nil,
+            focusedElementID: "rename",
+            elements: [
+                UnifiedElement(id: "rename", source: .ax, role: "AXButton", label: "Rename", focused: true, confidence: 0.96),
+            ]
+        )
+        let savedObservation = Observation(
+            app: "Finder",
+            windowTitle: "Finder",
+            url: nil,
+            focusedElementID: "save",
+            elements: [
+                UnifiedElement(id: "save", source: .ax, role: "AXButton", label: "Save", focused: true, confidence: 0.97),
+            ]
+        )
+        let provider = StubObservationProvider([finderObservation, savedObservation])
+        let driver = RecordingExecutionDriver { _, _, _ in
+            ToolResult(success: true, data: [
+                "action_result": ActionResult(success: true, verified: true).toDict(),
+            ])
+        }
+        let loop = AgentLoop(
+            observationProvider: provider,
+            executionDriver: driver,
+            stateAbstraction: abstraction,
+            planner: Planner(),
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            policyEngine: PolicyEngine(mode: .confirmRisky),
+            recoveryEngine: RecoveryEngine(),
+            memoryStore: AppMemoryStore()
+        )
+
+        let outcome = await loop.run(
+            goal: Goal(
+                description: "rename file in finder",
+                targetApp: "Finder",
+                targetTaskPhase: "save"
+            ),
+            budget: LoopBudget(maxSteps: 1)
+        )
+
+        #expect(outcome.reason == .goalAchieved)
+        #expect(outcome.finalWorldState?.observation.focusedElementID == "save")
+        #expect(outcome.steps == 1)
+    }
+
     @Test("AgentLoop terminates when exploration budget is exhausted")
     func agentLoopStopsWhenExplorationBudgetExhausted() async {
         let observation = Observation(

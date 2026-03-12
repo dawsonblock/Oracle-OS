@@ -313,6 +313,63 @@ struct WorkflowSynthesisTests {
         #expect(policy.shouldPromote(plan) == false)
     }
 
+    @Test("Workflow pattern miner rejects sandbox-specific residue")
+    func workflowPatternMinerRejectsSandboxResidue() {
+        let events = [
+            workflowEvent(
+                sessionID: "s1",
+                taskID: "t1",
+                stepID: 1,
+                actionName: "edit_file",
+                actionTarget: "Parser.swift",
+                actionContractID: "edit|parser",
+                postconditionClass: "valueMatched",
+                planningStateID: "repo|tests-failing",
+                agentKind: .code,
+                plannerFamily: .code,
+                workspaceRelativePath: "/tmp/oracle-run-1/.oracle/experiments/exp-1/candidate-a/Sources/Parser.swift",
+                sandboxPath: "/tmp/oracle-run-1/.oracle/experiments/exp-1/candidate-a"
+            ),
+            workflowEvent(
+                sessionID: "s2",
+                taskID: "t2",
+                stepID: 1,
+                actionName: "edit_file",
+                actionTarget: "Parser.swift",
+                actionContractID: "edit|parser",
+                postconditionClass: "valueMatched",
+                planningStateID: "repo|tests-failing",
+                agentKind: .code,
+                plannerFamily: .code,
+                workspaceRelativePath: "/tmp/oracle-run-2/.oracle/experiments/exp-2/candidate-b/Sources/Parser.swift",
+                sandboxPath: "/tmp/oracle-run-2/.oracle/experiments/exp-2/candidate-b"
+            ),
+            workflowEvent(
+                sessionID: "s3",
+                taskID: "t3",
+                stepID: 1,
+                actionName: "edit_file",
+                actionTarget: "Parser.swift",
+                actionContractID: "edit|parser",
+                postconditionClass: "valueMatched",
+                planningStateID: "repo|tests-failing",
+                agentKind: .code,
+                plannerFamily: .code,
+                workspaceRelativePath: "/tmp/oracle-run-3/.oracle/experiments/exp-3/candidate-c/Sources/Parser.swift",
+                sandboxPath: "/tmp/oracle-run-3/.oracle/experiments/exp-3/candidate-c"
+            ),
+        ]
+
+        let patterns = WorkflowPatternMiner().mine(events: events)
+        let plans = WorkflowSynthesizer().synthesize(
+            goalPattern: "repair parser failure",
+            events: events
+        )
+
+        #expect(patterns.isEmpty)
+        #expect(plans.isEmpty)
+    }
+
     private func workflowEvent(
         sessionID: String,
         taskID: String,
@@ -321,7 +378,12 @@ struct WorkflowSynthesisTests {
         actionTarget: String,
         actionContractID: String,
         postconditionClass: String,
-        planningStateID: String? = nil
+        planningStateID: String? = nil,
+        agentKind: AgentKind = .os,
+        plannerFamily: PlannerFamily = .os,
+        workspaceRelativePath: String? = nil,
+        sandboxPath: String? = nil,
+        knowledgeTier: KnowledgeTier = .candidate
     ) -> TraceEvent {
         TraceEvent(
             sessionID: sessionID,
@@ -360,10 +422,10 @@ struct WorkflowSynthesisTests {
             approvalOutcome: nil,
             blockedByPolicy: false,
             appProfile: nil,
-            agentKind: AgentKind.os.rawValue,
-            domain: "os",
-            plannerFamily: PlannerFamily.os.rawValue,
-            workspaceRelativePath: nil,
+            agentKind: agentKind.rawValue,
+            domain: agentKind == .code ? "code" : "os",
+            plannerFamily: plannerFamily.rawValue,
+            workspaceRelativePath: workspaceRelativePath,
             commandCategory: nil,
             commandSummary: nil,
             repositorySnapshotID: nil,
@@ -373,12 +435,12 @@ struct WorkflowSynthesisTests {
             projectMemoryRefs: nil,
             experimentID: nil,
             candidateID: nil,
-            sandboxPath: nil,
+            sandboxPath: sandboxPath,
             selectedCandidate: nil,
             experimentOutcome: nil,
             architectureFindings: nil,
             refactorProposalID: nil,
-            knowledgeTier: KnowledgeTier.candidate.rawValue,
+            knowledgeTier: knowledgeTier.rawValue,
             elapsedMs: 10,
             screenshotPath: nil,
             notes: nil

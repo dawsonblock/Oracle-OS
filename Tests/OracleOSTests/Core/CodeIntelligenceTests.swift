@@ -33,6 +33,20 @@ struct CodeIntelligenceTests {
         #expect(ranked.first?.path == "Sources/Example/Calculator.swift")
     }
 
+    @Test("Root cause analyzer ranks source file above tests and unrelated files")
+    func rootCauseAnalyzerRanksSourceAboveTestsAndUnrelatedFiles() throws {
+        let workspace = try makeRepositoryWorkspace()
+        let snapshot = RepositoryIndexer().index(workspaceRoot: workspace)
+        let ranked = RootCauseAnalyzer().analyze(
+            failureDescription: "AssertionError: testCalculatorDouble failed in helper with an unexpected result",
+            in: snapshot
+        )
+
+        #expect(ranked.first?.path == "Sources/Example/Calculator.swift")
+        #expect(ranked.first?.matchedSymbols.contains("helper") == true)
+        #expect(ranked.first?.reasons.contains(where: { $0.contains("matched test") }) == true)
+    }
+
     @Test("Change impact analyzer reports affected tests and build targets")
     func changeImpactAnalyzerReportsAffectedTestsAndTargets() throws {
         let workspace = try makeRepositoryWorkspace()

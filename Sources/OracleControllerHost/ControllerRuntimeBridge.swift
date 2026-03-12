@@ -99,9 +99,17 @@ final class ControllerRuntimeBridge {
 
     func diagnosticsSnapshot() -> ControllerDiagnosticsSnapshot {
         let traceEvents = diagnosticsBuilder.loadTraceEvents()
+        let observation = ObservationBuilder.capture(appName: nil)
+        let hostSnapshot = runtimeContext.automationHost.snapshots.captureSnapshot(appName: observation.app)
+        let browserSession = runtimeContext.browserController.snapshot(
+            appName: observation.app,
+            observation: observation
+        ).map { BrowserSession(appName: observation.app ?? $0.browserApp, page: $0, available: true) }
         let snapshot = diagnosticsBuilder.build(
             graphStore: runtimeContext.graphStore,
-            traceEvents: traceEvents
+            traceEvents: traceEvents,
+            hostSnapshot: hostSnapshot,
+            browserSession: browserSession
         )
         return map(snapshot)
     }
@@ -572,7 +580,9 @@ final class ControllerRuntimeBridge {
             ),
             projectMemory: snapshot.projectMemory.map(map),
             architectureFindings: snapshot.architectureFindings.map(map),
-            repositoryIndexes: snapshot.repositoryIndexes.map(map)
+            repositoryIndexes: snapshot.repositoryIndexes.map(map),
+            host: snapshot.host.map(map),
+            browser: snapshot.browser.map(map)
         )
     }
 
@@ -704,6 +714,43 @@ final class ControllerRuntimeBridge {
             topSymbols: index.topSymbols,
             buildTargets: index.buildTargets,
             topTests: index.topTests
+        )
+    }
+
+    private func map(_ host: DiagnosticsHostSnapshot) -> ControllerHostDiagnostics {
+        ControllerHostDiagnostics(
+            snapshotID: host.snapshotID,
+            activeApplication: host.activeApplication,
+            accessibilityGranted: host.accessibilityGranted,
+            screenRecordingGranted: host.screenRecordingGranted,
+            windowCount: host.windowCount,
+            menuCount: host.menuCount,
+            dialogTitle: host.dialogTitle,
+            capturedWindowTitle: host.capturedWindowTitle,
+            windows: host.windows.map(map)
+        )
+    }
+
+    private func map(_ window: DiagnosticsHostWindow) -> ControllerHostWindowDiagnostics {
+        ControllerHostWindowDiagnostics(
+            id: window.id,
+            appName: window.appName,
+            title: window.title,
+            elementCount: window.elementCount,
+            focused: window.focused
+        )
+    }
+
+    private func map(_ browser: DiagnosticsBrowserSnapshot) -> ControllerBrowserDiagnostics {
+        ControllerBrowserDiagnostics(
+            appName: browser.appName,
+            available: browser.available,
+            url: browser.url,
+            title: browser.title,
+            domain: browser.domain,
+            indexedElementCount: browser.indexedElementCount,
+            topIndexedLabels: browser.topIndexedLabels,
+            simplifiedTextPreview: browser.simplifiedTextPreview
         )
     }
 

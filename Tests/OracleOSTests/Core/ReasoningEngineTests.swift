@@ -207,6 +207,76 @@ struct ReasoningEngineTests {
         #expect(contract?.workspaceRelativePath == "Sources/Example/Calculator.swift")
     }
 
+    @Test("Plan simulator prefers dismissing a modal before clicking through it")
+    func planSimulatorPrefersDismissingModal() {
+        let goal = Goal(
+            description: "close the blocking modal and continue in Safari",
+            targetApp: "Safari",
+            preferredAgentKind: .os
+        )
+        let taskContext = TaskContext.from(goal: goal)
+        let worldState = WorldState(
+            observationHash: "safari-modal",
+            planningState: planningState(
+                id: "safari|dialog",
+                appID: "Safari",
+                domain: nil,
+                taskPhase: "browse",
+                modalClass: "dialog"
+            ),
+            observation: Observation(
+                app: "Safari",
+                windowTitle: "Safari",
+                url: "https://example.com",
+                focusedElementID: nil,
+                elements: [
+                    UnifiedElement(id: "dialog", source: .ax, role: "AXDialog", label: "Permission dialog", confidence: 0.95),
+                    UnifiedElement(id: "continue", source: .ax, role: "AXButton", label: "Continue", confidence: 0.9),
+                ]
+            )
+        )
+        let memoryInfluence = MemoryInfluence()
+        let reasoningState = ReasoningPlanningState(
+            taskContext: taskContext,
+            worldState: worldState,
+            memoryInfluence: memoryInfluence
+        )
+        let modalPlan = PlanCandidate(
+            operators: [Operator(kind: .dismissModal)],
+            projectedState: Operator(kind: .dismissModal).effect(reasoningState)
+        )
+        let clickPlan = PlanCandidate(
+            operators: [Operator(kind: .clickTarget)],
+            projectedState: Operator(kind: .clickTarget).effect(reasoningState)
+        )
+        let simulator = PlanSimulator(workflowRetriever: WorkflowRetriever())
+        let graphStore = GraphStore(databaseURL: makeTempGraphURL())
+
+        let modalOutcome = simulator.simulate(
+            plan: modalPlan,
+            taskContext: taskContext,
+            goal: goal,
+            worldState: worldState,
+            graphStore: graphStore,
+            workflowIndex: WorkflowIndex(),
+            memoryStore: AppMemoryStore()
+        )
+        let clickOutcome = simulator.simulate(
+            plan: clickPlan,
+            taskContext: taskContext,
+            goal: goal,
+            worldState: worldState,
+            graphStore: graphStore,
+            workflowIndex: WorkflowIndex(),
+            memoryStore: AppMemoryStore()
+        )
+
+        #expect(modalOutcome != nil)
+        #expect(clickOutcome != nil)
+        #expect((modalOutcome?.successProbability ?? 0) > (clickOutcome?.successProbability ?? 0))
+        #expect(clickOutcome?.likelyFailureMode == "modal-blocked")
+    }
+
     private func planningState(
         id: String,
         appID: String,

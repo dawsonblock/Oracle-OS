@@ -1360,6 +1360,10 @@ private struct DiagnosticsWorkspaceView: View {
                                 KVRow(key: "Promotion Eligible", value: "\(diagnostics.graph.promotionEligibleCount)")
                                 KVRow(key: "Indexed Targets", value: "\(diagnostics.repositoryIndexes.reduce(0) { $0 + $1.buildTargetCount })")
                             }
+                            GridRow {
+                                KVRow(key: "Host Snapshot", value: diagnostics.host?.activeApplication ?? "Unavailable")
+                                KVRow(key: "Browser Snapshot", value: diagnostics.browser?.domain ?? diagnostics.browser?.appName ?? "Unavailable")
+                            }
                         }
                         HStack(spacing: 8) {
                             StatusBadge(
@@ -1370,6 +1374,11 @@ private struct DiagnosticsWorkspaceView: View {
                             StatusBadge(label: "Candidate \(diagnostics.graph.candidateEdges.count)", tone: .neutral)
                             StatusBadge(label: "Recovery \(diagnostics.graph.recoveryEdges.count)", tone: .warning)
                         }
+                    }
+
+                    HStack(alignment: .top, spacing: 18) {
+                        diagnosticsHostCard(diagnostics)
+                        diagnosticsBrowserCard(diagnostics)
                     }
 
                     HStack(alignment: .top, spacing: 18) {
@@ -1433,6 +1442,86 @@ private struct DiagnosticsWorkspaceView: View {
                     emptyTitle: "No Recovery Edges",
                     emptyMessage: "Recovery-tagged transitions stay visible and separate here."
                 )
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func diagnosticsHostCard(_ diagnostics: ControllerDiagnosticsSnapshot) -> some View {
+        PanelCard("Host Automation", subtitle: "Structured app, window, dialog, menu, and permission snapshot") {
+            if let host = diagnostics.host {
+                VStack(alignment: .leading, spacing: 10) {
+                    KVRow(key: "Active App", value: host.activeApplication ?? "Unknown")
+                    KVRow(key: "Snapshot", value: host.snapshotID, monospaced: true)
+                    KVRow(key: "Windows", value: "\(host.windowCount)")
+                    KVRow(key: "Menus", value: "\(host.menuCount)")
+                    KVRow(key: "Dialog", value: host.dialogTitle ?? "None")
+                    KVRow(key: "Capture", value: host.capturedWindowTitle ?? "None")
+                    HStack(spacing: 8) {
+                        StatusBadge(label: host.accessibilityGranted ? "Accessibility Granted" : "Accessibility Missing", tone: host.accessibilityGranted ? .good : .warning)
+                        StatusBadge(label: host.screenRecordingGranted ? "Screen Recording Granted" : "Screen Recording Missing", tone: host.screenRecordingGranted ? .good : .warning)
+                    }
+                    if !host.windows.isEmpty {
+                        Divider()
+                        ForEach(host.windows.prefix(4)) { window in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(window.title ?? window.appName)
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text(window.appName)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                StatusBadge(label: "\(window.elementCount) elements", tone: window.focused ? .good : .neutral)
+                            }
+                        }
+                    }
+                }
+            } else {
+                EmptyStateView(
+                    systemImage: "macwindow",
+                    title: "No Host Snapshot",
+                    message: "The host automation snapshot will appear here once the controller can capture app, window, dialog, and permission state."
+                )
+                .frame(height: 220)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func diagnosticsBrowserCard(_ diagnostics: ControllerDiagnosticsSnapshot) -> some View {
+        PanelCard("Browser Automation", subtitle: "Flattened DOM, indexed elements, and reduced page context") {
+            if let browser = diagnostics.browser {
+                VStack(alignment: .leading, spacing: 10) {
+                    KVRow(key: "Browser", value: browser.appName)
+                    KVRow(key: "Available", value: browser.available ? "Yes" : "No")
+                    KVRow(key: "Domain", value: browser.domain ?? "Unknown")
+                    KVRow(key: "Title", value: browser.title ?? "Unknown")
+                    KVRow(key: "URL", value: browser.url ?? "Unknown", monospaced: true)
+                    KVRow(key: "Indexed Elements", value: "\(browser.indexedElementCount)")
+                    if !browser.topIndexedLabels.isEmpty {
+                        Divider()
+                        Text(browser.topIndexedLabels.joined(separator: "\n"))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    if let preview = browser.simplifiedTextPreview, !preview.isEmpty {
+                        Divider()
+                        Text(preview)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(6)
+                    }
+                }
+            } else {
+                EmptyStateView(
+                    systemImage: "globe",
+                    title: "No Browser Snapshot",
+                    message: "Open a supported browser and navigate to a page to populate the DOM-reduced browser snapshot."
+                )
+                .frame(height: 220)
             }
         }
         .frame(maxWidth: .infinity)

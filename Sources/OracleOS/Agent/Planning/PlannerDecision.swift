@@ -143,4 +143,42 @@ public struct PlannerDecision: Sendable {
             recoverySource: recoverySource
         )
     }
+
+    public func normalized(
+        fallbackReason: String? = nil,
+        notes: [String]? = nil
+    ) -> PlannerDecision {
+        PlannerDecision(
+            agentKind: agentKind,
+            skillName: skillName,
+            plannerFamily: plannerFamily,
+            stepPhase: stepPhase,
+            executionMode: executionMode,
+            actionContract: actionContract,
+            source: source,
+            workflowID: workflowID,
+            workflowStepID: workflowStepID,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
+            fallbackReason: fallbackReason ?? self.fallbackReason,
+            graphSearchDiagnostics: graphSearchDiagnostics,
+            semanticQuery: semanticQuery,
+            projectMemoryRefs: projectMemoryRefs,
+            architectureFindings: architectureFindings,
+            refactorProposalID: refactorProposalID,
+            experimentSpec: experimentSpec,
+            experimentDecision: experimentDecision,
+            experimentCandidateID: experimentCandidateID,
+            experimentSandboxPath: experimentSandboxPath,
+            selectedExperimentCandidate: selectedExperimentCandidate,
+            experimentOutcome: experimentOutcome,
+            knowledgeTier: knowledgeTier,
+            notes: notes ?? self.notes,
+            planDiagnostics: planDiagnostics,
+            promptDiagnostics: promptDiagnostics,
+            recoveryTagged: recoveryTagged,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource
+        )
+    }
 }

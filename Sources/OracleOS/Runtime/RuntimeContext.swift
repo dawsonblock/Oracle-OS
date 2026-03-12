@@ -17,6 +17,9 @@ public final class RuntimeContext {
     public let repositoryIndexer: RepositoryIndexer
     public let architectureEngine: ArchitectureEngine
     public let experimentManager: ExperimentManager
+    public let automationHost: AutomationHost
+    public let browserController: BrowserController
+    public let browserPageStateBuilder: BrowserPageStateBuilder
 
     public init(
         config: RuntimeConfig = .live(),
@@ -33,7 +36,10 @@ public final class RuntimeContext {
         workspaceRunner: WorkspaceRunner = WorkspaceRunner(),
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         architectureEngine: ArchitectureEngine = ArchitectureEngine(),
-        experimentManager: ExperimentManager = ExperimentManager()
+        experimentManager: ExperimentManager = ExperimentManager(),
+        automationHost: AutomationHost = .live(),
+        browserController: BrowserController = BrowserController(),
+        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder()
     ) {
         self.config = config
         self.traceRecorder = traceRecorder
@@ -50,6 +56,9 @@ public final class RuntimeContext {
         self.repositoryIndexer = repositoryIndexer
         self.architectureEngine = architectureEngine
         self.experimentManager = experimentManager
+        self.automationHost = automationHost
+        self.browserController = browserController
+        self.browserPageStateBuilder = browserPageStateBuilder
     }
 
     public static func live(
@@ -81,7 +90,10 @@ public final class RuntimeContext {
             workspaceRunner: WorkspaceRunner(),
             repositoryIndexer: RepositoryIndexer(),
             architectureEngine: ArchitectureEngine(),
-            experimentManager: ExperimentManager()
+            experimentManager: ExperimentManager(),
+            automationHost: .live(),
+            browserController: BrowserController(),
+            browserPageStateBuilder: BrowserPageStateBuilder()
         )
     }
 }
