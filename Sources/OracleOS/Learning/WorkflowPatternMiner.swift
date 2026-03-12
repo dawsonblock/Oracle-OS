@@ -44,7 +44,18 @@ public struct WorkflowPatternMiner: Sendable {
         let recoveryPatterns = TraceSegmenter.repeatedRecoverySegments(events: events)
             .map { pattern(for: $0) }
             .filter(\.reusable)
-        return (standardPatterns + recoveryPatterns)
+        let combinedPatterns = standardPatterns + recoveryPatterns
+
+        var seenFingerprints = Set<String>()
+        let uniquePatterns = combinedPatterns.filter { pattern in
+            if seenFingerprints.contains(pattern.fingerprint) {
+                return false
+            }
+            seenFingerprints.insert(pattern.fingerprint)
+            return true
+        }
+
+        return uniquePatterns
             .sorted { lhs, rhs in
                 if lhs.planningStateConsistency == rhs.planningStateConsistency {
                     if lhs.parameterConsistency == rhs.parameterConsistency {
