@@ -257,7 +257,7 @@ struct GovernanceEnforcementTests {
         while let fileURL = enumerator?.nextObject() as? URL {
             guard fileURL.pathExtension == "swift" else { continue }
             let contents = try String(contentsOf: fileURL)
-            guard contents.contains("executionDriver.execute(") else { continue }
+            guard contents.contains("executionDriver.execute") else { continue }
             if fileURL.lastPathComponent != "ExecutionCoordinator.swift" {
                 offendingFiles.append(fileURL.lastPathComponent)
             }
