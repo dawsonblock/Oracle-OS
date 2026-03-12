@@ -2,16 +2,13 @@ import Foundation
 
 public struct FaultCandidateRanker: Sendable {
     private let rootCauseAnalyzer: RootCauseAnalyzer
-    private let impactAnalyzer: RepositoryChangeImpactAnalyzer
     public let maximumCandidates: Int
 
     public init(
         rootCauseAnalyzer: RootCauseAnalyzer = RootCauseAnalyzer(),
-        impactAnalyzer: RepositoryChangeImpactAnalyzer = RepositoryChangeImpactAnalyzer(),
         maximumCandidates: Int = 3
     ) {
         self.rootCauseAnalyzer = rootCauseAnalyzer
-        self.impactAnalyzer = impactAnalyzer
         self.maximumCandidates = maximumCandidates
     }
 
