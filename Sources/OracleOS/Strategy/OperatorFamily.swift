@@ -44,3 +44,22 @@ extension ReasoningOperatorKind {
         }
     }
 }
+
+// MARK: - Workflow → StrategyKind inference
+
+extension StrategyKind {
+    /// Infer the strategy kind for a workflow based on its step skill names.
+    ///
+    /// Shared utility used by ``WorkflowMatcher`` and ``WorkflowRetriever``
+    /// to classify workflows by strategy scope.
+    public static func infer(fromSkills skills: [String]) -> StrategyKind {
+        let hasTestOrBuild = skills.contains { $0.contains("test") || $0.contains("build") }
+        let hasPatch = skills.contains { $0.contains("patch") }
+        let hasBrowser = skills.contains { $0.contains("browser") || $0.contains("navigate") || $0.contains("click") }
+
+        if hasTestOrBuild && hasPatch { return .repoRepair }
+        if hasTestOrBuild { return .repoRepair }
+        if hasBrowser { return .browserInteraction }
+        return .graphNavigation
+    }
+}

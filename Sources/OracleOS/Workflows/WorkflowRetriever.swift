@@ -177,14 +177,7 @@ public struct WorkflowRetriever: Sendable {
     /// Infer the strategy kind for a workflow based on its steps.
     private func inferStrategyKind(for plan: WorkflowPlan) -> StrategyKind {
         let skills = plan.steps.map { $0.actionContract.skillName.lowercased() }
-        let hasTestOrBuild = skills.contains { $0.contains("test") || $0.contains("build") }
-        let hasPatch = skills.contains { $0.contains("patch") }
-        let hasBrowser = skills.contains { $0.contains("browser") || $0.contains("navigate") || $0.contains("click") }
-
-        if hasTestOrBuild && hasPatch { return .repoRepair }
-        if hasTestOrBuild { return .repoRepair }
-        if hasBrowser { return .browserInteraction }
-        return .graphNavigation
+        return StrategyKind.infer(fromSkills: skills)
     }
 
 }

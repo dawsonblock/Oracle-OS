@@ -557,34 +557,8 @@ public final class Planner: @unchecked Sendable {
 
     /// Infer the ``OperatorFamily`` for a skill or action name.
     ///
-    /// Used as a safety-net filter to drop decisions whose operator family
-    /// is outside the selected strategy's allowed set.
+    /// Delegates to ``GraphNavigator.operatorFamilyForAction`` for consistency.
     private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
-        let lowered = skillName.lowercased()
-        if lowered.contains("test") || lowered.contains("build") || lowered.contains("compile") {
-            return .repoAnalysis
-        }
-        if lowered.contains("patch") || lowered.contains("revert") || lowered.contains("rollback") {
-            return .patchGeneration
-        }
-        if lowered.contains("experiment") {
-            return .patchExperiment
-        }
-        if lowered.contains("browser") || lowered.contains("navigate") || lowered.contains("click") {
-            return .browserTargeted
-        }
-        if lowered.contains("dismiss") || lowered.contains("retry") || lowered.contains("recovery") {
-            return .recovery
-        }
-        if lowered.contains("open") || lowered.contains("focus") || lowered.contains("restart") {
-            return .hostTargeted
-        }
-        if lowered.contains("permission") || lowered.contains("approve") || lowered.contains("grant") {
-            return .permissionHandling
-        }
-        if lowered.contains("workflow") {
-            return .workflow
-        }
-        return .graphEdge
+        GraphNavigator.operatorFamilyForAction(skillName)
     }
 }
