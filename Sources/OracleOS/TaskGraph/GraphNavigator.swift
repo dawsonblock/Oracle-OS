@@ -8,10 +8,12 @@ import Foundation
 public struct GraphNavigator: Sendable {
     public let maxDepth: Int
     public let maxBranching: Int
+    public let beamWidth: Int
 
-    public init(maxDepth: Int = 3, maxBranching: Int = 5) {
+    public init(maxDepth: Int = 3, maxBranching: Int = 5, beamWidth: Int = 4) {
         self.maxDepth = maxDepth
         self.maxBranching = maxBranching
+        self.beamWidth = beamWidth
     }
 
     /// A single scored path through the task graph.
@@ -49,6 +51,8 @@ public struct GraphNavigator: Sendable {
         )
 
         return results.sorted { $0.cumulativeScore > $1.cumulativeScore }
+            .prefix(beamWidth * maxDepth)
+            .map { $0 }
     }
 
     /// Return the best single next edge from the current node.

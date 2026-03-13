@@ -392,6 +392,12 @@ public final class Planner: @unchecked Sendable {
 
         guard !outgoing.isEmpty else { return nil }
 
+        // Compute memory bias for graph scoring.
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
+        )
+        let memoryBias = MemoryScorer.planBias(influence: memoryInfluence)
+
         // Expand paths from the current node and score them.
         let paths = graphNavigator.expand(
             from: nodeID,
@@ -409,6 +415,16 @@ public final class Planner: @unchecked Sendable {
         let actionContract = graphStore.actionContract(for: contractID)
         guard let actionContract else { return nil }
 
+        // Compute score breakdown for the selected edge to expose memory bias.
+        let goalState = currentGoal.flatMap { GraphScorer.goalAbstractState(from: $0) }
+        let targetNode = graph.node(for: bestEdge.toNodeID)
+        let breakdown = graphScorer.scoreEdgeWithBreakdown(
+            bestEdge,
+            goalState: goalState,
+            targetState: targetNode?.abstractState,
+            memoryBias: max(0, memoryBias)
+        )
+
         return PlannerDecision(
             agentKind: actionContract.agentKind,
             plannerFamily: plannerFamily(for: taskContext.agentKind),
@@ -421,6 +437,8 @@ public final class Planner: @unchecked Sendable {
                 "path depth: \(bestPath.edges.count)",
                 "path score: \(String(format: "%.3f", bestPath.cumulativeScore))",
                 "terminal state: \(bestPath.terminalState?.rawValue ?? "unknown")",
+                "memory_bias: \(String(format: "%.3f", breakdown.memoryBias))",
+                "candidate_paths: \(paths.count)",
             ]
         )
     }

@@ -7,19 +7,22 @@ public final class StateCoordinator {
     private let repositoryIndexer: RepositoryIndexer
     private let automationHost: AutomationHost
     private let browserPageStateBuilder: BrowserPageStateBuilder
+    private let taskGraphStore: TaskGraphStore?
 
     public init(
         observationProvider: any ObservationProvider,
         stateAbstraction: StateAbstraction = StateAbstraction(),
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         automationHost: AutomationHost = .live(),
-        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder()
+        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
+        taskGraphStore: TaskGraphStore? = nil
     ) {
         self.observationProvider = observationProvider
         self.stateAbstraction = stateAbstraction
         self.repositoryIndexer = repositoryIndexer
         self.automationHost = automationHost
         self.browserPageStateBuilder = browserPageStateBuilder
+        self.taskGraphStore = taskGraphStore
     }
 
     public func buildState(
@@ -35,6 +38,13 @@ public final class StateCoordinator {
             stateAbstraction: stateAbstraction
         )
         let memoryContext = MemoryQueryContext(taskContext: taskContext, worldState: worldState)
+
+        // Update the task graph position from the observed world state.
+        taskGraphStore?.updateCurrentNode(
+            worldState: worldState,
+            createdByAction: lastAction?.action
+        )
+
         return LoopStateBundle(
             taskContext: taskContext,
             observation: observation,
