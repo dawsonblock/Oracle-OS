@@ -32,7 +32,9 @@ public enum ReasoningParser {
     ) -> [PlanCandidate] {
         parsedPlans.compactMap { parsed in
             let operators = parsed.steps.compactMap { kind -> Operator? in
-                let op = Operator(kind: kind)
+                guard let op = operatorRegistry.makeOperator(kind: kind, state: state) else {
+                    return nil
+                }
                 return op.precondition(state) ? op : nil
             }
             guard !operators.isEmpty else { return nil }
@@ -159,5 +161,17 @@ public enum ReasoningParser {
             }
         }
         return nil
+    }
+}
+
+public extension OperatorRegistry {
+    /// Create an `Operator` for the given kind and planning state using this registry.
+    /// The default implementation simply constructs `Operator(kind:)`, preserving
+    /// existing behavior while allowing custom registries to override this method.
+    func makeOperator(
+        kind: ReasoningOperatorKind,
+        state: ReasoningPlanningState
+    ) -> Operator? {
+        Operator(kind: kind)
     }
 }
