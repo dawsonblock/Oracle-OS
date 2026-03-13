@@ -97,6 +97,7 @@ public final class SelfEvaluation: @unchecked Sendable {
         )
     }
 
+    /// Returns the most recent performance reports in chronological order (oldest first).
     public func recentReports(limit: Int = 10) -> [PerformanceReport] {
         lock.lock()
         defer { lock.unlock() }

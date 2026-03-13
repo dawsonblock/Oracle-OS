@@ -151,7 +151,6 @@ public enum ReasoningParser {
             ("retry", .retryWithAlternateTarget),
             ("retry_alternate_target", .retryWithAlternateTarget),
             ("open repo", .openApplication),
-            ("inspect", .runTests),
         ]
 
         for (pattern, kind) in mapping {
