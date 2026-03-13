@@ -413,7 +413,7 @@ struct TaskGraphTests {
         // successProbability = 2/3 ≈ 0.667
 
         let score = scorer.scoreEdge(edge)
-        // 0.30 * 0.667 + noveltyBonus(0.1 since attempts=3) = ~0.30
+        // 0.30 * 0.667 + noveltyBonus(0.0 since attempts == 3) ≈ 0.20
         #expect(score > 0)
     }
 
