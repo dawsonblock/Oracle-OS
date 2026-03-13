@@ -57,15 +57,19 @@ public struct WorkflowMatcher: Sendable {
         )
         var proposedEdges: [TaskEdge] = []
         for match in matches {
+            var matchUsed = false
             for action in match.proposedActions {
                 if let edge = taskGraphStore.addCandidateEdge(
                     action: action,
                     toAbstractState: projectedState(for: action, from: currentNode.abstractState),
                     toPlanningStateID: PlanningStateID(rawValue: "workflow-\(match.workflowID)-\(action)")
                 ) {
-                    currentNode.attachWorkflowMatch(match.workflowID)
+                    matchUsed = true
                     proposedEdges.append(edge)
                 }
+            }
+            if matchUsed {
+                currentNode.attachWorkflowMatch(match.workflowID)
             }
         }
         return proposedEdges

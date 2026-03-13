@@ -165,11 +165,13 @@ public final class TaskGraphStore: @unchecked Sendable {
                 ] as [String: Any])
             }
         )
+        let currentNodeIDValue = graph.currentNodeID ?? ""
         return [
-            "currentNodeID": graph.currentNodeID ?? "",
+            "currentNodeID": currentNodeIDValue,
             "nodes": nodeList,
             "edges": edgeList,
-            "current_node": graph.currentNodeID ?? "",
+            // Phase 1 diagnostic fields (snake_case per diagnostics convention)
+            "current_node": currentNodeIDValue,
             "edge_success_rates": edgeSuccessRates,
         ]
     }

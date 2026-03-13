@@ -422,7 +422,7 @@ public final class Planner: @unchecked Sendable {
             bestEdge,
             goalState: goalState,
             targetState: targetNode?.abstractState,
-            memoryBias: max(0, memoryBias)
+            memoryBias: memoryBias
         )
 
         return PlannerDecision(

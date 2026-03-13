@@ -94,7 +94,7 @@ struct UpgradePhaseTests {
             let rate = edgeRates["successRate"] as? Double
             #expect(rate != nil)
             // 2 successes / 3 attempts ≈ 0.667
-            #expect(rate! > 0.66 && rate! < 0.67)
+            #expect(abs(rate! - (2.0 / 3.0)) < 0.01)
         }
     }
 
@@ -130,8 +130,7 @@ struct UpgradePhaseTests {
         let navigator = GraphNavigator(maxDepth: 2, maxBranching: 10, beamWidth: 3)
         let paths = navigator.expand(from: root.id, in: graph, scorer: scorer)
 
-        // beamWidth * maxDepth = 3 * 2 = 6, so with 6 edges at depth 1 we get at most 6 paths
-        // The key is that beamWidth constrains the total results
+        // beamWidth * maxDepth = 3 * 2 = 6, limiting the total returned paths
         #expect(paths.count <= navigator.beamWidth * navigator.maxDepth)
     }
 
