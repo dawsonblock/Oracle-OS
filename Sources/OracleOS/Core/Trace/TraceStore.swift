@@ -4,6 +4,7 @@ public final class TraceStore: @unchecked Sendable {
     public let directoryURL: URL
 
     private let encoder: JSONEncoder
+    private let writeLock = NSLock()
 
     public init(directoryURL: URL) {
         self.directoryURL = directoryURL
@@ -22,6 +23,9 @@ public final class TraceStore: @unchecked Sendable {
 
     @discardableResult
     public func append(_ event: TraceEvent) throws -> URL {
+        writeLock.lock()
+        defer { writeLock.unlock() }
+
         let fileURL = directoryURL.appendingPathComponent("\(event.sessionID).jsonl")
         let data = try encoder.encode(event)
         var line = data

@@ -5,19 +5,27 @@ public struct PathSearch: Sendable {
         let stateID: PlanningStateID
         let edges: [EdgeTransition]
         let score: Double
+        let visitedStateIDs: Set<String>
     }
+
+    /// Penalty applied each time a path revisits a state already on its own path,
+    /// discouraging cycles in favor of novel exploration.
+    public static let defaultCyclePenalty: Double = 0.5
 
     public let maxDepth: Int
     public let beamWidth: Int
+    public let cyclePenalty: Double
     private let scorer: PathScorer
 
     public init(
         maxDepth: Int = 4,
         beamWidth: Int = 5,
+        cyclePenalty: Double = PathSearch.defaultCyclePenalty,
         scorer: PathScorer = PathScorer()
     ) {
         self.maxDepth = maxDepth
         self.beamWidth = beamWidth
+        self.cyclePenalty = cyclePenalty
         self.scorer = scorer
     }
 
@@ -31,14 +39,29 @@ public struct PathSearch: Sendable {
         var exploredEdgeIDs: [String] = []
         var exploredStateIDs: [String] = [startState.id.rawValue]
         var rejectedEdgeIDs: [String] = []
-        var frontier: [ScoredPath] = [ScoredPath(stateID: startState.id, edges: [], score: 0)]
+        var cycleDetections: Int = 0
+        let initialVisited: Set<String> = [startState.id.rawValue]
+        var frontier: [ScoredPath] = [
+            ScoredPath(stateID: startState.id, edges: [], score: 0, visitedStateIDs: initialVisited),
+        ]
         var bestPath: ScoredPath?
 
-        for _ in 0..<maxDepth {
+        // Track (stateID, depth) pairs globally to avoid expanding the same state
+        // at the same depth across different beam entries.
+        var expandedAtDepth: Set<String> = []
+
+        for depth in 0..<maxDepth {
             var nextFrontier: [ScoredPath] = []
 
             for path in frontier {
                 exploredStateIDs.append(path.stateID.rawValue)
+
+                // Deduplicate: skip if this (state, depth) was already expanded.
+                let stateDepthKey = "\(path.stateID.rawValue)@\(depth)"
+                guard expandedAtDepth.insert(stateDepthKey).inserted else {
+                    continue
+                }
+
                 if let currentState = graphStore.planningState(for: path.stateID),
                    Planner.goalMatchScore(state: currentState, goal: goal) >= 1 {
                     return GraphSearchResult(
@@ -49,7 +72,8 @@ public struct PathSearch: Sendable {
                             exploredStateIDs: Array(Set(exploredStateIDs)).sorted(),
                             exploredEdgeIDs: exploredEdgeIDs,
                             chosenPathEdgeIDs: path.edges.map(\.edgeID),
-                            rejectedEdgeIDs: rejectedEdgeIDs
+                            rejectedEdgeIDs: rejectedEdgeIDs,
+                            cycleDetections: cycleDetections
                         )
                     )
                 }
@@ -67,17 +91,29 @@ public struct PathSearch: Sendable {
                     let contract = graphStore.actionContract(for: edge.actionContractID)
                     let memoryBias = memoryBiasProvider(edge, contract)
                     let riskPenalty = riskPenaltyProvider(edge, contract)
-                    let edgeScore = scorer.score(
+                    var edgeScore = scorer.score(
                         edge: edge,
                         actionContract: contract,
                         goal: goal,
                         memoryBias: memoryBias,
                         riskPenalty: riskPenalty
                     )
+
+                    // Apply cycle penalty when the target state is already on this path.
+                    let targetID = edge.toPlanningStateID.rawValue
+                    if path.visitedStateIDs.contains(targetID) {
+                        edgeScore -= cyclePenalty
+                        cycleDetections += 1
+                    }
+
+                    var updatedVisited = path.visitedStateIDs
+                    updatedVisited.insert(targetID)
+
                     let candidate = ScoredPath(
                         stateID: edge.toPlanningStateID,
                         edges: path.edges + [edge],
-                        score: path.score + edgeScore
+                        score: path.score + edgeScore,
+                        visitedStateIDs: updatedVisited
                     )
                     nextFrontier.append(candidate)
                     if bestPath == nil || candidate.score > bestPath!.score {
@@ -122,7 +158,8 @@ public struct PathSearch: Sendable {
                 exploredEdgeIDs: exploredEdgeIDs,
                 chosenPathEdgeIDs: bestPath.edges.map(\.edgeID),
                 rejectedEdgeIDs: rejectedEdgeIDs,
-                fallbackReason: "no stable path reached the goal within depth \(maxDepth)"
+                fallbackReason: "no stable path reached the goal within depth \(maxDepth)",
+                cycleDetections: cycleDetections
             )
         )
     }

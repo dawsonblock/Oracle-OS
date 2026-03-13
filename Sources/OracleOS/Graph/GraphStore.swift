@@ -7,6 +7,7 @@ public final class GraphStore: @unchecked Sendable {
     private let maintenance: GraphMaintenance
     private var planningStates: [PlanningStateID: PlanningState]
     private var actionContracts: [String: ActionContract]
+    private let storeLock = NSLock()
 
     public init(databaseURL: URL) {
         let persistence = try? GraphPersistence(databaseURL: databaseURL)
@@ -29,6 +30,9 @@ public final class GraphStore: @unchecked Sendable {
         fromState: PlanningState? = nil,
         toState: PlanningState? = nil
     ) {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let governedTransition = sanitize(transition)
         if let fromState {
             planningStates[fromState.id] = fromState
@@ -54,6 +58,9 @@ public final class GraphStore: @unchecked Sendable {
         ambiguityScore: Double? = nil,
         recoveryTagged: Bool = false
     ) {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         planningStates[state.id] = state
         actionContracts[actionContract.id] = actionContract
         persistence?.upsertPlanningState(state)
@@ -98,6 +105,9 @@ public final class GraphStore: @unchecked Sendable {
 
     @discardableResult
     public func promoteEligibleEdges(now: Date = Date()) -> [EdgeTransition] {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let promoted = maintenance.promoteEligibleEdges(
             candidateGraph: candidateGraph,
             stableGraph: stableGraph,
@@ -113,6 +123,9 @@ public final class GraphStore: @unchecked Sendable {
 
     @discardableResult
     public func pruneOrDemoteEdges(now: Date = Date()) -> [String] {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let removed = maintenance.pruneOrDemoteEdges(
             candidateGraph: candidateGraph,
             stableGraph: stableGraph,

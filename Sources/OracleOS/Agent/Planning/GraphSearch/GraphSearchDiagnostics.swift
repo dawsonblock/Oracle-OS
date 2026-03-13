@@ -6,19 +6,23 @@ public struct GraphSearchDiagnostics: Sendable, Codable, Equatable {
     public let chosenPathEdgeIDs: [String]
     public let rejectedEdgeIDs: [String]
     public let fallbackReason: String?
+    /// Number of times the search detected a cycle (edge targeting an already-visited state).
+    public let cycleDetections: Int
 
     public init(
         exploredStateIDs: [String] = [],
         exploredEdgeIDs: [String] = [],
         chosenPathEdgeIDs: [String] = [],
         rejectedEdgeIDs: [String] = [],
-        fallbackReason: String? = nil
+        fallbackReason: String? = nil,
+        cycleDetections: Int = 0
     ) {
         self.exploredStateIDs = exploredStateIDs
         self.exploredEdgeIDs = exploredEdgeIDs
         self.chosenPathEdgeIDs = chosenPathEdgeIDs
         self.rejectedEdgeIDs = rejectedEdgeIDs
         self.fallbackReason = fallbackReason
+        self.cycleDetections = cycleDetections
     }
 }
 
