@@ -156,10 +156,31 @@ public final class WorkspaceRunner: @unchecked Sendable {
 
         // Check for forbidden flags
         for arg in spec.arguments where arg.hasPrefix("-") {
-            if Self.forbiddenGitFlags.contains(arg) {
-                throw WorkspaceRunnerError.forbiddenGitOperation(
-                    "flag '\(arg)' is forbidden on git commands"
-                )
+            // Treat an argument as forbidden if it:
+            //  - exactly matches a forbidden flag (e.g. "--force-with-lease")
+            //  - or starts with "<forbidden-flag>=" (e.g. "--force-with-lease=origin/main")
+            //  - or, for single-character short flags (e.g. "-f"), appears in a combined
+            //    short flag group (e.g. "-fn")
+            for forbidden in Self.forbiddenGitFlags {
+                if arg == forbidden || arg.hasPrefix(forbidden + "=") {
+                    throw WorkspaceRunnerError.forbiddenGitOperation(
+                        "flag '\(arg)' is forbidden on git commands"
+                    )
+                }
+
+                // Handle combined short flags like "-fn" when "-f" is forbidden.
+                if forbidden.hasPrefix("-"),
+                   !forbidden.hasPrefix("--"),
+                   forbidden.count == 2,
+                   arg.hasPrefix("-"),
+                   arg.count > 2 {
+                    let shortFlagChar = forbidden.dropFirst()
+                    if arg.dropFirst().contains(shortFlagChar) {
+                        throw WorkspaceRunnerError.forbiddenGitOperation(
+                            "flag '\(arg)' is forbidden on git commands"
+                        )
+                    }
+                }
             }
         }
     }
