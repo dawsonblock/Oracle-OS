@@ -53,6 +53,33 @@ public final class RecoveryPlanner: @unchecked Sendable {
         plan(failure: failure, state: state).first
     }
 
+    /// Generate recovery plans bounded by the recovery strategy's allowed operator families.
+    ///
+    /// When recovery is a true strategy (``StrategyKind.recoveryMode``), the recovery
+    /// planner produces plans only within the recovery-allowed operator families,
+    /// preventing leakage into unrelated actions.
+    public func strategyBoundedPlan(
+        failure: FailureClass,
+        state: ReasoningPlanningState,
+        selectedStrategy: SelectedStrategy
+    ) -> [RecoveryPlan] {
+        let allPlans = plan(failure: failure, state: state)
+
+        // Filter recovery operators to only those allowed by the strategy.
+        return allPlans.compactMap { recoveryPlan in
+            let filteredOps = recoveryPlan.recoveryOperators.filter { op in
+                selectedStrategy.allows(op.kind.operatorFamily)
+            }
+            guard !filteredOps.isEmpty else { return nil }
+            return RecoveryPlan(
+                failureClass: recoveryPlan.failureClass,
+                recoveryOperators: filteredOps,
+                estimatedRecoveryProbability: recoveryPlan.estimatedRecoveryProbability,
+                notes: recoveryPlan.notes + ["strategy-bounded recovery"]
+            )
+        }
+    }
+
     private func recoveryOperators(
         for failure: FailureClass,
         state: ReasoningPlanningState

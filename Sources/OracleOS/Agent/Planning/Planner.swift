@@ -317,7 +317,8 @@ public final class Planner: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
-        fallbackDecision: PlannerDecision?
+        fallbackDecision: PlannerDecision?,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(
@@ -331,7 +332,20 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             memoryInfluence: memoryInfluence
         )
-        let plans = reasoningEngine.generatePlans(from: reasoningState)
+        let allPlans = reasoningEngine.generatePlans(from: reasoningState)
+
+        // ── Strategy filter: drop plans whose operators are outside the allowed families ──
+        let plans: [PlanCandidate]
+        if let strategy = selectedStrategy {
+            plans = allPlans.filter { candidate in
+                candidate.operators.allSatisfy { op in
+                    strategy.allows(op.kind.operatorFamily)
+                }
+            }
+        } else {
+            plans = allPlans
+        }
+
         let scoredPlans = planEvaluator.evaluate(
             plans: plans,
             taskContext: taskContext,
@@ -413,11 +427,20 @@ public final class Planner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore
+        memoryStore: AppMemoryStore,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         let graph = taskGraphStore.graph
         let nodeID = taskNode.id
-        let outgoing = graph.viableEdges(from: nodeID)
+        var outgoing = graph.viableEdges(from: nodeID)
+
+        // ── Strategy filter: only expand edges whose operator family is strategy-allowed ──
+        if let strategy = selectedStrategy {
+            outgoing = outgoing.filter { edge in
+                let family = operatorFamilyForSkill(edge.action)
+                return strategy.allows(family)
+            }
+        }
 
         guard !outgoing.isEmpty else { return nil }
 
@@ -433,7 +456,7 @@ public final class Planner: @unchecked Sendable {
             in: graph,
             scorer: graphScorer,
             goal: currentGoal,
-            memoryBias: memoryBias
+            allowedFamilies: selectedStrategy?.allowedOperatorFamilies
         )
 
         guard let bestPath = paths.first,
@@ -528,5 +551,40 @@ public final class Planner: @unchecked Sendable {
 
         guard possible > 0 else { return 0 }
         return matched / possible
+    }
+
+    // MARK: - Operator family classification
+
+    /// Infer the ``OperatorFamily`` for a skill or action name.
+    ///
+    /// Used as a safety-net filter to drop decisions whose operator family
+    /// is outside the selected strategy's allowed set.
+    private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
+        let lowered = skillName.lowercased()
+        if lowered.contains("test") || lowered.contains("build") || lowered.contains("compile") {
+            return .repoAnalysis
+        }
+        if lowered.contains("patch") || lowered.contains("revert") || lowered.contains("rollback") {
+            return .patchGeneration
+        }
+        if lowered.contains("experiment") {
+            return .patchExperiment
+        }
+        if lowered.contains("browser") || lowered.contains("navigate") || lowered.contains("click") {
+            return .browserTargeted
+        }
+        if lowered.contains("dismiss") || lowered.contains("retry") || lowered.contains("recovery") {
+            return .recovery
+        }
+        if lowered.contains("open") || lowered.contains("focus") || lowered.contains("restart") {
+            return .hostTargeted
+        }
+        if lowered.contains("permission") || lowered.contains("approve") || lowered.contains("grant") {
+            return .permissionHandling
+        }
+        if lowered.contains("workflow") {
+            return .workflow
+        }
+        return .graphEdge
     }
 }

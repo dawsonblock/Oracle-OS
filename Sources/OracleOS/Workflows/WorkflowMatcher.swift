@@ -18,9 +18,14 @@ public struct WorkflowMatcher: Sendable {
     }
 
     /// Find workflows whose opening abstract state matches the current node.
+    ///
+    /// When a ``SelectedStrategy`` is provided, only workflows whose inferred
+    /// strategy kind matches the selected strategy are returned (unless
+    /// the workflow is marked cross-strategy by matching multiple families).
     public func match(
         currentState: AbstractTaskState,
-        workflowIndex: WorkflowIndex
+        workflowIndex: WorkflowIndex,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> [Match] {
         let allPlans = workflowIndex.allPlans()
         return allPlans.compactMap { plan -> Match? in
@@ -29,6 +34,14 @@ public struct WorkflowMatcher: Sendable {
 
             let stepState = abstractStateForStep(firstStep)
             guard stepState == currentState else { return nil }
+
+            // ── Strategy filter: skip workflows outside the strategy scope ──
+            if let strategy = selectedStrategy {
+                let workflowFamily = inferStrategyKind(for: plan)
+                if workflowFamily != strategy.kind && workflowFamily != .graphNavigation {
+                    return nil
+                }
+            }
 
             let proposedActions = plan.steps.dropFirst().prefix(5).map {
                 $0.actionContract.skillName
@@ -100,5 +113,18 @@ public struct WorkflowMatcher: Sendable {
         if lowered.contains("fail") { return .failingTestIdentified }
         if lowered.contains("navigate") { return .navigationCompleted }
         return current
+    }
+
+    /// Infer the strategy kind for a workflow based on its steps.
+    private func inferStrategyKind(for plan: WorkflowPlan) -> StrategyKind {
+        let skills = plan.steps.map { $0.actionContract.skillName.lowercased() }
+        let hasTestOrBuild = skills.contains { $0.contains("test") || $0.contains("build") }
+        let hasPatch = skills.contains { $0.contains("patch") }
+        let hasBrowser = skills.contains { $0.contains("browser") || $0.contains("navigate") || $0.contains("click") }
+
+        if hasTestOrBuild && hasPatch { return .repoRepair }
+        if hasTestOrBuild { return .repoRepair }
+        if hasBrowser { return .browserInteraction }
+        return .graphNavigation
     }
 }
