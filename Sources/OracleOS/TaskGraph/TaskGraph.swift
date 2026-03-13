@@ -66,6 +66,7 @@ public final class TaskGraph: @unchecked Sendable {
             }
         }
 
+        node.recordVisit()
         nodes[node.id] = node
         return node
     }
