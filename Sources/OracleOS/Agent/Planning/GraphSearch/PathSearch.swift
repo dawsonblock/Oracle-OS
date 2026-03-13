@@ -116,7 +116,7 @@ public struct PathSearch: Sendable {
                         visitedStateIDs: updatedVisited
                     )
                     nextFrontier.append(candidate)
-                    if bestPath == nil || candidate.score > bestPath!.score {
+                    if bestPath.map({ candidate.score > $0.score }) ?? true {
                         bestPath = candidate
                     }
                 }

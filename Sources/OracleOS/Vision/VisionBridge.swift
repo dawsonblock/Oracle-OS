@@ -238,7 +238,8 @@ public enum VisionBridge {
             if lifecycle.state == .starting {
                 Log.info("Vision sidecar start already in progress, waiting...")
                 if waitForSidecar() {
-                    return true
+                    // Re-check state after waiting — another thread may have moved it.
+                    return lifecycle.state == .ready || isAvailable()
                 }
             }
             // If state is .ready, we're good
