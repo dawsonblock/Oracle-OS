@@ -93,8 +93,9 @@ struct UpgradePhaseTests {
         if let edgeID = edge?.id, let edgeRates = successRates?[edgeID] as? [String: Any] {
             let rate = edgeRates["successRate"] as? Double
             #expect(rate != nil)
+            guard let rate else { return }
             // 2 successes / 3 attempts ≈ 0.667
-            #expect(abs(rate! - (2.0 / 3.0)) < 0.01)
+            #expect(abs(rate - (2.0 / 3.0)) < 0.01)
         }
     }
 
