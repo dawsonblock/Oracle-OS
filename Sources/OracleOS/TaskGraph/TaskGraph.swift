@@ -173,10 +173,14 @@ public final class TaskGraph: @unchecked Sendable {
 
         let destination = addOrMergeNode(resultNode)
 
-        if let edge = edges[edgeID] {
-            edge.recordSuccess(latencyMs: latencyMs, cost: cost)
+        guard let edge = edges[edgeID] else {
+            // Fail fast in debug builds if an unknown edgeID is used.
+            assertionFailure("recordExecution called with unknown edgeID '\(edgeID)'")
+            // Do not advance currentNodeID when the edge does not exist.
+            return destination
         }
 
+        edge.recordSuccess(latencyMs: latencyMs, cost: cost)
         currentNodeID = destination.id
         return destination
     }
