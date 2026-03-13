@@ -110,6 +110,7 @@ struct PathSearchCycleControlTests {
         let result = search.search(from: stateA, goal: goal, graphStore: store)
 
         // The search should detect cycles since B->A revisits an already-visited state
+        #expect(result != nil)
         if let result {
             #expect(result.diagnostics.cycleDetections > 0)
         }
