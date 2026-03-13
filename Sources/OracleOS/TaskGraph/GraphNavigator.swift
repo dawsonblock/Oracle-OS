@@ -11,6 +11,10 @@ public struct GraphNavigator: Sendable {
     public let beamWidth: Int
 
     public init(maxDepth: Int = 3, maxBranching: Int = 5, beamWidth: Int = 4) {
+        precondition(
+            maxDepth >= 0 && maxBranching >= 0 && beamWidth >= 0,
+            "GraphNavigator parameters must be non-negative."
+        )
         self.maxDepth = maxDepth
         self.maxBranching = maxBranching
         self.beamWidth = beamWidth
