@@ -62,12 +62,8 @@ public struct GraphScorer: Sendable {
     /// Score an array of edges as a path (cumulative).
     public func scorePath(_ edges: [TaskEdge], goal: Goal? = nil) -> Double {
         guard !edges.isEmpty else { return 0 }
-        let goalAbstract = goal.flatMap { Self.goalAbstractState(from: $0) }
-        return edges.enumerated().reduce(0.0) { total, pair in
-            let (index, edge) = pair
-            let isLast = index == edges.count - 1
-            let targetGoal = isLast ? goalAbstract : nil
-            return total + scoreEdge(edge, goalState: targetGoal)
+        return edges.reduce(0.0) { total, edge in
+            total + scoreEdge(edge)
         }
     }
 
