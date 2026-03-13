@@ -42,7 +42,7 @@ public final class ImprovementPlanner: @unchecked Sendable {
         for candidate in candidates {
             if candidate.confidence >= minimumConfidence
                 && candidate.expectedBenefit >= minimumBenefit
-                && candidate.risk != "high"
+                && candidate.risk.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "high"
             {
                 promoted.append(candidate)
             } else if candidate.confidence >= minimumConfidence * 0.6
