@@ -1,12 +1,13 @@
 import Foundation
 
-public final class GraphStore: @unchecked Sendable {
+public final class GraphStore {
     private let candidateGraph: CandidateGraph
     private let stableGraph: StableGraph
     private let persistence: GraphPersistence?
     private let maintenance: GraphMaintenance
     private var planningStates: [PlanningStateID: PlanningState]
     private var actionContracts: [String: ActionContract]
+    private let storeLock = NSRecursiveLock()
 
     public init(databaseURL: URL) {
         let persistence = try? GraphPersistence(databaseURL: databaseURL)
@@ -29,6 +30,9 @@ public final class GraphStore: @unchecked Sendable {
         fromState: PlanningState? = nil,
         toState: PlanningState? = nil
     ) {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let governedTransition = sanitize(transition)
         if let fromState {
             planningStates[fromState.id] = fromState
@@ -54,6 +58,9 @@ public final class GraphStore: @unchecked Sendable {
         ambiguityScore: Double? = nil,
         recoveryTagged: Bool = false
     ) {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         planningStates[state.id] = state
         actionContracts[actionContract.id] = actionContract
         persistence?.upsertPlanningState(state)
@@ -98,6 +105,9 @@ public final class GraphStore: @unchecked Sendable {
 
     @discardableResult
     public func promoteEligibleEdges(now: Date = Date()) -> [EdgeTransition] {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let promoted = maintenance.promoteEligibleEdges(
             candidateGraph: candidateGraph,
             stableGraph: stableGraph,
@@ -113,6 +123,9 @@ public final class GraphStore: @unchecked Sendable {
 
     @discardableResult
     public func pruneOrDemoteEdges(now: Date = Date()) -> [String] {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
         let removed = maintenance.pruneOrDemoteEdges(
             candidateGraph: candidateGraph,
             stableGraph: stableGraph,
@@ -134,7 +147,10 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func outgoingCandidateEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
-        candidateGraph.edges.values
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
+        return candidateGraph.edges.values
             .filter {
                 $0.fromPlanningStateID == planningStateID
                     && $0.knowledgeTier == .candidate
@@ -144,33 +160,47 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func outgoingStableEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
-        stableGraph.outgoing(from: planningStateID)
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.outgoing(from: planningStateID)
     }
 
     public func actionContract(for id: String) -> ActionContract? {
-        actionContracts[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return actionContracts[id]
     }
 
     public func planningState(for id: PlanningStateID) -> PlanningState? {
-        planningStates[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return planningStates[id]
     }
 
     public func stableEdge(for id: String) -> EdgeTransition? {
-        stableGraph.edges[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.edges[id]
     }
 
     public func globalSuccessRate() -> Double {
+        storeLock.lock()
+        defer { storeLock.unlock() }
         let stats = globalStats()
         guard stats.attempts > 0 else { return 0 }
         return Double(stats.successes) / Double(stats.attempts)
     }
 
     public func allStableEdges() -> [EdgeTransition] {
-        stableGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
     }
 
     public func allCandidateEdges() -> [EdgeTransition] {
-        candidateGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return candidateGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
     }
 
     public static func defaultDatabaseURL() -> URL {

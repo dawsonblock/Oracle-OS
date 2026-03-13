@@ -431,8 +431,10 @@ public enum Actions {
                     if readBackOk == .success, let ref = readBackRef {
                         if let str = ref as? String, !str.isEmpty {
                             readback = str
-                        } else if CFGetTypeID(ref) == CFStringGetTypeID() {
-                            readback = (ref as! CFString) as String
+                        } else if CFGetTypeID(ref) == CFStringGetTypeID(),
+                                  let cfStr = ref as? CFString
+                        {
+                            readback = cfStr as String
                         } else {
                             readback = nil
                         }

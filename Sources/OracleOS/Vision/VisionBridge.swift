@@ -40,11 +40,49 @@ public enum VisionBridge {
     /// Timeout for the first grounding call which also loads the model (~10-15s).
     private static let firstGroundTimeout: TimeInterval = 60.0
 
-    /// The sidecar process we started (if any). Stored to prevent zombie.
-    nonisolated(unsafe) private static var sidecarProcess: Process?
+    /// Sidecar lifecycle state machine.
+    public enum SidecarState: Sendable {
+        case stopped
+        case starting
+        case ready
+        case failed
+    }
 
-    /// Whether we have completed at least one successful ground() call.
-    nonisolated(unsafe) private static var hasCompletedFirstGround = false
+    /// Thread-safe container for mutable sidecar state.
+    private final class SidecarLifecycle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _state: SidecarState = .stopped
+        private var _process: Process?
+        private var _hasCompletedFirstGround = false
+
+        var state: SidecarState {
+            get { lock.lock(); defer { lock.unlock() }; return _state }
+            set { lock.lock(); defer { lock.unlock() }; _state = newValue }
+        }
+
+        var process: Process? {
+            get { lock.lock(); defer { lock.unlock() }; return _process }
+            set { lock.lock(); defer { lock.unlock() }; _process = newValue }
+        }
+
+        var hasCompletedFirstGround: Bool {
+            get { lock.lock(); defer { lock.unlock() }; return _hasCompletedFirstGround }
+            set { lock.lock(); defer { lock.unlock() }; _hasCompletedFirstGround = newValue }
+        }
+
+        /// Atomically transition from an expected state to a new state.
+        /// Returns true if the transition was performed.
+        @discardableResult
+        func transition(from expected: SidecarState, to desired: SidecarState) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard _state == expected else { return false }
+            _state = desired
+            return true
+        }
+    }
+
+    private static let lifecycle = SidecarLifecycle()
 
     // MARK: - Health Check
 
@@ -120,7 +158,7 @@ public enum VisionBridge {
         }
 
         // Use longer timeout for first call (model needs to load ~10-15s)
-        let timeout = hasCompletedFirstGround ? groundTimeout : firstGroundTimeout
+        let timeout = lifecycle.hasCompletedFirstGround ? groundTimeout : firstGroundTimeout
 
         guard let result = httpPost(path: "/ground", body: payload, timeout: timeout) else {
             Log.warn("Vision sidecar /ground request failed")
@@ -135,7 +173,7 @@ public enum VisionBridge {
             return nil
         }
 
-        hasCompletedFirstGround = true
+        lifecycle.hasCompletedFirstGround = true
         return GroundResult(
             x: x,
             y: y,
@@ -182,12 +220,31 @@ public enum VisionBridge {
 
     /// Attempt to start the vision sidecar process.
     /// Looks for `ghost-vision` launcher script, then falls back to running server.py directly.
+    /// Uses a state machine to prevent concurrent double-start attempts.
     @discardableResult
     public static func startSidecar() -> Bool {
         // Check if already running
         if isAvailable() {
+            lifecycle.state = .ready
             Log.info("Vision sidecar already running")
             return true
+        }
+
+        // Atomically claim the starting transition; if another caller is already
+        // starting, wait for that attempt to finish instead of double-starting.
+        guard lifecycle.transition(from: .stopped, to: .starting)
+            || lifecycle.transition(from: .failed, to: .starting) else {
+            // Another start is in progress — wait for it.
+            if lifecycle.state == .starting {
+                Log.info("Vision sidecar start already in progress, waiting...")
+                if waitForSidecar() {
+                    // Re-check state after waiting — another thread may have moved it.
+                    return lifecycle.state == .ready || isAvailable()
+                }
+            }
+            // If state is .ready, we're good
+            if lifecycle.state == .ready { return true }
+            return false
         }
 
         // Strategy 1: Use ghost-vision launcher script (handles venv/Python resolution)
@@ -201,16 +258,19 @@ public enum VisionBridge {
 
             do {
                 try process.run()
-                sidecarProcess = process
+                lifecycle.process = process
             } catch {
                 Log.error("Failed to start vision sidecar via launcher: \(error)")
+                lifecycle.state = .failed
                 return false
             }
 
             if waitForSidecar() {
+                lifecycle.state = .ready
                 Log.info("Vision sidecar started (PID \(process.processIdentifier))")
                 return true
             }
+            lifecycle.state = .failed
             Log.warn("Vision sidecar launched but not responding after 10s")
             return false
         }
@@ -221,6 +281,7 @@ public enum VisionBridge {
 
             guard let python = findPython() else {
                 Log.warn("No Python with mlx_vlm found — cannot start vision sidecar")
+                lifecycle.state = .failed
                 return false
             }
 
@@ -232,20 +293,24 @@ public enum VisionBridge {
 
             do {
                 try process.run()
-                sidecarProcess = process
+                lifecycle.process = process
             } catch {
                 Log.error("Failed to start vision sidecar: \(error)")
+                lifecycle.state = .failed
                 return false
             }
 
             if waitForSidecar() {
+                lifecycle.state = .ready
                 Log.info("Vision sidecar started (PID \(process.processIdentifier))")
                 return true
             }
+            lifecycle.state = .failed
             Log.warn("Vision sidecar launched but not responding after 10s")
             return false
         }
 
+        lifecycle.state = .failed
         Log.warn("Could not find or start vision sidecar")
         return false
     }

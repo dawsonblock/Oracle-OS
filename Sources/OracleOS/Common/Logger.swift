@@ -29,7 +29,22 @@ public enum LogLevel: Int, Sendable, Comparable {
 /// Structured logger that always writes to stderr.
 public enum Log {
     /// Minimum level to output. Set to .debug for verbose, .info for normal, .warn for quiet.
-    public nonisolated(unsafe) static var minimumLevel: LogLevel = .info
+    /// Access is guarded by an NSLock for thread safety.
+    private static let _levelLock = NSLock()
+    private static var _minimumLevel: LogLevel = .info
+
+    public static var minimumLevel: LogLevel {
+        get {
+            _levelLock.lock()
+            defer { _levelLock.unlock() }
+            return _minimumLevel
+        }
+        set {
+            _levelLock.lock()
+            defer { _levelLock.unlock() }
+            _minimumLevel = newValue
+        }
+    }
 
     public static func debug(_ message: @autoclosure () -> String) {
         log(.debug, message())
