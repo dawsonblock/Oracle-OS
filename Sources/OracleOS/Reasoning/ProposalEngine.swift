@@ -45,18 +45,15 @@ public final class ProposalEngine: @unchecked Sendable {
     private let llmClient: LLMClient
     private let reasoningEngine: ReasoningEngine
     private let planEvaluator: PlanEvaluator
-    private let promptEngine: PromptEngine
 
     public init(
         llmClient: LLMClient,
         reasoningEngine: ReasoningEngine = ReasoningEngine(),
-        planEvaluator: PlanEvaluator,
-        promptEngine: PromptEngine = PromptEngine()
+        planEvaluator: PlanEvaluator
     ) {
         self.llmClient = llmClient
         self.reasoningEngine = reasoningEngine
         self.planEvaluator = planEvaluator
-        self.promptEngine = promptEngine
     }
 
     public func propose(
