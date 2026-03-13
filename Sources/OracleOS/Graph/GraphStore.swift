@@ -7,7 +7,7 @@ public final class GraphStore: @unchecked Sendable {
     private let maintenance: GraphMaintenance
     private var planningStates: [PlanningStateID: PlanningState]
     private var actionContracts: [String: ActionContract]
-    private let storeLock = NSLock()
+    private let storeLock = NSRecursiveLock()
 
     public init(databaseURL: URL) {
         let persistence = try? GraphPersistence(databaseURL: databaseURL)
@@ -147,7 +147,10 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func outgoingCandidateEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
-        candidateGraph.edges.values
+        storeLock.lock()
+        defer { storeLock.unlock() }
+
+        return candidateGraph.edges.values
             .filter {
                 $0.fromPlanningStateID == planningStateID
                     && $0.knowledgeTier == .candidate
@@ -161,11 +164,15 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func actionContract(for id: String) -> ActionContract? {
-        actionContracts[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return actionContracts[id]
     }
 
     public func planningState(for id: PlanningStateID) -> PlanningState? {
-        planningStates[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return planningStates[id]
     }
 
     public func stableEdge(for id: String) -> EdgeTransition? {
@@ -173,6 +180,8 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func globalSuccessRate() -> Double {
+        storeLock.lock()
+        defer { storeLock.unlock() }
         let stats = globalStats()
         guard stats.attempts > 0 else { return 0 }
         return Double(stats.successes) / Double(stats.attempts)
@@ -183,7 +192,9 @@ public final class GraphStore: @unchecked Sendable {
     }
 
     public func allCandidateEdges() -> [EdgeTransition] {
-        candidateGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return candidateGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
     }
 
     public static func defaultDatabaseURL() -> URL {
