@@ -142,7 +142,8 @@ public final class TaskGraphStore: @unchecked Sendable {
                 "isCurrent": node.id == graph.currentNodeID,
             ]
         }
-        let edgeList = graph.allEdges().map { edge -> [String: Any] in
+        let allEdges = graph.allEdges()
+        let edgeList = allEdges.map { edge -> [String: Any] in
             [
                 "id": edge.id,
                 "from": edge.fromNodeID,
@@ -153,10 +154,25 @@ public final class TaskGraphStore: @unchecked Sendable {
                 "attempts": edge.attempts,
             ]
         }
+        let edgeSuccessRates: [String: Any] = Dictionary(
+            uniqueKeysWithValues: allEdges.filter { $0.attempts > 0 }.map { edge in
+                (edge.id, [
+                    "action": edge.action,
+                    "success_rate": edge.successProbability,
+                    "attempts": edge.attempts,
+                    "success_count": edge.successCount,
+                    "failure_count": edge.failureCount,
+                ] as [String: Any])
+            }
+        )
+        let currentNodeIDValue = graph.currentNodeID ?? ""
         return [
-            "currentNodeID": graph.currentNodeID ?? "",
+            "currentNodeID": currentNodeIDValue,
             "nodes": nodeList,
             "edges": edgeList,
+            // Phase 1 diagnostic fields (snake_case per diagnostics convention)
+            "current_node": currentNodeIDValue,
+            "edge_success_rates": edgeSuccessRates,
         ]
     }
 }

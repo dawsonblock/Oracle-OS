@@ -8,6 +8,7 @@ public final class VerifiedActionExecutor {
     private let traceStore: TraceStore?
     private let artifactWriter: FailureArtifactWriter?
     private let graphStore: GraphStore?
+    private let taskGraphStore: TaskGraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -15,7 +16,8 @@ public final class VerifiedActionExecutor {
         traceRecorder: TraceRecorder? = nil,
         traceStore: TraceStore? = nil,
         artifactWriter: FailureArtifactWriter? = nil,
-        graphStore: GraphStore? = nil
+        graphStore: GraphStore? = nil,
+        taskGraphStore: TaskGraphStore? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -23,6 +25,7 @@ public final class VerifiedActionExecutor {
         self.traceStore = traceStore
         self.artifactWriter = artifactWriter
         self.graphStore = graphStore
+        self.taskGraphStore = taskGraphStore
     }
 
     public func run(
@@ -216,6 +219,31 @@ public final class VerifiedActionExecutor {
 
         traceRecorder?.record(event)
         let traceURL = try? traceStore?.append(event)
+
+        // Record edge transition in the task graph when an edge ID is provided.
+        if let taskGraphStore, let currentEdgeID {
+            let postWorldState = WorldState(
+                observationHash: postHash,
+                planningState: postPlanningState,
+                observation: postObservation,
+                repositorySnapshot: postRepositorySnapshot
+            )
+            if verified {
+                taskGraphStore.recordVerifiedExecution(
+                    edgeID: currentEdgeID,
+                    resultWorldState: postWorldState,
+                    latencyMs: Int(elapsedMs.rounded()),
+                    cost: 0,
+                    createdByAction: intent.action
+                )
+            } else {
+                taskGraphStore.recordFailedExecution(
+                    edgeID: currentEdgeID,
+                    latencyMs: Int(elapsedMs.rounded()),
+                    cost: 0
+                )
+            }
+        }
 
         var data = raw.data ?? [:]
         data["action_result"] = actionResult.toDict()

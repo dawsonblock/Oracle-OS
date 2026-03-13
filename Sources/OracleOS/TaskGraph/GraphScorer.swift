@@ -35,6 +35,31 @@ public struct GraphScorer: Sendable {
 
     // MARK: - Edge Scoring
 
+    /// Breakdown of individual score components for diagnostics.
+    public struct ScoreBreakdown: Sendable {
+        public let predictedSuccess: Double
+        public let workflowSimilarity: Double
+        public let memoryBias: Double
+        public let goalAlignment: Double
+        public let costPenalty: Double
+        public let riskPenalty: Double
+        public let noveltyBonus: Double
+        public let total: Double
+
+        public func toDict() -> [String: Any] {
+            [
+                "predicted_success": predictedSuccess,
+                "workflow_similarity": workflowSimilarity,
+                "memory_bias": memoryBias,
+                "goal_alignment": goalAlignment,
+                "cost_penalty": costPenalty,
+                "risk_penalty": riskPenalty,
+                "novelty_bonus": noveltyBonus,
+                "total": total,
+            ]
+        }
+    }
+
     /// Score a single edge, optionally incorporating goal-alignment when
     /// ``goalState`` and ``targetState`` are known.
     public func scoreEdge(
@@ -44,19 +69,41 @@ public struct GraphScorer: Sendable {
         workflowBias: Double = 0,
         memoryBias: Double = 0
     ) -> Double {
+        scoreEdgeWithBreakdown(edge, goalState: goalState, targetState: targetState, workflowBias: workflowBias, memoryBias: memoryBias).total
+    }
+
+    /// Score a single edge and return the full breakdown of score components.
+    public func scoreEdgeWithBreakdown(
+        _ edge: TaskEdge,
+        goalState: AbstractTaskState? = nil,
+        targetState: AbstractTaskState? = nil,
+        workflowBias: Double = 0,
+        memoryBias: Double = 0
+    ) -> ScoreBreakdown {
         let success = edge.successProbability
         let noveltyBonus: Double = edge.attempts < 3 ? 0.1 : 0
         let goalAlignment = goalAlignmentScore(targetState: targetState, goalState: goalState)
         let costPenalty = normalizedCost(edge.averageCost)
         let riskPenalty = edge.risk
 
-        return (successWeight * success)
+        let total = (successWeight * success)
             + (workflowWeight * min(1, max(0, workflowBias)))
             + (memoryWeight * min(1, max(0, memoryBias)))
             + (goalAlignmentWeight * goalAlignment)
             - (costPenaltyWeight * costPenalty)
             - (riskPenaltyWeight * riskPenalty)
             + noveltyBonus
+
+        return ScoreBreakdown(
+            predictedSuccess: successWeight * success,
+            workflowSimilarity: workflowWeight * min(1, max(0, workflowBias)),
+            memoryBias: memoryWeight * min(1, max(0, memoryBias)),
+            goalAlignment: goalAlignmentWeight * goalAlignment,
+            costPenalty: -(costPenaltyWeight * costPenalty),
+            riskPenalty: -(riskPenaltyWeight * riskPenalty),
+            noveltyBonus: noveltyBonus,
+            total: total
+        )
     }
 
     /// Score an array of edges as a path (cumulative).
