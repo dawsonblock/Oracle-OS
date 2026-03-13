@@ -105,6 +105,27 @@ Responsibilities:
 - enforce trust tiers
 - promote, demote, and prune through policy
 
+### Task Graph
+
+Primary files:
+
+- `Sources/OracleOS/TaskGraph/*`
+
+Responsibilities:
+
+- live planning substrate that the planner navigates directly
+- maintain current task node pointer and candidate edge expansion
+- abstract world state into task-relevant states (not raw UI noise)
+- accumulate edge evidence (success/failure counts, cost, latency)
+- support recovery via alternate graph edges
+- enforce bounded growth (max nodes, max edges, node merging)
+- export diagnostics in DOT and JSON formats
+
+The task graph is the canonical representation of the current task position.
+The planner operates on task graph nodes and edges — not on raw ephemeral
+state alone. Every verified action creates or updates a graph edge, and
+recovery branches through alternate edges rather than side channels.
+
 ### Memory
 
 Primary files:
