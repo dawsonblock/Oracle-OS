@@ -1,5 +1,3 @@
-import Foundation
-
 /// Global safety limits for the experiment subsystem.
 ///
 /// Prevents runaway search by bounding the number of candidates

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Architecture guard for Oracle-OS.
 
-Scans Swift source files for forbidden imports that would violate
+Scans Swift source files for forbidden type references that would violate
 the architectural boundary rules defined in GOVERNANCE.md and
-ARCHITECTURE_GOVERNANCE.md.
+ARCHITECTURE_GOVERNANCE.md. Uses word-boundary regex and skips comments.
 
 Prevents:
 - AgentLoop absorbing subsystem internals (Rule 2)
@@ -14,21 +14,20 @@ import os
 import re
 import sys
 
-FORBIDDEN_IMPORTS = {
+FORBIDDEN_REFERENCES = {
     "AgentLoop.swift": [
-        "GraphScorer",
         "WorkflowSynthesizer",
         "PatchRanker",
         "DOMIndexer",
         "BrowserTargetResolver",
-        "MemoryPromotion",
+        "MemoryPromotionPolicy",
+        "MemoryScorer",
     ],
     "Planner.swift": [
-        "RepoGraphBuilder",
         "WorkflowSynthesizer",
-        "PatchApplier",
-        "DirectExecutor",
-        "DOMParser",
+        "DOMFlattener",
+        "VerifiedActionExecutor",
+        "PatchImpactPredictor",
     ],
 }
 
@@ -41,8 +40,8 @@ def scan_file(path):
 
     name = os.path.basename(path)
 
-    if name in FORBIDDEN_IMPORTS:
-        for item in FORBIDDEN_IMPORTS[name]:
+    if name in FORBIDDEN_REFERENCES:
+        for item in FORBIDDEN_REFERENCES[name]:
             pattern = re.compile(r"\b" + re.escape(item) + r"\b")
             for lineno, line in enumerate(lines, 1):
                 stripped = line.lstrip()
