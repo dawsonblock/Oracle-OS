@@ -22,13 +22,20 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: AppMemoryStore
+        memoryStore: AppMemoryStore,
+        selectedStrategy: SelectedStrategy? = nil
     ) async -> [PlanCandidate] {
         let deterministicPlans = reasoningEngine.generatePlans(from: state)
 
-        let llmPlans = await requestLLMPlans(state: state, goal: goal)
+        let llmPlans = await requestLLMPlans(state: state, goal: goal, selectedStrategy: selectedStrategy)
 
-        let combined = deterministicPlans + llmPlans
+        var combined = deterministicPlans + llmPlans
+
+        // ── Strategy filter: drop plans outside allowed operator families ──
+        if let strategy = selectedStrategy {
+            combined = combined.filter { $0.isAllowed(by: strategy) }
+        }
+
         return planEvaluator.evaluate(
             plans: combined,
             taskContext: taskContext,
@@ -48,7 +55,8 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
-        minimumScore: Double = 0.6
+        minimumScore: Double = 0.6,
+        selectedStrategy: SelectedStrategy? = nil
     ) async -> PlanCandidate? {
         let scored = await generate(
             state: state,
@@ -57,16 +65,18 @@ public final class LLMPlanGenerator: @unchecked Sendable {
             worldState: worldState,
             graphStore: graphStore,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         )
         return planEvaluator.chooseBestPlan(scored, minimumScore: minimumScore)
     }
 
     private func requestLLMPlans(
         state: ReasoningPlanningState,
-        goal: Goal
+        goal: Goal,
+        selectedStrategy: SelectedStrategy? = nil
     ) async -> [PlanCandidate] {
-        let prompt = buildPrompt(state: state, goal: goal)
+        let prompt = buildPrompt(state: state, goal: goal, selectedStrategy: selectedStrategy)
         let request = LLMRequest(
             prompt: prompt,
             modelTier: .planning,
@@ -82,10 +92,19 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         }
     }
 
-    private func buildPrompt(state: ReasoningPlanningState, goal: Goal) -> String {
+    private func buildPrompt(state: ReasoningPlanningState, goal: Goal, selectedStrategy: SelectedStrategy? = nil) -> String {
         var lines: [String] = []
         lines.append("You are controlling a computer operator.")
         lines.append("")
+
+        // ── Strategy context ──
+        if let strategy = selectedStrategy {
+            lines.append("Current strategy: \(strategy.kind.rawValue)")
+            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+            lines.append("IMPORTANT: Only generate plans using operators from the allowed families.")
+            lines.append("")
+        }
+
         lines.append("Current state:")
         lines.append("- agent kind: \(state.agentKind.rawValue)")
         lines.append("- repo open: \(state.repoOpen)")
