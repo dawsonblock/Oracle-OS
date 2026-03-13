@@ -71,6 +71,13 @@ public struct RecoveryOperator: Sendable {
             baseCost: 1.4,
             risk: 0.1
         ),
+        RecoveryOperator(
+            name: "refocus_for_workflow",
+            operatorKind: .focusWindow,
+            targetFailureClasses: [.workflowReplayFailure],
+            baseCost: 0.5,
+            risk: 0.04
+        ),
     ]
 
     public static func applicable(for failure: FailureClass) -> [RecoveryOperator] {

@@ -14,6 +14,9 @@ enum EvalRunner {
         var patchSelections = 0
         var recoveryReuseCount = 0
         var plannerReasoningCount = 0
+        var wrongTargetCount = 0
+        var recoveryLoops = 0
+        var planSourceSets: [Set<String>] = []
 
         for index in 0..<task.runs {
             let snapshot = await task.executeRun(index)
@@ -48,9 +51,15 @@ enum EvalRunner {
             if snapshot.usedPlannerReasoning {
                 plannerReasoningCount += 1
             }
+            if snapshot.outcome.lastFailure == .targetMissing || snapshot.outcome.lastFailure == .elementNotFound {
+                wrongTargetCount += 1
+            }
+            recoveryLoops += snapshot.recoveryLoopCount
+            planSourceSets.append(snapshot.planSourceSet)
         }
 
         let runs = max(task.runs, 1)
+        let planStability = Self.computePlanStability(planSourceSets)
         let metrics = EvalMetrics(
             successRate: Double(successes) / Double(runs),
             firstPassSuccessRate: Double(firstPassSuccesses) / Double(runs),
@@ -61,8 +70,27 @@ enum EvalRunner {
             ambiguityFailureCount: ambiguityFailures,
             patchSelectionSuccessRate: Double(patchSelections) / Double(runs),
             recoveryReuseRatio: Double(recoveryReuseCount) / Double(runs),
-            plannerReasoningRatio: Double(plannerReasoningCount) / Double(runs)
+            plannerReasoningRatio: Double(plannerReasoningCount) / Double(runs),
+            planStability: planStability,
+            wrongTargetRate: Double(wrongTargetCount) / Double(runs),
+            recoveryLoopCount: recoveryLoops
         )
         return EvalReport(taskName: task.name, family: task.family, runs: task.runs, metrics: metrics)
+    }
+
+    private static func computePlanStability(_ sets: [Set<String>]) -> Double {
+        guard sets.count >= 2 else { return 1.0 }
+        var matchCount = 0
+        var pairCount = 0
+        for i in 0..<sets.count {
+            for j in (i + 1)..<sets.count {
+                pairCount += 1
+                if sets[i] == sets[j] {
+                    matchCount += 1
+                }
+            }
+        }
+        guard pairCount > 0 else { return 1.0 }
+        return Double(matchCount) / Double(pairCount)
     }
 }

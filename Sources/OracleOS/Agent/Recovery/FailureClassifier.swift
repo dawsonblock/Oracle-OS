@@ -27,84 +27,84 @@ public enum FailureClassifier {
         if lowered.contains("target") && (lowered.contains("missing") || lowered.contains("not found")) {
             return FailureClassification(
                 failureClass: .targetMissing,
-                confidence: 0.85,
+                confidence: contextBoosted(0.85, context: context, expected: .targetMissing),
                 signals: ["target missing signal in error description"]
             )
         }
         if lowered.contains("ambiguous") {
             return FailureClassification(
                 failureClass: .elementAmbiguous,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .elementAmbiguous),
                 signals: ["ambiguity signal in error description"]
             )
         }
         if lowered.contains("wrong") && lowered.contains("window") || lowered.contains("wrong focus") {
             return FailureClassification(
                 failureClass: .wrongFocus,
-                confidence: 0.75,
+                confidence: contextBoosted(0.75, context: context, expected: .wrongFocus),
                 signals: ["wrong window/focus signal"]
             )
         }
         if lowered.contains("unexpected") && (lowered.contains("dialog") || lowered.contains("alert")) {
             return FailureClassification(
                 failureClass: .unexpectedDialog,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .unexpectedDialog),
                 signals: ["unexpected dialog signal"]
             )
         }
         if lowered.contains("permission") || lowered.contains("denied") || lowered.contains("blocked") {
             return FailureClassification(
                 failureClass: .permissionBlocked,
-                confidence: 0.75,
+                confidence: contextBoosted(0.75, context: context, expected: .permissionBlocked),
                 signals: ["permission blocked signal"]
             )
         }
         if lowered.contains("patch") && (lowered.contains("fail") || lowered.contains("reject")) {
             return FailureClassification(
                 failureClass: .patchApplyFailed,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .patchApplyFailed),
                 signals: ["patch failure signal"]
             )
         }
         if lowered.contains("environment") || lowered.contains("mismatch") {
             return FailureClassification(
                 failureClass: .environmentMismatch,
-                confidence: 0.70,
+                confidence: contextBoosted(0.70, context: context, expected: .environmentMismatch),
                 signals: ["environment mismatch signal"]
             )
         }
         if lowered.contains("workflow") && lowered.contains("replay") {
             return FailureClassification(
-                failureClass: .verificationFailed,
-                confidence: 0.65,
+                failureClass: .workflowReplayFailure,
+                confidence: contextBoosted(0.75, context: context, expected: .workflowReplayFailure),
                 signals: ["workflow replay failure signal"]
             )
         }
         if lowered.contains("modal") || lowered.contains("blocking") {
             return FailureClassification(
                 failureClass: .modalBlocking,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .modalBlocking),
                 signals: ["modal blocking signal"]
             )
         }
         if lowered.contains("build") && lowered.contains("fail") {
             return FailureClassification(
                 failureClass: .buildFailed,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .buildFailed),
                 signals: ["build failure signal"]
             )
         }
         if lowered.contains("test") && lowered.contains("fail") {
             return FailureClassification(
                 failureClass: .testFailed,
-                confidence: 0.80,
+                confidence: contextBoosted(0.80, context: context, expected: .testFailed),
                 signals: ["test failure signal"]
             )
         }
         if lowered.contains("navigate") || lowered.contains("navigation") {
             return FailureClassification(
                 failureClass: .navigationFailed,
-                confidence: 0.65,
+                confidence: contextBoosted(0.65, context: context, expected: .navigationFailed),
                 signals: ["navigation failure signal"]
             )
         }
@@ -114,6 +114,18 @@ public enum FailureClassifier {
             confidence: 0.40,
             signals: ["no specific failure pattern matched"]
         )
+    }
+
+    private static func contextBoosted(
+        _ base: Double,
+        context: FailureClassifierContext,
+        expected: FailureClass
+    ) -> Double {
+        var confidence = base
+        if context.recentFailureClasses.contains(expected) {
+            confidence = min(confidence + 0.05, 1.0)
+        }
+        return confidence
     }
 }
 

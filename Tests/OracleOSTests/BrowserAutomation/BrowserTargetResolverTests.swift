@@ -15,7 +15,7 @@ struct BrowserTargetResolverTests {
         #expect(BrowserTargetResolver.maximumAmbiguity == 0.15)
     }
 
-    @Test("Browser target score combines text, role, and visibility")
+    @Test("Browser target score combines text, role, visibility, and additional signals")
     func targetScoreCombinesFactors() {
         let score = BrowserTargetScore(
             textSimilarity: 0.9,
@@ -23,7 +23,7 @@ struct BrowserTargetResolverTests {
             visibilityScore: 1.0
         )
         #expect(score.totalScore > 0)
-        let expected = 0.50 * 0.9 + 0.30 * 1.0 + 0.20 * 1.0
+        let expected = 0.40 * 0.9 + 0.25 * 1.0 + 0.15 * 1.0
         #expect(abs(score.totalScore - expected) < 0.001)
     }
 

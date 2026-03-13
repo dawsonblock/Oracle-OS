@@ -9,6 +9,7 @@ public struct PlanCandidate: Sendable {
     public let estimatedCost: Double
     public let riskScore: Double
     public let successProbability: Double
+    public let sourceType: PlanSourceType
 
     public init(
         operators: [Operator],
@@ -18,7 +19,8 @@ public struct PlanCandidate: Sendable {
         simulatedOutcome: SimulatedOutcome? = nil,
         estimatedCost: Double? = nil,
         riskScore: Double? = nil,
-        successProbability: Double? = nil
+        successProbability: Double? = nil,
+        sourceType: PlanSourceType = .reasoning
     ) {
         self.operators = operators
         self.projectedState = projectedState
@@ -28,5 +30,6 @@ public struct PlanCandidate: Sendable {
         self.estimatedCost = estimatedCost ?? operators.reduce(0.0) { $0 + $1.baseCost }
         self.riskScore = riskScore ?? operators.reduce(0.0) { $0 + $1.risk } / Double(max(operators.count, 1))
         self.successProbability = successProbability ?? simulatedOutcome?.successProbability ?? 0
+        self.sourceType = sourceType
     }
 }

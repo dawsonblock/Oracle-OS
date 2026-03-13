@@ -179,6 +179,8 @@ public enum TraceSegmenter {
                         || currentSessionID != event.sessionID
                         || currentAgentKind != agentKind
                         || (current.last.map { event.stepID <= $0.stepID } ?? false)
+                        || browserContextChanged(previous: current.last, current: event)
+                        || codePhaseChanged(previous: current.last, current: event)
                 )
 
             if startsNewSegment {
@@ -223,5 +225,23 @@ public enum TraceSegmenter {
             return (lhs.taskID ?? "") < (rhs.taskID ?? "")
         }
         return lhs.sessionID < rhs.sessionID
+    }
+
+    private static func browserContextChanged(previous: TraceEvent?, current: TraceEvent) -> Bool {
+        guard let previous else { return false }
+        if let prevDomain = previous.domain, let curDomain = current.domain,
+           prevDomain != curDomain {
+            return true
+        }
+        return false
+    }
+
+    private static func codePhaseChanged(previous: TraceEvent?, current: TraceEvent) -> Bool {
+        guard let previous else { return false }
+        if let prevCategory = previous.commandCategory, let curCategory = current.commandCategory,
+           prevCategory != curCategory {
+            return true
+        }
+        return false
     }
 }
