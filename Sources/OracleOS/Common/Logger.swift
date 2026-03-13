@@ -29,7 +29,7 @@ public enum LogLevel: Int, Sendable, Comparable {
 /// Structured logger that always writes to stderr.
 public enum Log {
     /// Minimum level to output. Set to .debug for verbose, .info for normal, .warn for quiet.
-    /// Access is guarded by an unfair lock for thread safety.
+    /// Access is guarded by an NSLock for thread safety.
     private static let _levelLock = NSLock()
     private static var _minimumLevel: LogLevel = .info
 
