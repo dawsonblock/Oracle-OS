@@ -25,24 +25,20 @@ public enum StateUpdater {
 
         // Keep only the most recent notes to prevent unbounded growth.
         let trimmedNotes = Array(notes.suffix(20))
+        let repo = ws.repositorySnapshot
 
-        return WorldModelSnapshot(
-            timestamp: diff.timestamp,
-            activeApplication: ws.observation.app,
-            windowTitle: ws.observation.windowTitle,
-            url: ws.observation.url,
+        return snapshot.copy(
+            activeApplication: .some(ws.observation.app),
+            windowTitle: .some(ws.observation.windowTitle),
+            url: .some(ws.observation.url),
             visibleElementCount: ws.observation.elements.count,
             modalPresent: ws.planningState.modalClass != nil,
-            repositoryRoot: ws.repositorySnapshot?.workspaceRoot ?? snapshot.repositoryRoot,
-            activeBranch: ws.repositorySnapshot?.activeBranch ?? snapshot.activeBranch,
-            isGitDirty: ws.repositorySnapshot?.isGitDirty ?? snapshot.isGitDirty,
-            openFileCount: ws.repositorySnapshot?.files.count ?? snapshot.openFileCount,
-            buildSucceeded: snapshot.buildSucceeded,
-            failingTestCount: snapshot.failingTestCount,
-            planningStateID: ws.planningState.id.rawValue,
-            observationHash: ws.observationHash,
-            processNames: snapshot.processNames,
-            knowledgeSignals: snapshot.knowledgeSignals,
+            repositoryRoot: .some(repo?.workspaceRoot ?? snapshot.repositoryRoot),
+            activeBranch: .some(repo?.activeBranch ?? snapshot.activeBranch),
+            isGitDirty: repo?.isGitDirty ?? snapshot.isGitDirty,
+            openFileCount: repo?.files.count ?? snapshot.openFileCount,
+            planningStateID: .some(ws.planningState.id.rawValue),
+            observationHash: .some(ws.observationHash),
             notes: trimmedNotes
         )
     }

@@ -20,7 +20,7 @@ public final class StateSimulator: @unchecked Sendable {
         switch op.kind {
         case .dismissModal:
             if snapshot.modalPresent {
-                predicted = withModalDismissed(snapshot)
+                predicted = snapshot.copy(modalPresent: false)
                 changes.append("modal dismissed")
                 confidence = 0.85
             } else {
@@ -30,7 +30,7 @@ public final class StateSimulator: @unchecked Sendable {
 
         case .focusWindow, .openApplication:
             let targetApp = state.targetApplication ?? "unknown"
-            predicted = withApplicationChanged(snapshot, to: targetApp)
+            predicted = snapshot.copy(activeApplication: .some(targetApp))
             changes.append("focused \(targetApp)")
             confidence = 0.75
 
@@ -39,7 +39,7 @@ public final class StateSimulator: @unchecked Sendable {
             confidence = 0.6
 
         case .applyPatch:
-            predicted = withGitDirty(snapshot)
+            predicted = snapshot.copy(isGitDirty: true)
             changes.append("patch applied, repo dirty")
             confidence = 0.65
 
@@ -48,7 +48,7 @@ public final class StateSimulator: @unchecked Sendable {
             confidence = 0.6
 
         case .rollbackPatch, .revertPatch:
-            predicted = withPatchReverted(snapshot)
+            predicted = snapshot.copy(isGitDirty: false)
             changes.append("patch reverted")
             confidence = 0.8
 
@@ -61,94 +61,6 @@ public final class StateSimulator: @unchecked Sendable {
             predictedSnapshot: predicted,
             changes: changes,
             confidence: confidence
-        )
-    }
-
-    private func withModalDismissed(_ s: WorldModelSnapshot) -> WorldModelSnapshot {
-        WorldModelSnapshot(
-            timestamp: Date(),
-            activeApplication: s.activeApplication,
-            windowTitle: s.windowTitle,
-            url: s.url,
-            visibleElementCount: s.visibleElementCount,
-            modalPresent: false,
-            repositoryRoot: s.repositoryRoot,
-            activeBranch: s.activeBranch,
-            isGitDirty: s.isGitDirty,
-            openFileCount: s.openFileCount,
-            buildSucceeded: s.buildSucceeded,
-            failingTestCount: s.failingTestCount,
-            planningStateID: s.planningStateID,
-            observationHash: s.observationHash,
-            processNames: s.processNames,
-            knowledgeSignals: s.knowledgeSignals,
-            notes: s.notes
-        )
-    }
-
-    private func withApplicationChanged(_ s: WorldModelSnapshot, to app: String) -> WorldModelSnapshot {
-        WorldModelSnapshot(
-            timestamp: Date(),
-            activeApplication: app,
-            windowTitle: s.windowTitle,
-            url: s.url,
-            visibleElementCount: s.visibleElementCount,
-            modalPresent: s.modalPresent,
-            repositoryRoot: s.repositoryRoot,
-            activeBranch: s.activeBranch,
-            isGitDirty: s.isGitDirty,
-            openFileCount: s.openFileCount,
-            buildSucceeded: s.buildSucceeded,
-            failingTestCount: s.failingTestCount,
-            planningStateID: s.planningStateID,
-            observationHash: s.observationHash,
-            processNames: s.processNames,
-            knowledgeSignals: s.knowledgeSignals,
-            notes: s.notes
-        )
-    }
-
-    private func withGitDirty(_ s: WorldModelSnapshot) -> WorldModelSnapshot {
-        WorldModelSnapshot(
-            timestamp: Date(),
-            activeApplication: s.activeApplication,
-            windowTitle: s.windowTitle,
-            url: s.url,
-            visibleElementCount: s.visibleElementCount,
-            modalPresent: s.modalPresent,
-            repositoryRoot: s.repositoryRoot,
-            activeBranch: s.activeBranch,
-            isGitDirty: true,
-            openFileCount: s.openFileCount,
-            buildSucceeded: s.buildSucceeded,
-            failingTestCount: s.failingTestCount,
-            planningStateID: s.planningStateID,
-            observationHash: s.observationHash,
-            processNames: s.processNames,
-            knowledgeSignals: s.knowledgeSignals,
-            notes: s.notes
-        )
-    }
-
-    private func withPatchReverted(_ s: WorldModelSnapshot) -> WorldModelSnapshot {
-        WorldModelSnapshot(
-            timestamp: Date(),
-            activeApplication: s.activeApplication,
-            windowTitle: s.windowTitle,
-            url: s.url,
-            visibleElementCount: s.visibleElementCount,
-            modalPresent: s.modalPresent,
-            repositoryRoot: s.repositoryRoot,
-            activeBranch: s.activeBranch,
-            isGitDirty: false,
-            openFileCount: s.openFileCount,
-            buildSucceeded: s.buildSucceeded,
-            failingTestCount: s.failingTestCount,
-            planningStateID: s.planningStateID,
-            observationHash: s.observationHash,
-            processNames: s.processNames,
-            knowledgeSignals: s.knowledgeSignals,
-            notes: s.notes
         )
     }
 }

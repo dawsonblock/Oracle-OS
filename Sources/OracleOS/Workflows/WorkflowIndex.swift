@@ -45,8 +45,8 @@ public final class WorkflowIndex: @unchecked Sendable {
     public func matching(goal: Goal) -> [WorkflowPlan] {
         let goalLower = goal.description.lowercased()
         return promotedPlans(for: goal.preferredAgentKind).filter { plan in
-            goalLower.contains(plan.goalPattern.lowercased())
-                || plan.goalPattern.lowercased().contains(goalLower)
+            let patternLower = plan.goalPattern.lowercased()
+            return goalLower.contains(patternLower) || patternLower.contains(goalLower)
         }
     }
 }

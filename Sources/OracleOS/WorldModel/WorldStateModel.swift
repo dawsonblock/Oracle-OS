@@ -130,4 +130,44 @@ public struct WorldModelSnapshot: Sendable {
             observationHash: worldState.observationHash
         )
     }
+
+    /// Returns a copy with the specified fields overridden.
+    public func copy(
+        activeApplication: String?? = nil,
+        windowTitle: String?? = nil,
+        url: String?? = nil,
+        visibleElementCount: Int? = nil,
+        modalPresent: Bool? = nil,
+        repositoryRoot: String?? = nil,
+        activeBranch: String?? = nil,
+        isGitDirty: Bool? = nil,
+        openFileCount: Int? = nil,
+        buildSucceeded: Bool?? = nil,
+        failingTestCount: Int?? = nil,
+        planningStateID: String?? = nil,
+        observationHash: String?? = nil,
+        processNames: [String]? = nil,
+        knowledgeSignals: [String]? = nil,
+        notes: [String]? = nil
+    ) -> WorldModelSnapshot {
+        WorldModelSnapshot(
+            timestamp: Date(),
+            activeApplication: activeApplication ?? self.activeApplication,
+            windowTitle: windowTitle ?? self.windowTitle,
+            url: url ?? self.url,
+            visibleElementCount: visibleElementCount ?? self.visibleElementCount,
+            modalPresent: modalPresent ?? self.modalPresent,
+            repositoryRoot: repositoryRoot ?? self.repositoryRoot,
+            activeBranch: activeBranch ?? self.activeBranch,
+            isGitDirty: isGitDirty ?? self.isGitDirty,
+            openFileCount: openFileCount ?? self.openFileCount,
+            buildSucceeded: buildSucceeded ?? self.buildSucceeded,
+            failingTestCount: failingTestCount ?? self.failingTestCount,
+            planningStateID: planningStateID ?? self.planningStateID,
+            observationHash: observationHash ?? self.observationHash,
+            processNames: processNames ?? self.processNames,
+            knowledgeSignals: knowledgeSignals ?? self.knowledgeSignals,
+            notes: notes ?? self.notes
+        )
+    }
 }
