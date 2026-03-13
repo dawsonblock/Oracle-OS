@@ -62,7 +62,7 @@ struct PathSearchCycleControlTests {
     // MARK: - Cycle Detection
 
     @Test("PathSearch detects cycles and reports cycleDetections in diagnostics")
-    func detectsCyclesInDiagnostics() {
+    func detectsCyclesInDiagnostics() throws {
         let graphURL = makeTempGraphURL()
         let store = GraphStore(databaseURL: graphURL)
 
@@ -107,13 +107,10 @@ struct PathSearchCycleControlTests {
         )
 
         let search = PathSearch(maxDepth: 6, beamWidth: 3, cyclePenalty: 0.5)
-        let result = search.search(from: stateA, goal: goal, graphStore: store)
+        let result = try #require(search.search(from: stateA, goal: goal, graphStore: store))
 
         // The search should detect cycles since B->A revisits an already-visited state
-        #expect(result != nil)
-        if let result {
-            #expect(result.diagnostics.cycleDetections > 0)
-        }
+        #expect(result.diagnostics.cycleDetections > 0)
     }
 
     @Test("PathSearch cycle penalty reduces score for cyclic paths")

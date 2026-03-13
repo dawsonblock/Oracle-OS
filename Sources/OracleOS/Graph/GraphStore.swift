@@ -160,7 +160,9 @@ public final class GraphStore {
     }
 
     public func outgoingStableEdges(from planningStateID: PlanningStateID) -> [EdgeTransition] {
-        stableGraph.outgoing(from: planningStateID)
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.outgoing(from: planningStateID)
     }
 
     public func actionContract(for id: String) -> ActionContract? {
@@ -176,7 +178,9 @@ public final class GraphStore {
     }
 
     public func stableEdge(for id: String) -> EdgeTransition? {
-        stableGraph.edges[id]
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.edges[id]
     }
 
     public func globalSuccessRate() -> Double {
@@ -188,7 +192,9 @@ public final class GraphStore {
     }
 
     public func allStableEdges() -> [EdgeTransition] {
-        stableGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return stableGraph.edges.values.sorted { $0.edgeID < $1.edgeID }
     }
 
     public func allCandidateEdges() -> [EdgeTransition] {
