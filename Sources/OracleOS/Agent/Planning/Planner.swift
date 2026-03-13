@@ -403,7 +403,8 @@ public final class Planner: @unchecked Sendable {
             from: nodeID,
             in: graph,
             scorer: graphScorer,
-            goal: currentGoal
+            goal: currentGoal,
+            memoryBias: memoryBias
         )
 
         guard let bestPath = paths.first,
