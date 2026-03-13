@@ -67,7 +67,7 @@ public final class ProposalEngine: @unchecked Sendable {
     ) async -> Proposal {
         let deterministicPlans = reasoningEngine.generatePlans(from: state)
 
-        let llmPlans = await generateLLMPlans(
+        let (llmPlans, llmLatencyMs) = await generateLLMPlans(
             state: state,
             goal: goal,
             operators: deterministicPlans.flatMap(\.operators).map(\.name)
@@ -104,6 +104,7 @@ public final class ProposalEngine: @unchecked Sendable {
                 deterministicPlansGenerated: deterministicPlans.count,
                 totalEvaluated: scored.count,
                 selectedSource: selectedSource,
+                llmLatencyMs: llmLatencyMs ?? 0,
                 notes: best == nil ? ["no plan met minimum score threshold"] : []
             )
         )
@@ -113,7 +114,7 @@ public final class ProposalEngine: @unchecked Sendable {
         state: ReasoningPlanningState,
         goal: Goal,
         operators: [String]
-    ) async -> [PlanCandidate] {
+    ) async -> ([PlanCandidate], Int?) {
         let prompt = buildPlanningPrompt(state: state, goal: goal, operators: operators)
         let request = LLMRequest(
             prompt: prompt,
@@ -125,12 +126,13 @@ public final class ProposalEngine: @unchecked Sendable {
         do {
             let response = try await llmClient.complete(request)
             let parsed = ReasoningParser.parsePlans(from: response.text)
-            return ReasoningParser.toPlanCandidates(
+            let plans = ReasoningParser.toPlanCandidates(
                 parsedPlans: parsed,
                 state: state
             )
+            return (plans, response.latencyMs)
         } catch {
-            return []
+            return ([], nil)
         }
     }
 
