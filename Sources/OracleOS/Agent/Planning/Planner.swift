@@ -129,9 +129,16 @@ public final class Planner: @unchecked Sendable {
         guard let currentGoal else { return nil }
 
         // Hard gate: strategy selection must occur before plan generation.
-        // When no strategy is provided, we create a permissive default to
-        // preserve backward compatibility with callers that haven't been
-        // updated yet. New code paths always provide a strategy.
+        // Callers are expected to always provide a SelectedStrategy.
+        //
+        // Temporary backward-compatibility path:
+        // When no strategy is provided, we still create a permissive default
+        // to avoid breaking existing callers. This path is deprecated and
+        // will be removed once all call sites perform explicit strategy
+        // selection. New code paths must always pass a strategy.
+        if selectedStrategy == nil {
+            assertionFailure("Planner.nextStep called without a SelectedStrategy. Callers must perform strategy selection before planning.")
+        }
         let strategy = selectedStrategy ?? SelectedStrategy(
             kind: .graphNavigation,
             confidence: 0.3,
