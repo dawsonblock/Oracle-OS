@@ -1,7 +1,18 @@
 import Foundation
 
 public protocol LLMProvider: Sendable {
+    /// Complete a prompt using the LLM with default request parameters.
     func complete(prompt: String) async throws -> String
+
+    /// Complete a full `LLMRequest`, allowing providers to respect
+    /// model tier, max token count and temperature.
+    func complete(request: LLMRequest) async throws -> String
+}
+
+public extension LLMProvider {
+    func complete(request: LLMRequest) async throws -> String {
+        try await complete(prompt: request.prompt)
+    }
 }
 
 public enum LLMModelTier: String, Sendable {
