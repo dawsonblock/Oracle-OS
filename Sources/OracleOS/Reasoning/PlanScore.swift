@@ -44,4 +44,6 @@ public enum PlanSourceType: String, Sendable, Codable {
     case reasoning
     case candidateGraph = "candidate_graph"
     case exploration
+    case llm
+    case recovery
 }

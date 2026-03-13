@@ -42,4 +42,6 @@ public struct MemoryInfluence: Sendable, Equatable {
     public var projectMemoryRefs: [ProjectMemoryRef] {
         projectMemorySignals.refs
     }
+
+    public static let empty = MemoryInfluence()
 }

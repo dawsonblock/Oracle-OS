@@ -1,0 +1,179 @@
+import Foundation
+
+public struct Proposal: Sendable {
+    public let plans: [PlanCandidate]
+    public let selectedPlan: PlanCandidate?
+    public let diagnostics: ProposalDiagnostics
+
+    public init(
+        plans: [PlanCandidate],
+        selectedPlan: PlanCandidate?,
+        diagnostics: ProposalDiagnostics
+    ) {
+        self.plans = plans
+        self.selectedPlan = selectedPlan
+        self.diagnostics = diagnostics
+    }
+}
+
+public struct ProposalDiagnostics: Sendable {
+    public let llmPlansGenerated: Int
+    public let deterministicPlansGenerated: Int
+    public let totalEvaluated: Int
+    public let selectedSource: PlanSourceType?
+    public let llmLatencyMs: Double
+    public let notes: [String]
+
+    public init(
+        llmPlansGenerated: Int = 0,
+        deterministicPlansGenerated: Int = 0,
+        totalEvaluated: Int = 0,
+        selectedSource: PlanSourceType? = nil,
+        llmLatencyMs: Double = 0,
+        notes: [String] = []
+    ) {
+        self.llmPlansGenerated = llmPlansGenerated
+        self.deterministicPlansGenerated = deterministicPlansGenerated
+        self.totalEvaluated = totalEvaluated
+        self.selectedSource = selectedSource
+        self.llmLatencyMs = llmLatencyMs
+        self.notes = notes
+    }
+}
+
+public final class ProposalEngine: @unchecked Sendable {
+    private let llmClient: LLMClient
+    private let reasoningEngine: ReasoningEngine
+    private let planEvaluator: PlanEvaluator
+    private let promptEngine: PromptEngine
+
+    public init(
+        llmClient: LLMClient,
+        reasoningEngine: ReasoningEngine = ReasoningEngine(),
+        planEvaluator: PlanEvaluator,
+        promptEngine: PromptEngine = PromptEngine()
+    ) {
+        self.llmClient = llmClient
+        self.reasoningEngine = reasoningEngine
+        self.planEvaluator = planEvaluator
+        self.promptEngine = promptEngine
+    }
+
+    public func propose(
+        state: ReasoningPlanningState,
+        taskContext: TaskContext,
+        goal: Goal,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        workflowIndex: WorkflowIndex,
+        memoryStore: AppMemoryStore
+    ) async -> Proposal {
+        let deterministicPlans = reasoningEngine.generatePlans(from: state)
+
+        let llmPlans = await generateLLMPlans(
+            state: state,
+            goal: goal,
+            operators: deterministicPlans.flatMap(\.operators).map(\.name)
+        )
+
+        let allPlans = deterministicPlans + llmPlans
+        let scored = planEvaluator.evaluate(
+            plans: allPlans,
+            taskContext: taskContext,
+            goal: goal,
+            worldState: worldState,
+            graphStore: graphStore,
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
+        )
+
+        let best = planEvaluator.chooseBestPlan(scored)
+
+        let selectedSource: PlanSourceType?
+        if let best {
+            let isLLMPlan = llmPlans.contains { candidate in
+                candidate.operators.map(\.kind) == best.operators.map(\.kind)
+            }
+            selectedSource = isLLMPlan ? .llm : .reasoning
+        } else {
+            selectedSource = nil
+        }
+
+        return Proposal(
+            plans: scored,
+            selectedPlan: best,
+            diagnostics: ProposalDiagnostics(
+                llmPlansGenerated: llmPlans.count,
+                deterministicPlansGenerated: deterministicPlans.count,
+                totalEvaluated: scored.count,
+                selectedSource: selectedSource,
+                notes: best == nil ? ["no plan met minimum score threshold"] : []
+            )
+        )
+    }
+
+    private func generateLLMPlans(
+        state: ReasoningPlanningState,
+        goal: Goal,
+        operators: [String]
+    ) async -> [PlanCandidate] {
+        let prompt = buildPlanningPrompt(state: state, goal: goal, operators: operators)
+        let request = LLMRequest(
+            prompt: prompt,
+            modelTier: .planning,
+            maxTokens: 1024,
+            temperature: 0.3
+        )
+
+        do {
+            let response = try await llmClient.complete(request)
+            let parsed = ReasoningParser.parsePlans(from: response.text)
+            return ReasoningParser.toPlanCandidates(
+                parsedPlans: parsed,
+                state: state
+            )
+        } catch {
+            return []
+        }
+    }
+
+    private func buildPlanningPrompt(
+        state: ReasoningPlanningState,
+        goal: Goal,
+        operators: [String]
+    ) -> String {
+        var lines: [String] = []
+        lines.append("You are controlling a computer operator.")
+        lines.append("")
+        lines.append("Current state:")
+        lines.append("- agent kind: \(state.agentKind.rawValue)")
+        lines.append("- active application: \(state.activeApplication ?? "none")")
+        lines.append("- target application: \(state.targetApplication ?? "none")")
+        lines.append("- repo open: \(state.repoOpen)")
+        lines.append("- modal present: \(state.modalPresent)")
+        lines.append("- patch applied: \(state.patchApplied)")
+        lines.append("- tests observed: \(state.testsObserved)")
+        lines.append("")
+        lines.append("Goal:")
+        lines.append("- \(goal.description)")
+        lines.append("")
+        lines.append("Available operators:")
+        for op in Set(operators).sorted() {
+            lines.append("- \(op)")
+        }
+        lines.append("")
+        lines.append("Generate 3 candidate plans.")
+        lines.append("Each plan must contain:")
+        lines.append("- ordered steps")
+        lines.append("- risk level (low, medium, high)")
+        lines.append("- confidence (0.0 to 1.0)")
+        lines.append("")
+        lines.append("Format:")
+        lines.append("PLAN 1")
+        lines.append("steps:")
+        lines.append("- step description")
+        lines.append("risk: low")
+        lines.append("confidence: 0.75")
+        return lines.joined(separator: "\n")
+    }
+}
