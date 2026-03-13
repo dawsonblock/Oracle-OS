@@ -46,4 +46,5 @@ public enum PlanSourceType: String, Sendable, Codable {
     case exploration
     case llm
     case recovery
+    case strategy
 }
