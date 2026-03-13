@@ -204,6 +204,22 @@ public final class Planner: @unchecked Sendable {
         return decision
     }
 
+    /// Derive an operator family for a given skill name.
+    ///
+    /// Note: without access to the full action-contract type hierarchy here,
+    /// we conservatively fall back to the first available operator family.
+    /// This relies on `OperatorFamily` being `CaseIterable` and non-empty,
+    /// which is already assumed elsewhere in this planner.
+    private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
+        // Fallback: use the first defined operator family as a deterministic default.
+        // If more precise mapping is needed, this function can be extended to
+        // inspect the skill name or associated contract metadata.
+        precondition(!OperatorFamily.allCases.isEmpty,
+                     "OperatorFamily must have at least one case")
+        // Force unwrap is safe due to the precondition above.
+        return OperatorFamily.allCases.first!
+    }
+
     private func selectBestDecision(
         familyDecision: PlannerDecision?,
         reasoningDecision: PlannerDecision?,
