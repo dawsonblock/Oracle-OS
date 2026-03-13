@@ -412,7 +412,7 @@ public final class Planner: @unchecked Sendable {
         return PlannerDecision(
             agentKind: actionContract.agentKind,
             plannerFamily: plannerFamily(for: taskContext.agentKind),
-            stepPhase: .operatingSystem,
+            stepPhase: stepPhase(for: actionContract.agentKind),
             actionContract: actionContract,
             source: .stableGraph,
             fallbackReason: "task-graph path expansion selected edge",
@@ -423,6 +423,18 @@ public final class Planner: @unchecked Sendable {
                 "terminal state: \(bestPath.terminalState?.rawValue ?? "unknown")",
             ]
         )
+    }
+
+    private func stepPhase(for agentKind: AgentKind) -> TaskPhase {
+        switch agentKind {
+        case .os:
+            return .operatingSystem
+        case .code:
+            return .engineering
+        case .mixed:
+            // Default to operating system phase for mixed tasks to preserve existing behavior.
+            return .operatingSystem
+        }
     }
 
     private func plannerFamily(for agentKind: AgentKind) -> PlannerFamily {
