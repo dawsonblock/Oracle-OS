@@ -24,16 +24,13 @@ public final class TaskGraph: @unchecked Sendable {
     // Growth limits
     public let maxNodesPerTask: Int
     public let maxEdgesPerNode: Int
-    public let nodeMergeSimilarityThreshold: Double
 
     public init(
         maxNodesPerTask: Int = 200,
-        maxEdgesPerNode: Int = 10,
-        nodeMergeSimilarityThreshold: Double = 0.9
+        maxEdgesPerNode: Int = 10
     ) {
         self.maxNodesPerTask = maxNodesPerTask
         self.maxEdgesPerNode = maxEdgesPerNode
-        self.nodeMergeSimilarityThreshold = nodeMergeSimilarityThreshold
     }
 
     // MARK: - Node Operations
