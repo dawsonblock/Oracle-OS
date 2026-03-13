@@ -67,7 +67,7 @@ public final class TaskGraphStore: @unchecked Sendable {
         latencyMs: Int = 0,
         cost: Double = 0,
         createdByAction: String? = nil
-    ) -> TaskNode? {
+    ) -> TaskNode {
         let abstract = stateAbstractor.abstractState(from: resultWorldState)
         let resultNode = TaskNode(
             abstractState: abstract,
