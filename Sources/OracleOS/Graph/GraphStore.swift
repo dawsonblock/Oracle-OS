@@ -1,6 +1,6 @@
 import Foundation
 
-public final class GraphStore: @unchecked Sendable {
+public final class GraphStore {
     private let candidateGraph: CandidateGraph
     private let stableGraph: StableGraph
     private let persistence: GraphPersistence?
