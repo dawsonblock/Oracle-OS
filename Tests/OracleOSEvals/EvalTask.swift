@@ -5,6 +5,11 @@ enum EvalTaskFamily: String {
     case operatorTask = "operator"
     case codingTask = "coding"
     case hybridTask = "hybrid"
+    case ambiguousUI = "ambiguous-ui"
+    case dialogStorm = "dialog-storm"
+    case recoveryLoop = "recovery-loop"
+    case patchFailure = "patch-failure"
+    case workflowDrift = "workflow-drift"
 }
 
 @MainActor
