@@ -50,7 +50,15 @@ public struct WorkflowConfidenceModel: Sendable {
         self.driftPenaltyWeight = driftPenaltyWeight
     }
 
-    public func confidence(for workflow: WorkflowPlan) -> WorkflowConfidence {
+    /// Compute confidence with an optional strategy boost.
+    ///
+    /// When a workflow repeatedly succeeds inside the same strategy, its
+    /// confidence is boosted. Low-ambiguity replays within the strategy
+    /// also increase the score.
+    public func confidence(
+        for workflow: WorkflowPlan,
+        selectedStrategy: SelectedStrategy? = nil
+    ) -> WorkflowConfidence {
         var notes: [String] = []
 
         let successComponent = workflow.successRate * successRateWeight
@@ -83,7 +91,13 @@ public struct WorkflowConfidenceModel: Sendable {
             notes.append("drift rate \(String(format: "%.2f", driftRate))")
         }
 
-        let totalScore = successComponent + countComponent + recencyComponent + replayComponent - driftPenalty
+        var totalScore = successComponent + countComponent + recencyComponent + replayComponent - driftPenalty
+
+        // ── Strategy boost: reward workflows that align with the active strategy ──
+        if let strategy = selectedStrategy {
+            let strategyBoost = strategyAlignmentBoost(workflow: workflow, strategy: strategy, notes: &notes)
+            totalScore += strategyBoost
+        }
 
         return WorkflowConfidence(
             score: min(max(totalScore, 0), 1.0),
@@ -101,6 +115,30 @@ public struct WorkflowConfidenceModel: Sendable {
 
     public func score(plan: WorkflowPlan) -> WorkflowConfidence {
         confidence(for: plan)
+    }
+
+    /// Strategy alignment boost for workflows that match the current strategy.
+    private func strategyAlignmentBoost(
+        workflow: WorkflowPlan,
+        strategy: SelectedStrategy,
+        notes: inout [String]
+    ) -> Double {
+        let skills = workflow.steps.map { $0.actionContract.skillName.lowercased() }
+        let families = Set(skills.map { GraphNavigator.operatorFamilyForAction($0) })
+        let allowed = Set(strategy.allowedOperatorFamilies)
+
+        // Fraction of workflow families that are strategy-allowed.
+        guard !families.isEmpty else { return 0 }
+        let alignedCount = families.filter { allowed.contains($0) }.count
+        let alignment = Double(alignedCount) / Double(families.count)
+
+        if alignment >= 0.8 {
+            notes.append("strategy-aligned workflow (alignment: \(String(format: "%.0f%%", alignment * 100)))")
+            return 0.08
+        } else if alignment >= 0.5 {
+            return 0.03
+        }
+        return 0
     }
 
     private static func computeDriftRate(_ workflow: WorkflowPlan) -> Double {

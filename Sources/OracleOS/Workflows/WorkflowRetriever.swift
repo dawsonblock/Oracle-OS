@@ -22,12 +22,14 @@ public struct WorkflowMatch: Sendable {
 public struct WorkflowRetriever: Sendable {
     public init() {}
 
+    /// Retrieve the best matching workflow, optionally scoped by strategy.
     public func retrieve(
         goal: Goal,
         taskContext: TaskContext,
         worldState: WorldState,
         workflowIndex: WorkflowIndex,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: AppMemoryStore? = nil,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> WorkflowMatch? {
         let memoryRouter = MemoryRouter(memoryStore: memoryStore)
         let memoryInfluence = memoryRouter.influence(
@@ -39,6 +41,14 @@ public struct WorkflowRetriever: Sendable {
         let projectMemorySignals = memoryInfluence.projectMemorySignals
         return workflowIndex.promotedPlans(for: taskContext.agentKind)
             .compactMap { plan -> WorkflowMatch? in
+                // ── Strategy filter: skip workflows outside strategy scope ──
+                if let strategy = selectedStrategy {
+                    let workflowKind = inferStrategyKind(for: plan)
+                    if workflowKind != strategy.kind && workflowKind != .graphNavigation {
+                        return nil
+                    }
+                }
+
                 guard let stepIndex = matchingStepIndex(plan: plan, planningStateID: worldState.planningState.id.rawValue) else {
                     return nil
                 }
@@ -162,6 +172,12 @@ public struct WorkflowRetriever: Sendable {
             workspaceRoot: taskContext.workspaceRoot
         )
         return bias
+    }
+
+    /// Infer the strategy kind for a workflow based on its steps.
+    private func inferStrategyKind(for plan: WorkflowPlan) -> StrategyKind {
+        let skills = plan.steps.map { $0.actionContract.skillName.lowercased() }
+        return StrategyKind.infer(fromSkills: skills)
     }
 
 }

@@ -45,12 +45,14 @@ public final class LLMRecoveryAdvisor: @unchecked Sendable {
     public func advise(
         failureClass: FailureClass,
         recentActions: [String],
-        memoryInfluence: MemoryInfluence
+        memoryInfluence: MemoryInfluence,
+        selectedStrategy: SelectedStrategy? = nil
     ) async -> LLMRecoveryPlan {
         let prompt = buildRecoveryPrompt(
             failureClass: failureClass,
             recentActions: recentActions,
-            memoryInfluence: memoryInfluence
+            memoryInfluence: memoryInfluence,
+            selectedStrategy: selectedStrategy
         )
         let request = LLMRequest(
             prompt: prompt,
@@ -81,9 +83,19 @@ public final class LLMRecoveryAdvisor: @unchecked Sendable {
     private func buildRecoveryPrompt(
         failureClass: FailureClass,
         recentActions: [String],
-        memoryInfluence: MemoryInfluence
+        memoryInfluence: MemoryInfluence,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> String {
         var lines: [String] = []
+
+        // ── Strategy context ──
+        if let strategy = selectedStrategy {
+            lines.append("Current strategy: \(strategy.kind.rawValue)")
+            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+            lines.append("IMPORTANT: Only suggest recovery strategies using allowed operators.")
+            lines.append("")
+        }
+
         lines.append("Automation failed.")
         lines.append("")
         lines.append("Failure type: \(failureClass.rawValue)")

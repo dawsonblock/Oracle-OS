@@ -123,9 +123,31 @@ public final class Planner: @unchecked Sendable {
     public func nextStep(
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore = AppMemoryStore()
+        memoryStore: AppMemoryStore = AppMemoryStore(),
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         guard let currentGoal else { return nil }
+
+        // Hard gate: strategy selection must occur before plan generation.
+        // Callers are expected to always provide a SelectedStrategy.
+        //
+        // Temporary backward-compatibility path:
+        // When no strategy is provided, we still create a permissive default
+        // to avoid breaking existing callers. This path is deprecated and
+        // will be removed once all call sites perform explicit strategy
+        // selection. New code paths must always pass a strategy.
+        if selectedStrategy == nil {
+            assertionFailure("Planner.nextStep called without a SelectedStrategy. Callers must perform strategy selection before planning.")
+        }
+        let strategy = selectedStrategy ?? SelectedStrategy(
+            kind: .graphNavigation,
+            confidence: 0.3,
+            rationale: "fallback: no strategy provided to planner",
+            allowedOperatorFamilies: OperatorFamily.allCases.map { $0 }
+        )
+        precondition(!strategy.allowedOperatorFamilies.isEmpty,
+                     "SelectedStrategy must have at least one allowed operator family")
+
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
 
@@ -167,7 +189,7 @@ public final class Planner: @unchecked Sendable {
             fallbackDecision: familyDecision
         )
 
-        return selectBestDecision(
+        let decision = selectBestDecision(
             familyDecision: familyDecision,
             reasoningDecision: reasoning,
             taskGraphDecision: taskGraphDecision,
@@ -175,6 +197,34 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             memoryStore: memoryStore
         )
+
+        // ── Safety net: drop any decision whose operator family violates the strategy ──
+        if let decision {
+            let skillName = decision.actionContract.skillName
+            let family = operatorFamilyForSkill(skillName)
+            if !strategy.allows(family) {
+                // Strategy violation — suppress this decision.
+                return nil
+            }
+        }
+
+        return decision
+    }
+
+    /// Derive an operator family for a given skill name.
+    ///
+    /// Note: without access to the full action-contract type hierarchy here,
+    /// we conservatively fall back to the first available operator family.
+    /// This relies on `OperatorFamily` being `CaseIterable` and non-empty,
+    /// which is already assumed elsewhere in this planner.
+    private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
+        // Fallback: use the first defined operator family as a deterministic default.
+        // If more precise mapping is needed, this function can be extended to
+        // inspect the skill name or associated contract metadata.
+        precondition(!OperatorFamily.allCases.isEmpty,
+                     "OperatorFamily must have at least one case")
+        // Force unwrap is safe due to the precondition above.
+        return OperatorFamily.allCases.first!
     }
 
     private func selectBestDecision(
@@ -288,7 +338,8 @@ public final class Planner: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore,
-        fallbackDecision: PlannerDecision?
+        fallbackDecision: PlannerDecision?,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(
@@ -302,7 +353,20 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             memoryInfluence: memoryInfluence
         )
-        let plans = reasoningEngine.generatePlans(from: reasoningState)
+        let allPlans = reasoningEngine.generatePlans(from: reasoningState)
+
+        // ── Strategy filter: drop plans whose operators are outside the allowed families ──
+        let plans: [PlanCandidate]
+        if let strategy = selectedStrategy {
+            plans = allPlans.filter { candidate in
+                candidate.operators.allSatisfy { op in
+                    strategy.allows(op.kind.operatorFamily)
+                }
+            }
+        } else {
+            plans = allPlans
+        }
+
         let scoredPlans = planEvaluator.evaluate(
             plans: plans,
             taskContext: taskContext,
@@ -384,11 +448,20 @@ public final class Planner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore
+        memoryStore: AppMemoryStore,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         let graph = taskGraphStore.graph
         let nodeID = taskNode.id
-        let outgoing = graph.viableEdges(from: nodeID)
+        var outgoing = graph.viableEdges(from: nodeID)
+
+        // ── Strategy filter: only expand edges whose operator family is strategy-allowed ──
+        if let strategy = selectedStrategy {
+            outgoing = outgoing.filter { edge in
+                let family = operatorFamilyForSkill(edge.action)
+                return strategy.allows(family)
+            }
+        }
 
         guard !outgoing.isEmpty else { return nil }
 
@@ -404,7 +477,7 @@ public final class Planner: @unchecked Sendable {
             in: graph,
             scorer: graphScorer,
             goal: currentGoal,
-            memoryBias: memoryBias
+            allowedFamilies: selectedStrategy?.allowedOperatorFamilies
         )
 
         guard let bestPath = paths.first,
@@ -499,5 +572,14 @@ public final class Planner: @unchecked Sendable {
 
         guard possible > 0 else { return 0 }
         return matched / possible
+    }
+
+    // MARK: - Operator family classification
+
+    /// Infer the ``OperatorFamily`` for a skill or action name.
+    ///
+    /// Delegates to ``GraphNavigator.operatorFamilyForAction`` for consistency.
+    private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
+        GraphNavigator.operatorFamilyForAction(skillName)
     }
 }

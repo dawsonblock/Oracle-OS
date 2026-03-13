@@ -47,12 +47,14 @@ public final class LLMTargetResolver: @unchecked Sendable {
     public func resolve(
         goal: String,
         domSummary: String,
-        visibleElements: [String]
+        visibleElements: [String],
+        selectedStrategy: SelectedStrategy? = nil
     ) async -> LLMTargetResolution {
         let prompt = buildBrowserPrompt(
             goal: goal,
             domSummary: domSummary,
-            visibleElements: visibleElements
+            visibleElements: visibleElements,
+            selectedStrategy: selectedStrategy
         )
         let request = LLMRequest(
             prompt: prompt,
@@ -80,9 +82,18 @@ public final class LLMTargetResolver: @unchecked Sendable {
     private func buildBrowserPrompt(
         goal: String,
         domSummary: String,
-        visibleElements: [String]
+        visibleElements: [String],
+        selectedStrategy: SelectedStrategy? = nil
     ) -> String {
         var lines: [String] = []
+
+        // ── Strategy context ──
+        if let strategy = selectedStrategy {
+            lines.append("Current strategy: \(strategy.kind.rawValue)")
+            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+            lines.append("")
+        }
+
         lines.append("User goal:")
         lines.append(goal)
         lines.append("")

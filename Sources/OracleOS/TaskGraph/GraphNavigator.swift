@@ -34,7 +34,8 @@ public struct GraphNavigator: Sendable {
         from nodeID: String,
         in graph: TaskGraph,
         scorer: GraphScorer,
-        goal: Goal? = nil
+        goal: Goal? = nil,
+        allowedFamilies: [OperatorFamily]? = nil
     ) -> [ScoredPath] {
         guard let startNode = graph.node(for: nodeID) else { return [] }
 
@@ -51,6 +52,7 @@ public struct GraphNavigator: Sendable {
             graph: graph,
             scorer: scorer,
             goal: goal,
+            allowedFamilies: allowedFamilies,
             results: &results
         )
 
@@ -64,9 +66,10 @@ public struct GraphNavigator: Sendable {
         from nodeID: String,
         in graph: TaskGraph,
         scorer: GraphScorer,
-        goal: Goal? = nil
+        goal: Goal? = nil,
+        allowedFamilies: [OperatorFamily]? = nil
     ) -> TaskEdge? {
-        let paths = expand(from: nodeID, in: graph, scorer: scorer, goal: goal)
+        let paths = expand(from: nodeID, in: graph, scorer: scorer, goal: goal, allowedFamilies: allowedFamilies)
         return paths.first?.edges.first
     }
 
@@ -82,6 +85,7 @@ public struct GraphNavigator: Sendable {
         graph: TaskGraph,
         scorer: GraphScorer,
         goal: Goal?,
+        allowedFamilies: [OperatorFamily]?,
         results: inout [ScoredPath]
     ) {
         // Record the path ending here when depth > 0
@@ -96,11 +100,21 @@ public struct GraphNavigator: Sendable {
 
         guard depth < maxDepth else { return }
 
-        let outgoing = graph.viableEdges(from: currentNode.id)
+        var outgoing = graph.viableEdges(from: currentNode.id)
+
+        // ── Strategy filter: only expand edges whose operator family is allowed ──
+        if let families = allowedFamilies {
+            outgoing = outgoing.filter { edge in
+                let family = Self.operatorFamilyForAction(edge.action)
+                return families.contains(family)
+            }
+        }
+
+        let sorted = outgoing
             .sorted { scorer.scoreEdge($0) > scorer.scoreEdge($1) }
             .prefix(maxBranching)
 
-        for edge in outgoing {
+        for edge in sorted {
             let toID = edge.toNodeID
             guard !visited.contains(toID) else { continue }
             guard let toNode = graph.node(for: toID) else { continue }
@@ -120,9 +134,40 @@ public struct GraphNavigator: Sendable {
                 graph: graph,
                 scorer: scorer,
                 goal: goal,
+                allowedFamilies: allowedFamilies,
                 results: &results
             )
             visited.remove(toID)
         }
+    }
+
+    /// Infer the operator family for a graph edge action name.
+    public static func operatorFamilyForAction(_ action: String) -> OperatorFamily {
+        let lowered = action.lowercased()
+        if lowered.contains("test") || lowered.contains("build") || lowered.contains("compile") {
+            return .repoAnalysis
+        }
+        if lowered.contains("patch") || lowered.contains("revert") || lowered.contains("rollback") {
+            return .patchGeneration
+        }
+        if lowered.contains("experiment") {
+            return .patchExperiment
+        }
+        if lowered.contains("browser") || lowered.contains("navigate") || lowered.contains("click") {
+            return .browserTargeted
+        }
+        if lowered.contains("dismiss") || lowered.contains("retry") || lowered.contains("recovery") {
+            return .recovery
+        }
+        if lowered.contains("open") || lowered.contains("focus") || lowered.contains("restart") {
+            return .hostTargeted
+        }
+        if lowered.contains("permission") || lowered.contains("approve") {
+            return .permissionHandling
+        }
+        if lowered.contains("workflow") {
+            return .workflow
+        }
+        return .graphEdge
     }
 }

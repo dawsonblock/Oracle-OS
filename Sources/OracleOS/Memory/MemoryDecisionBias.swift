@@ -31,11 +31,16 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
         self.memoryRouter = MemoryRouter(memoryStore: memoryStore)
     }
 
+    /// Compute memory bias for a plan, optionally scoped by strategy.
+    ///
+    /// When a ``SelectedStrategy`` is provided, bias values are adjusted
+    /// to prefer patterns that succeeded within the same strategy kind.
     public func bias(
         plan: PlanCandidate,
         goal: Goal,
         worldState: WorldState,
-        taskContext: TaskContext
+        taskContext: TaskContext,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> MemoryDecisionBias {
         guard let firstOperator = plan.operators.first else {
             return MemoryDecisionBias()
@@ -51,12 +56,12 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
 
         var notes: [String] = []
 
-        let successBias = memoryInfluence.executionRankingBias
+        var successBias = memoryInfluence.executionRankingBias
         if successBias > 0 {
             notes.append("successful pattern bias \(String(format: "%.2f", successBias))")
         }
 
-        let failurePenalty = memoryInfluence.riskPenalty
+        var failurePenalty = memoryInfluence.riskPenalty
         if failurePenalty > 0 {
             notes.append("failure pattern penalty \(String(format: "%.2f", failurePenalty))")
         }
@@ -84,6 +89,17 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
             preferredPathMatch = 0
         }
 
+        // ── Strategy-aware bias adjustments ──
+        if let strategy = selectedStrategy {
+            let strategyBoost = strategySpecificBias(
+                strategy: strategy,
+                plan: plan,
+                memoryInfluence: memoryInfluence,
+                notes: &notes
+            )
+            successBias += strategyBoost
+        }
+
         return MemoryDecisionBias(
             successPatternBias: successBias + preferredPathMatch,
             failurePatternPenalty: failurePenalty,
@@ -93,17 +109,81 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
         )
     }
 
+    /// Compute total bias score for a plan, optionally scoped by strategy.
     public func biasScore(
         plan: PlanCandidate,
         goal: Goal,
         worldState: WorldState,
-        taskContext: TaskContext
+        taskContext: TaskContext,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> Double {
         bias(
             plan: plan,
             goal: goal,
             worldState: worldState,
-            taskContext: taskContext
+            taskContext: taskContext,
+            selectedStrategy: selectedStrategy
         ).totalBias
+    }
+
+    // MARK: - Strategy-specific bias
+
+    private func strategySpecificBias(
+        strategy: SelectedStrategy,
+        plan: PlanCandidate,
+        memoryInfluence: MemoryInfluence,
+        notes: inout [String]
+    ) -> Double {
+        var boost = 0.0
+
+        switch strategy.kind {
+        case .repoRepair:
+            // Prefer dependency-update and patch-strategy success history.
+            if memoryInfluence.preferredFixPath != nil {
+                boost += 0.1
+                notes.append("repoRepair: preferred fix path boost")
+            }
+            if plan.sourceType == .workflow {
+                boost += 0.05
+                notes.append("repoRepair: workflow-backed plan boost")
+            }
+
+        case .browserInteraction:
+            // Penalize recently failed targets, prefer successful patterns.
+            if memoryInfluence.riskPenalty > 0 {
+                boost -= 0.08
+                notes.append("browserInteraction: recent failure penalty")
+            }
+            if memoryInfluence.executionRankingBias > 0 {
+                boost += 0.06
+                notes.append("browserInteraction: successful target pattern boost")
+            }
+
+        case .workflowExecution:
+            // Prefer high-confidence workflow matches.
+            if plan.sourceType == .workflow {
+                boost += 0.12
+                notes.append("workflowExecution: workflow source boost")
+            }
+
+        case .recoveryMode:
+            // Prefer recovery paths that resolved similar failures.
+            if memoryInfluence.preferredRecoveryStrategy != nil {
+                boost += 0.1
+                notes.append("recoveryMode: preferred recovery strategy boost")
+            }
+
+        case .graphNavigation:
+            // Prefer stable graph edges.
+            if plan.sourceType == .stableGraph {
+                boost += 0.08
+                notes.append("graphNavigation: stable graph boost")
+            }
+
+        default:
+            break
+        }
+
+        return boost
     }
 }

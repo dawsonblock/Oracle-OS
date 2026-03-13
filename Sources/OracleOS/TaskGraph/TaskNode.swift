@@ -65,6 +65,12 @@ public final class TaskNode: @unchecked Sendable {
     public func updateWorldSnapshotRef(_ ref: String) {
         worldSnapshotRef = ref
     }
+
+    /// A stable signature combining the abstract state and planning state,
+    /// used to determine if the task position has meaningfully changed.
+    public var stateSignature: String {
+        "\(abstractState.rawValue)|\(planningStateID.rawValue)"
+    }
 }
 
 /// Task-relevant state abstraction.

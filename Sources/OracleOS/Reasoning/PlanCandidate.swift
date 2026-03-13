@@ -10,6 +10,8 @@ public struct PlanCandidate: Sendable {
     public let riskScore: Double
     public let successProbability: Double
     public let sourceType: PlanSourceType
+    /// The operator families used by this plan's operators.
+    public let operatorFamilies: [OperatorFamily]
 
     public init(
         operators: [Operator],
@@ -31,5 +33,11 @@ public struct PlanCandidate: Sendable {
         self.riskScore = riskScore ?? operators.reduce(0.0) { $0 + $1.risk } / Double(max(operators.count, 1))
         self.successProbability = successProbability ?? simulatedOutcome?.successProbability ?? 0
         self.sourceType = sourceType
+        self.operatorFamilies = Array(Set(operators.map(\.kind.operatorFamily)))
+    }
+
+    /// Returns true if all operators in this plan use families allowed by the strategy.
+    public func isAllowed(by strategy: SelectedStrategy) -> Bool {
+        operatorFamilies.allSatisfy { strategy.allows($0) }
     }
 }

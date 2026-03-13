@@ -2,10 +2,11 @@ import Foundation
 
 /// Writes diagnostic JSON files to a specified directory.
 ///
-/// ``DiagnosticsWriter`` produces three canonical diagnostic artifacts:
+/// ``DiagnosticsWriter`` produces canonical diagnostic artifacts:
 /// - `task_graph.json` — nodes, edges, current node, edge success rates
 /// - `planner_paths.json` — candidate paths, scores, selected path
 /// - `patch_experiments.json` — patch experiment results and rankings
+/// - `strategy_selection.jsonl` — strategy selection per planning cycle
 public struct DiagnosticsWriter: Sendable {
     public let outputDirectory: URL
 
@@ -146,6 +147,21 @@ public struct DiagnosticsWriter: Sendable {
             "experiments": experiments.map { $0.toDict() },
         ]
         write(payload, to: "patch_experiments.json")
+    }
+
+    // MARK: - Strategy Selection
+
+    /// Write a strategy selection snapshot for the current planning cycle.
+    public func writeStrategySelection(_ strategy: SelectedStrategy, reevaluationCause: StrategyReevaluationCause? = nil) {
+        let diagnostics = StrategyDiagnostics(
+            selectedStrategy: strategy.kind,
+            confidence: strategy.confidence,
+            rationale: strategy.rationale,
+            allowedOperatorFamilies: strategy.allowedOperatorFamilies,
+            reevaluationCause: reevaluationCause
+        )
+        let payload = diagnostics.toDict()
+        write(payload, to: "strategy_selection.json")
     }
 
     // MARK: - Helpers

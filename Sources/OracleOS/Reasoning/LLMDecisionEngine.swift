@@ -15,6 +15,8 @@ public struct LLMDecisionRequest: Sendable {
     public let memoryHints: [String]
     public let workflowHints: [String]
     public let graphHints: [String]
+    /// The selected strategy that bounds this LLM decision, if any.
+    public let selectedStrategy: SelectedStrategy?
 
     public init(
         kind: LLMDecisionKind,
@@ -22,7 +24,8 @@ public struct LLMDecisionRequest: Sendable {
         contextHints: [String] = [],
         memoryHints: [String] = [],
         workflowHints: [String] = [],
-        graphHints: [String] = []
+        graphHints: [String] = [],
+        selectedStrategy: SelectedStrategy? = nil
     ) {
         self.kind = kind
         self.goalDescription = goalDescription
@@ -30,6 +33,7 @@ public struct LLMDecisionRequest: Sendable {
         self.memoryHints = memoryHints
         self.workflowHints = workflowHints
         self.graphHints = graphHints
+        self.selectedStrategy = selectedStrategy
     }
 }
 
