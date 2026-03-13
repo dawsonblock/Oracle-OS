@@ -176,6 +176,8 @@ public struct RootCauseAnalyzer: Sendable {
             partialResult[path, default: 0] += 1
         }
 
+        let recentEditPaths = Self.recentlyEditedPaths(in: snapshot)
+
         return signalPaths.uniquedPreservingOrder().map { path in
             let impact = impactAnalyzer.impact(of: path, in: snapshot)
             let signalScore = min(Double(counts[path, default: 0]) * 0.18, 0.45)
@@ -184,6 +186,7 @@ public struct RootCauseAnalyzer: Sendable {
             let symbolBonus = min(Double(matchedSymbols[path, default: []].count) * 0.08, 0.16)
             let testBonus = min(Double(matchedTests[path, default: []].count) * 0.12, 0.24)
             let preferredBonus = preferredPaths.contains(path) ? 0.22 : 0
+            let recentEditBonus = recentEditPaths.contains(path) ? 0.12 : 0
             let avoidedPenalty = avoidedPaths.contains(path) ? 0.3 : 0
             let testFilePenalty = path.lowercased().contains("test") ? 0.15 : 0
             let blastRadiusPenalty = impact.blastRadiusScore * 0.12
@@ -195,6 +198,7 @@ public struct RootCauseAnalyzer: Sendable {
                 + symbolBonus
                 + testBonus
                 + preferredBonus
+                + recentEditBonus
                 - avoidedPenalty
                 - testFilePenalty
                 - blastRadiusPenalty
@@ -205,6 +209,9 @@ public struct RootCauseAnalyzer: Sendable {
             }
             if avoidedPaths.contains(path) {
                 reasons.append("memory or project context marks this path as risky")
+            }
+            if recentEditPaths.contains(path) {
+                reasons.append("recently edited file is more likely root cause")
             }
             if impact.blastRadiusScore > 0.3 {
                 reasons.append("blast radius \(String(format: "%.2f", impact.blastRadiusScore)) reduces confidence")
@@ -225,6 +232,19 @@ public struct RootCauseAnalyzer: Sendable {
             }
             return lhs.score > rhs.score
         }
+    }
+
+    private static func recentlyEditedPaths(in snapshot: RepositorySnapshot) -> Set<String> {
+        let recentThreshold: TimeInterval = 3600
+        let now = Date()
+        return Set(
+            snapshot.files
+                .filter { file in
+                    guard let modified = file.lastModifiedAt else { return false }
+                    return now.timeIntervalSince(modified) < recentThreshold
+                }
+                .map(\.path)
+        )
     }
 
     private func extractExplicitPaths(

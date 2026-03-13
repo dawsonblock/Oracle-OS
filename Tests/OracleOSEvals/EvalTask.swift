@@ -28,6 +28,8 @@ struct EvalRunSnapshot {
     let patchSelectionSucceeded: Bool
     let recoveryReused: Bool
     let usedPlannerReasoning: Bool
+    let recoveryLoopCount: Int
+    let planSourceSet: Set<String>
 
     init(
         outcome: LoopOutcome,
@@ -36,7 +38,9 @@ struct EvalRunSnapshot {
         recoveryAttempted: Bool? = nil,
         patchSelectionSucceeded: Bool = false,
         recoveryReused: Bool = false,
-        usedPlannerReasoning: Bool = false
+        usedPlannerReasoning: Bool = false,
+        recoveryLoopCount: Int = 0,
+        planSourceSet: Set<String> = []
     ) {
         self.outcome = outcome
         self.usedStableGraph = usedStableGraph
@@ -45,6 +49,8 @@ struct EvalRunSnapshot {
         self.patchSelectionSucceeded = patchSelectionSucceeded
         self.recoveryReused = recoveryReused
         self.usedPlannerReasoning = usedPlannerReasoning
+        self.recoveryLoopCount = recoveryLoopCount
+        self.planSourceSet = planSourceSet
     }
 
     var recoverySucceeded: Bool {

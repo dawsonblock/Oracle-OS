@@ -11,6 +11,9 @@ struct EvalMetrics {
     let patchSelectionSuccessRate: Double
     let recoveryReuseRatio: Double
     let plannerReasoningRatio: Double
+    let planStability: Double
+    let wrongTargetRate: Double
+    let recoveryLoopCount: Int
 
     init(
         successRate: Double,
@@ -22,7 +25,10 @@ struct EvalMetrics {
         ambiguityFailureCount: Int,
         patchSelectionSuccessRate: Double,
         recoveryReuseRatio: Double = 0,
-        plannerReasoningRatio: Double = 0
+        plannerReasoningRatio: Double = 0,
+        planStability: Double = 0,
+        wrongTargetRate: Double = 0,
+        recoveryLoopCount: Int = 0
     ) {
         self.successRate = successRate
         self.firstPassSuccessRate = firstPassSuccessRate
@@ -34,6 +40,9 @@ struct EvalMetrics {
         self.patchSelectionSuccessRate = patchSelectionSuccessRate
         self.recoveryReuseRatio = recoveryReuseRatio
         self.plannerReasoningRatio = plannerReasoningRatio
+        self.planStability = planStability
+        self.wrongTargetRate = wrongTargetRate
+        self.recoveryLoopCount = recoveryLoopCount
     }
 
     var comparisonFields: [(String, String)] {
@@ -48,6 +57,9 @@ struct EvalMetrics {
             ("patch_selection_success_rate", percent(patchSelectionSuccessRate)),
             ("recovery_reuse_ratio", percent(recoveryReuseRatio)),
             ("planner_reasoning_ratio", percent(plannerReasoningRatio)),
+            ("plan_stability", percent(planStability)),
+            ("wrong_target_rate", percent(wrongTargetRate)),
+            ("recovery_loop_count", "\(recoveryLoopCount)"),
         ]
     }
 
@@ -81,6 +93,18 @@ struct EvalMetrics {
         if recoveryReuseRatio < baseline.recoveryReuseRatio - thresholds.recoveryReuseDrop {
             regressions.append("recovery_reuse_ratio regressed from \(percent(baseline.recoveryReuseRatio)) to \(percent(recoveryReuseRatio))")
         }
+        if averageSteps > baseline.averageSteps + thresholds.averageStepsIncrease {
+            regressions.append("average_steps spiked from \(String(format: "%.2f", baseline.averageSteps)) to \(String(format: "%.2f", averageSteps))")
+        }
+        if wrongTargetRate > baseline.wrongTargetRate + thresholds.wrongTargetRateIncrease {
+            regressions.append("wrong_target_rate increased from \(percent(baseline.wrongTargetRate)) to \(percent(wrongTargetRate))")
+        }
+        if recoveryLoopCount > baseline.recoveryLoopCount + thresholds.recoveryLoopIncrease {
+            regressions.append("recovery_loop_count increased from \(baseline.recoveryLoopCount) to \(recoveryLoopCount)")
+        }
+        if planStability < baseline.planStability - thresholds.planStabilityDrop {
+            regressions.append("plan_stability regressed from \(percent(baseline.planStability)) to \(percent(planStability))")
+        }
         return regressions
     }
 
@@ -97,6 +121,10 @@ struct RegressionThresholds {
     let patchSelectionDrop: Double
     let graphReuseDrop: Double
     let recoveryReuseDrop: Double
+    let averageStepsIncrease: Double
+    let wrongTargetRateIncrease: Double
+    let recoveryLoopIncrease: Int
+    let planStabilityDrop: Double
 
     init(
         successRateDrop: Double = 0.05,
@@ -105,7 +133,11 @@ struct RegressionThresholds {
         ambiguityFailureIncrease: Int = 2,
         patchSelectionDrop: Double = 0.1,
         graphReuseDrop: Double = 0.1,
-        recoveryReuseDrop: Double = 0.15
+        recoveryReuseDrop: Double = 0.15,
+        averageStepsIncrease: Double = 5.0,
+        wrongTargetRateIncrease: Double = 0.05,
+        recoveryLoopIncrease: Int = 3,
+        planStabilityDrop: Double = 0.1
     ) {
         self.successRateDrop = successRateDrop
         self.recoveryRateDrop = recoveryRateDrop
@@ -114,5 +146,9 @@ struct RegressionThresholds {
         self.patchSelectionDrop = patchSelectionDrop
         self.graphReuseDrop = graphReuseDrop
         self.recoveryReuseDrop = recoveryReuseDrop
+        self.averageStepsIncrease = averageStepsIncrease
+        self.wrongTargetRateIncrease = wrongTargetRateIncrease
+        self.recoveryLoopIncrease = recoveryLoopIncrease
+        self.planStabilityDrop = planStabilityDrop
     }
 }

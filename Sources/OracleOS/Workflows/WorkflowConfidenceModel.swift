@@ -23,6 +23,10 @@ public struct WorkflowConfidence: Sendable {
         self.driftRate = driftRate
         self.notes = notes
     }
+
+    public func isReliable(threshold: Double = 0.5) -> Bool {
+        score >= threshold
+    }
 }
 
 public struct WorkflowConfidenceModel: Sendable {
@@ -93,6 +97,10 @@ public struct WorkflowConfidenceModel: Sendable {
 
     public func isReliable(_ workflow: WorkflowPlan, threshold: Double = 0.5) -> Bool {
         confidence(for: workflow).score >= threshold
+    }
+
+    public func score(plan: WorkflowPlan) -> WorkflowConfidence {
+        confidence(for: plan)
     }
 
     private static func computeDriftRate(_ workflow: WorkflowPlan) -> Double {

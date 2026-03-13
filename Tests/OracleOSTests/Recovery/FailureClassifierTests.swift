@@ -61,4 +61,21 @@ struct FailureClassifierTests {
         #expect(result.confidence >= 0)
         #expect(result.confidence <= 1)
     }
+
+    @Test("Classifies workflow replay failure")
+    func classifiesWorkflowReplayFailure() {
+        let result = FailureClassifier.classify(errorDescription: "Workflow replay failed to complete successfully")
+        #expect(result.failureClass == .workflowReplayFailure)
+        #expect(result.confidence > 0.5)
+    }
+
+    @Test("Context boosts confidence for repeated failure class")
+    func contextBoostsConfidence() {
+        let base = FailureClassifier.classify(errorDescription: "Target not found")
+        let boosted = FailureClassifier.classify(
+            errorDescription: "Target not found",
+            context: FailureClassifierContext(recentFailureClasses: [.targetMissing])
+        )
+        #expect(boosted.confidence >= base.confidence)
+    }
 }

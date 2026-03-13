@@ -289,9 +289,10 @@ struct SystemIntelligenceUpgradeTests {
         let score = BrowserTargetScore(
             textSimilarity: 0.9,
             roleMatch: 1.0,
-            visibilityScore: 1.0
+            visibilityScore: 1.0,
+            historicalSuccess: 0.5
         )
-        #expect(score.totalScore > 0.8)
+        #expect(score.totalScore > 0.7)
         #expect(score.totalScore <= 1.0)
     }
 

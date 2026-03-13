@@ -85,6 +85,49 @@ struct KnowledgePromotionTests {
         #expect(validated.score > unvalidated.score)
     }
 
+    @Test("Workflow confidence model penalizes high drift rate")
+    func confidenceModelPenalizesHighDrift() {
+        let model = WorkflowConfidenceModel()
+        let stable = model.confidence(for: makeWorkflowPlan(
+            successRate: 0.9,
+            segmentCount: 5,
+            replayValidation: 0.9,
+            sourceTraceRefs: ["s1:t1:0", "s2:t2:0", "s3:t3:0"]
+        ))
+        let drifting = model.confidence(for: makeWorkflowPlan(
+            successRate: 0.4,
+            segmentCount: 5,
+            replayValidation: 0.3,
+            sourceTraceRefs: ["s1:t1:0", "s2:t2:0", "s3:t3:0"]
+        ))
+        #expect(stable.score > drifting.score)
+        #expect(stable.driftRate < drifting.driftRate)
+    }
+
+    @Test("One-off traces do not get promoted to workflows")
+    func oneOffTracesDoNotPromote() {
+        let policy = WorkflowPromotionPolicy()
+        let singleEpisodePlan = makeWorkflowPlan(
+            successRate: 1.0,
+            segmentCount: 1,
+            replayValidation: 1.0,
+            sourceTraceRefs: ["session1:task1:0"]
+        )
+        #expect(!policy.shouldPromote(singleEpisodePlan))
+    }
+
+    @Test("Workflows require distinct episodes for promotion")
+    func workflowsRequireDistinctEpisodes() {
+        let policy = WorkflowPromotionPolicy()
+        let sameEpisodePlan = makeWorkflowPlan(
+            successRate: 1.0,
+            segmentCount: 5,
+            replayValidation: 1.0,
+            sourceTraceRefs: ["session1:task1:0", "session1:task1:1", "session1:task1:2"]
+        )
+        #expect(!policy.shouldPromote(sameEpisodePlan))
+    }
+
     private func makeEdge(
         attempts: Int = 1,
         successes: Int? = nil,

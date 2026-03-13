@@ -202,6 +202,47 @@ struct PlanEvaluatorTests {
         #expect(outcome.expectedFailureMode == nil)
     }
 
+    @Test("PlanCandidate preserves source type through evaluation")
+    func planCandidatePreservesSourceType() {
+        let evaluator = PlanEvaluator(workflowRetriever: WorkflowRetriever())
+        let goal = Goal(description: "open app", targetApp: "Safari", preferredAgentKind: .os)
+        let taskContext = TaskContext.from(goal: goal)
+        let worldState = WorldState(
+            observationHash: "test",
+            planningState: planningState(id: "test", appID: "Safari", domain: nil, taskPhase: "browse", modalClass: nil),
+            observation: Observation(app: "Safari", windowTitle: "Safari", url: nil, focusedElementID: nil, elements: [])
+        )
+        let state = ReasoningPlanningState(
+            taskContext: taskContext,
+            worldState: worldState,
+            memoryInfluence: MemoryInfluence()
+        )
+
+        let workflowPlan = PlanCandidate(
+            operators: [Operator(kind: .clickTarget)],
+            projectedState: state,
+            sourceType: .workflow
+        )
+        let graphPlan = PlanCandidate(
+            operators: [Operator(kind: .clickTarget)],
+            projectedState: state,
+            sourceType: .stableGraph
+        )
+
+        let scored = evaluator.evaluate(
+            plans: [workflowPlan, graphPlan],
+            taskContext: taskContext,
+            goal: goal,
+            worldState: worldState,
+            graphStore: GraphStore(databaseURL: makeTempGraphURL()),
+            workflowIndex: WorkflowIndex(),
+            memoryStore: AppMemoryStore()
+        )
+
+        let sources = Set(scored.map(\.sourceType))
+        #expect(sources.contains(.workflow) || sources.contains(.stableGraph))
+    }
+
     private func planningState(
         id: String,
         appID: String,
