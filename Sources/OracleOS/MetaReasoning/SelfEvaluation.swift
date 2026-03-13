@@ -2,7 +2,7 @@ import Foundation
 
 public struct SelfEvaluationMetrics: Sendable {
     public let taskSuccessRate: Double
-    public let averagePlanDepth: Double
+    public let averageStrategyCount: Double
     public let workflowReuseRate: Double
     public let recoveryFrequency: Double
     public let patchSuccessRate: Double
@@ -12,7 +12,7 @@ public struct SelfEvaluationMetrics: Sendable {
 
     public init(
         taskSuccessRate: Double = 0,
-        averagePlanDepth: Double = 0,
+        averageStrategyCount: Double = 0,
         workflowReuseRate: Double = 0,
         recoveryFrequency: Double = 0,
         patchSuccessRate: Double = 0,
@@ -21,7 +21,7 @@ public struct SelfEvaluationMetrics: Sendable {
         notes: [String] = []
     ) {
         self.taskSuccessRate = taskSuccessRate
-        self.averagePlanDepth = averagePlanDepth
+        self.averageStrategyCount = averageStrategyCount
         self.workflowReuseRate = workflowReuseRate
         self.recoveryFrequency = recoveryFrequency
         self.patchSuccessRate = patchSuccessRate
@@ -56,7 +56,7 @@ public final class SelfEvaluation: @unchecked Sendable {
         let taskSuccessRate = Double(successes) / Double(total)
 
         let allStrategies = reports.flatMap(\.strategyEffectiveness)
-        let avgPlanDepth = allStrategies.isEmpty
+        let avgStrategyCount = allStrategies.isEmpty
             ? 0
             : Double(allStrategies.count) / Double(total)
 
@@ -84,7 +84,7 @@ public final class SelfEvaluation: @unchecked Sendable {
 
         return SelfEvaluationMetrics(
             taskSuccessRate: taskSuccessRate,
-            averagePlanDepth: avgPlanDepth,
+            averageStrategyCount: avgStrategyCount,
             workflowReuseRate: workflowReuseRate,
             recoveryFrequency: recoveryFrequency,
             patchSuccessRate: patchSuccessRate,
