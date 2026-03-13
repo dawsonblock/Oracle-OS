@@ -158,10 +158,10 @@ public final class TaskGraphStore: @unchecked Sendable {
             uniqueKeysWithValues: allEdges.filter { $0.attempts > 0 }.map { edge in
                 (edge.id, [
                     "action": edge.action,
-                    "successRate": edge.successProbability,
+                    "success_rate": edge.successProbability,
                     "attempts": edge.attempts,
-                    "successCount": edge.successCount,
-                    "failureCount": edge.failureCount,
+                    "success_count": edge.successCount,
+                    "failure_count": edge.failureCount,
                 ] as [String: Any])
             }
         )
