@@ -31,20 +31,21 @@ public final class ExperimentManager: @unchecked Sendable {
         spec: ExperimentSpec,
         architectureRiskScore: Double = 0
     ) async throws -> [ExperimentResult] {
-        let workspaceRootURL = URL(fileURLWithPath: spec.workspaceRoot, isDirectory: true)
+        let bounded = spec.boundedByLimits()
+        let workspaceRootURL = URL(fileURLWithPath: bounded.workspaceRoot, isDirectory: true)
         let experimentsRoot = defaultExperimentsRoot(
             for: workspaceRootURL
         )
         try fileManager.createDirectory(at: experimentsRoot, withIntermediateDirectories: true)
         let snapshot = RepositoryIndexer().indexIfNeeded(workspaceRoot: workspaceRootURL)
-        let promptDiagnostics = spec.promptDiagnostics
+        let promptDiagnostics = bounded.promptDiagnostics
             ?? promptEngine.experimentGeneration(
-                spec: spec,
+                spec: bounded,
                 snapshot: snapshot
             ).diagnostics
 
         let results = try await runner.run(
-            spec: spec,
+            spec: bounded,
             experimentsRoot: experimentsRoot,
             architectureRiskScore: architectureRiskScore
         )
