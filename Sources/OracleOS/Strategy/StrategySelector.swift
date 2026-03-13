@@ -140,46 +140,41 @@ public final class StrategySelector: @unchecked Sendable {
         workflowIndex: WorkflowIndex,
         recentFailureCount: Int
     ) -> StrategyKind {
-        // Priority 1: Permission/dialog states dominate.
-        if conditions.contains(.permissionDialogActive) {
-            return .permissionResolution
-        }
-
-        // Priority 2: Repeated recent failures → recovery.
+        // Priority 1: Repeated recent failures → recovery.
         if conditions.contains(.repeatedFailures) || recentFailureCount >= 3 {
             return .recoveryMode
         }
 
-        // Priority 3: Modal present → recovery.
+        // Priority 2: Modal present → recovery.
         if conditions.contains(.modalPresent) {
             return .recoveryMode
         }
 
-        // Priority 4: Strong workflow match → workflow execution.
+        // Priority 3: Strong workflow match → workflow execution.
         let workflows = workflowIndex.matching(goal: goal)
         if !workflows.isEmpty, conditions.contains(.workflowAvailable) {
             return .workflowExecution
         }
 
-        // Priority 5: Repo loaded + tests/build failing → repoRepair.
+        // Priority 4: Repo loaded + tests/build failing → repoRepair.
         if conditions.contains(.repositoryOpen) {
             if conditions.contains(.testsFailing) || conditions.contains(.buildFailing) {
                 return .repoRepair
             }
         }
 
-        // Priority 6: Browser page is dominant → browserInteraction.
+        // Priority 5: Browser page is dominant → browserInteraction.
         if conditions.contains(.browserPageActive) {
             return .browserInteraction
         }
 
-        // Priority 7: Code agent with repo → diagnosticAnalysis or repoRepair.
+        // Priority 6: Code agent with repo → diagnosticAnalysis or repoRepair.
         if (agentKind == .code || agentKind == .mixed),
            conditions.contains(.repositoryOpen) {
             return .repoRepair
         }
 
-        // Priority 8: OS agent → directExecution or graphNavigation.
+        // Priority 7: OS agent → directExecution or graphNavigation.
         if agentKind == .os {
             return .directExecution
         }
