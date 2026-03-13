@@ -11,6 +11,7 @@ Prevents:
 """
 
 import os
+import re
 import sys
 
 FORBIDDEN_IMPORTS = {
@@ -34,7 +35,7 @@ FORBIDDEN_IMPORTS = {
 
 def scan_file(path):
     with open(path) as f:
-        text = f.read()
+        lines = f.readlines()
 
     violations = []
 
@@ -42,8 +43,14 @@ def scan_file(path):
 
     if name in FORBIDDEN_IMPORTS:
         for item in FORBIDDEN_IMPORTS[name]:
-            if item in text:
-                violations.append(item)
+            pattern = re.compile(r"\b" + re.escape(item) + r"\b")
+            for lineno, line in enumerate(lines, 1):
+                stripped = line.lstrip()
+                if stripped.startswith("//"):
+                    continue
+                if pattern.search(line):
+                    violations.append(item)
+                    break
 
     return violations
 

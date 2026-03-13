@@ -7,6 +7,8 @@ on:
 jobs:
   architecture-check:
     runs-on: macos-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -14,6 +16,8 @@ jobs:
 
       - name: Install Python
         uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Run Architecture Guard
         run: python scripts/architecture_guard.py
