@@ -75,15 +75,18 @@ public enum BrowserTargetResolver {
         memoryStore: AppMemoryStore? = nil
     ) -> [BrowserTargetScore] {
         let matches = BrowserPageQuery.query(snapshot: snapshot, text: query.text, role: query.role)
-        let memoryBias = memoryStore.map { store -> Double in
-            MemoryRouter(memoryStore: store).rankingBias(
+        let memoryBias: Double
+        if let store = memoryStore {
+            memoryBias = MemoryRouter(memoryStore: store).rankingBias(
                 label: query.text,
                 app: query.app,
                 goalDescription: query.text ?? query.role ?? "",
                 repositorySnapshot: nil,
                 planningState: nil
             )
-        } ?? 0
+        } else {
+            memoryBias = 0
+        }
         return matches.map { match in
             let textSim = match.score
             let roleMatch: Double = query.role != nil && match.element.role == query.role ? 1.0 : 0.5

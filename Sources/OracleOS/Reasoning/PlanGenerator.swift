@@ -88,10 +88,14 @@ public final class PlanGenerator: @unchecked Sendable {
         workflowIndex: WorkflowIndex
     ) -> [PlanCandidate] {
         let matches = workflowIndex.matching(goal: goal.description)
+        let available = operatorRegistry.available(for: state)
+        let opsBySkill = Dictionary(
+            grouping: available,
+            by: { $0.actionContract(for: state, goal: goal)?.skillName ?? "" }
+        ).compactMapValues(\.first)
         return matches.compactMap { plan -> PlanCandidate? in
             let ops = plan.steps.compactMap { step -> Operator? in
-                operatorRegistry.available(for: state)
-                    .first { $0.actionContract(for: state, goal: goal)?.skillName == step.actionContract.skillName }
+                opsBySkill[step.actionContract.skillName]
             }
             guard !ops.isEmpty else { return nil }
             var projected = state
@@ -111,14 +115,14 @@ public final class PlanGenerator: @unchecked Sendable {
         graphStore: GraphStore
     ) -> [PlanCandidate] {
         let stableEdges = graphStore.outgoingStableEdges(from: worldState.planningState.id)
+        let available = operatorRegistry.available(for: state)
+        let opsByName = Dictionary(uniqueKeysWithValues: available.map { ($0.name, $0) })
         return stableEdges.compactMap { edge -> PlanCandidate? in
             guard let contract = graphStore.actionContract(for: edge.actionContractID) else {
                 return nil
             }
-            let matchingOp = operatorRegistry.available(for: state)
-                .first { op in
-                    op.actionContract(for: state, goal: Goal(description: ""))?.skillName == contract.skillName
-                }
+            let matchingOp = opsByName.values.first { $0.name == contract.skillName }
+                ?? available.first { $0.kind.rawValue == contract.skillName }
             guard let op = matchingOp else { return nil }
             let projected = op.effect(state)
             return PlanCandidate(

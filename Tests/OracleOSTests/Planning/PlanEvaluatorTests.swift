@@ -239,8 +239,9 @@ struct PlanEvaluatorTests {
             memoryStore: AppMemoryStore()
         )
 
-        let sources = Set(scored.map(\.sourceType))
-        #expect(sources.contains(.workflow) || sources.contains(.stableGraph))
+        let scoredSources = scored.map(\.sourceType)
+        #expect(scoredSources.contains(.workflow), "workflow source type should be preserved through evaluation")
+        #expect(scoredSources.contains(.stableGraph), "stableGraph source type should be preserved through evaluation")
     }
 
     private func planningState(
