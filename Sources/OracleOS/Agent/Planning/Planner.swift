@@ -157,8 +157,7 @@ public final class Planner: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
-            memoryStore: memoryStore,
-            selectedStrategy: strategy
+            memoryStore: memoryStore
         )
 
         // Deliberate plan comparison:
