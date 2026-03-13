@@ -26,4 +26,19 @@ public struct ExperimentSpec: Codable, Sendable, Equatable, Identifiable {
         self.testCommand = testCommand
         self.promptDiagnostics = promptDiagnostics
     }
+
+    /// Returns a copy with candidates truncated to `ExperimentLimits.maxCandidates`.
+    public func boundedByLimits() -> ExperimentSpec {
+        let bounded = Array(candidates.prefix(ExperimentLimits.maxCandidates))
+        guard bounded.count != candidates.count else { return self }
+        return ExperimentSpec(
+            id: id,
+            goalDescription: goalDescription,
+            workspaceRoot: workspaceRoot,
+            candidates: bounded,
+            buildCommand: buildCommand,
+            testCommand: testCommand,
+            promptDiagnostics: promptDiagnostics
+        )
+    }
 }
