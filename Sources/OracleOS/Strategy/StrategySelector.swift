@@ -3,6 +3,9 @@ import Foundation
 /// Chooses a high-level ``TaskStrategy`` based on the current goal, world state,
 /// memory, and workflow availability. The planner then generates plans within
 /// the scope of the selected strategy.
+///
+/// Strategy selection is the **mandatory first decision stage** in every
+/// planning cycle. No plan generation happens before a strategy is selected.
 public final class StrategySelector: @unchecked Sendable {
     private let library: [TaskStrategy]
     private let llmClient: LLMClient?
@@ -14,6 +17,60 @@ public final class StrategySelector: @unchecked Sendable {
         self.library = library ?? Self.defaultLibrary()
         self.llmClient = llmClient
     }
+
+    // MARK: - Primary entry point: SelectedStrategy
+
+    /// Select the canonical ``SelectedStrategy`` for the current situation.
+    ///
+    /// This is the required first decision stage. The returned value constrains
+    /// all downstream plan generation via ``SelectedStrategy/allowedOperatorFamilies``.
+    public func selectStrategy(
+        goal: Goal,
+        worldState: WorldState,
+        memoryInfluence: MemoryInfluence,
+        workflowIndex: WorkflowIndex,
+        agentKind: AgentKind,
+        recentFailureCount: Int = 0
+    ) -> SelectedStrategy {
+        let conditions = activeConditions(
+            worldState: worldState,
+            goal: goal,
+            workflowIndex: workflowIndex,
+            recentFailureCount: recentFailureCount
+        )
+
+        let kind = resolveStrategyKind(
+            goal: goal,
+            worldState: worldState,
+            conditions: conditions,
+            agentKind: agentKind,
+            memoryInfluence: memoryInfluence,
+            workflowIndex: workflowIndex,
+            recentFailureCount: recentFailureCount
+        )
+
+        let allowed = StrategyLibrary.allowedFamilies(for: kind)
+        let confidence = strategyConfidence(
+            kind: kind,
+            conditions: conditions,
+            memoryInfluence: memoryInfluence
+        )
+        let rationale = buildRationale(
+            kind: kind,
+            conditions: conditions,
+            goal: goal
+        )
+
+        return SelectedStrategy(
+            kind: kind,
+            confidence: confidence,
+            rationale: rationale,
+            allowedOperatorFamilies: allowed,
+            reevaluateAfterStepCount: reevaluateThreshold(for: kind)
+        )
+    }
+
+    // MARK: - Legacy entry point (preserved for backward compatibility)
 
     /// Select the best strategy for the current situation.
     public func select(
@@ -72,10 +129,123 @@ public final class StrategySelector: @unchecked Sendable {
         )
     }
 
+    // MARK: - Strategy resolution
+
+    private func resolveStrategyKind(
+        goal: Goal,
+        worldState: WorldState,
+        conditions: Set<StrategyCondition>,
+        agentKind: AgentKind,
+        memoryInfluence: MemoryInfluence,
+        workflowIndex: WorkflowIndex,
+        recentFailureCount: Int
+    ) -> StrategyKind {
+        // Priority 1: Permission/dialog states dominate.
+        if conditions.contains(.permissionDialogActive) {
+            return .permissionResolution
+        }
+
+        // Priority 2: Repeated recent failures → recovery.
+        if conditions.contains(.repeatedFailures) || recentFailureCount >= 3 {
+            return .recoveryMode
+        }
+
+        // Priority 3: Modal present → recovery.
+        if conditions.contains(.modalPresent) {
+            return .recoveryMode
+        }
+
+        // Priority 4: Strong workflow match → workflow execution.
+        let workflows = workflowIndex.matching(goal: goal)
+        if !workflows.isEmpty, conditions.contains(.workflowAvailable) {
+            return .workflowExecution
+        }
+
+        // Priority 5: Repo loaded + tests/build failing → repoRepair.
+        if conditions.contains(.repositoryOpen) {
+            if conditions.contains(.testsFailing) || conditions.contains(.buildFailing) {
+                return .repoRepair
+            }
+        }
+
+        // Priority 6: Browser page is dominant → browserInteraction.
+        if conditions.contains(.browserPageActive) {
+            return .browserInteraction
+        }
+
+        // Priority 7: Code agent with repo → diagnosticAnalysis or repoRepair.
+        if (agentKind == .code || agentKind == .mixed),
+           conditions.contains(.repositoryOpen) {
+            return .repoRepair
+        }
+
+        // Priority 8: OS agent → directExecution or graphNavigation.
+        if agentKind == .os {
+            return .directExecution
+        }
+
+        // Default: graph navigation for mixed tasks.
+        return .graphNavigation
+    }
+
+    private func strategyConfidence(
+        kind: StrategyKind,
+        conditions: Set<StrategyCondition>,
+        memoryInfluence: MemoryInfluence
+    ) -> Double {
+        var confidence = 0.5
+
+        switch kind {
+        case .recoveryMode where conditions.contains(.repeatedFailures):
+            confidence = 0.85
+        case .recoveryMode:
+            confidence = 0.75
+        case .workflowExecution:
+            confidence = 0.8
+        case .repoRepair where conditions.contains(.testsFailing):
+            confidence = 0.7
+        case .repoRepair:
+            confidence = 0.6
+        case .permissionResolution:
+            confidence = 0.9
+        case .browserInteraction:
+            confidence = 0.6
+        default:
+            break
+        }
+
+        // Memory boost.
+        if memoryInfluence.preferredFixPath != nil { confidence += 0.05 }
+        if memoryInfluence.executionRankingBias > 0 { confidence += 0.05 }
+
+        return min(confidence, 1.0)
+    }
+
+    private func buildRationale(
+        kind: StrategyKind,
+        conditions: Set<StrategyCondition>,
+        goal: Goal
+    ) -> String {
+        let conditionNames = conditions.map(\.rawValue).sorted().joined(separator: ", ")
+        return "selected \(kind.rawValue) given conditions [\(conditionNames)] for goal: \(goal.description.prefix(80))"
+    }
+
+    private func reevaluateThreshold(for kind: StrategyKind) -> Int {
+        switch kind {
+        case .recoveryMode: return 3
+        case .workflowExecution: return 8
+        case .experimentMode: return 4
+        default: return 5
+        }
+    }
+
+    // MARK: - Condition detection
+
     private func activeConditions(
         worldState: WorldState,
         goal: Goal,
-        workflowIndex: WorkflowIndex
+        workflowIndex: WorkflowIndex,
+        recentFailureCount: Int = 0
     ) -> Set<StrategyCondition> {
         var conditions = Set<StrategyCondition>()
 
@@ -100,6 +270,17 @@ public final class StrategySelector: @unchecked Sendable {
         let workflows = workflowIndex.matching(goal: goal)
         if !workflows.isEmpty {
             conditions.insert(.workflowAvailable)
+        }
+
+        // Browser detection.
+        let app = worldState.observation.app?.lowercased() ?? ""
+        if app.contains("chrome") || app.contains("safari") || app.contains("firefox") || app.contains("browser") {
+            conditions.insert(.browserPageActive)
+        }
+
+        // Repeated failure detection.
+        if recentFailureCount >= 3 {
+            conditions.insert(.repeatedFailures)
         }
 
         return conditions

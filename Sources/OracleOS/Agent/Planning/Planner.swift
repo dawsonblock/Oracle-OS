@@ -123,9 +123,24 @@ public final class Planner: @unchecked Sendable {
     public func nextStep(
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore = AppMemoryStore()
+        memoryStore: AppMemoryStore = AppMemoryStore(),
+        selectedStrategy: SelectedStrategy? = nil
     ) -> PlannerDecision? {
         guard let currentGoal else { return nil }
+
+        // Hard gate: strategy selection must occur before plan generation.
+        // When no strategy is provided, we create a permissive default to
+        // preserve backward compatibility with callers that haven't been
+        // updated yet. New code paths always provide a strategy.
+        let strategy = selectedStrategy ?? SelectedStrategy(
+            kind: .graphNavigation,
+            confidence: 0.3,
+            rationale: "fallback: no strategy provided to planner",
+            allowedOperatorFamilies: OperatorFamily.allCases.map { $0 }
+        )
+        precondition(!strategy.allowedOperatorFamilies.isEmpty,
+                     "SelectedStrategy must have at least one allowed operator family")
+
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
 
@@ -142,7 +157,8 @@ public final class Planner: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: strategy
         )
 
         // Deliberate plan comparison:
@@ -164,10 +180,11 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            fallbackDecision: familyDecision
+            fallbackDecision: familyDecision,
+            selectedStrategy: strategy
         )
 
-        return selectBestDecision(
+        let decision = selectBestDecision(
             familyDecision: familyDecision,
             reasoningDecision: reasoning,
             taskGraphDecision: taskGraphDecision,
@@ -175,6 +192,18 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             memoryStore: memoryStore
         )
+
+        // ── Safety net: drop any decision whose operator family violates the strategy ──
+        if let decision {
+            let skillName = decision.actionContract.skillName
+            let family = operatorFamilyForSkill(skillName)
+            if !strategy.allows(family) {
+                // Strategy violation — suppress this decision.
+                return nil
+            }
+        }
+
+        return decision
     }
 
     private func selectBestDecision(
