@@ -438,7 +438,7 @@ public final class Planner: @unchecked Sendable {
                 "path depth: \(bestPath.edges.count)",
                 "path score: \(String(format: "%.3f", bestPath.cumulativeScore))",
                 "terminal state: \(bestPath.terminalState?.rawValue ?? "unknown")",
-                "memory_bias: \(String(format: "%.3f", breakdown.memoryBias))",
+                "memory_bias_contribution: \(String(format: "%.3f", breakdown.memoryBias))",
                 "candidate_paths: \(paths.count)",
             ]
         )
