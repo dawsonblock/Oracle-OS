@@ -251,10 +251,10 @@ public final class MCPServer {
     // MARK: - Instructions
 
     private static func loadInstructions() -> String {
-        // Try loading from GHOST-MCP.md next to the binary
+        // Try loading from ORACLE-MCP.md next to the binary
         let binaryPath = ProcessInfo.processInfo.arguments[0]
         let binaryDir = (binaryPath as NSString).deletingLastPathComponent
-        let instructionsPath = (binaryDir as NSString).appendingPathComponent("GHOST-MCP.md")
+        let instructionsPath = (binaryDir as NSString).appendingPathComponent("ORACLE-MCP.md")
 
         if let content = try? String(contentsOfFile: instructionsPath, encoding: .utf8) {
             return content
@@ -262,10 +262,10 @@ public final class MCPServer {
 
         // Try Homebrew share paths
         let sharePaths = [
-            "/opt/homebrew/share/GHOST-MCP.md",
-            "/opt/homebrew/share/ghost-os/GHOST-MCP.md",
-            "/usr/local/share/GHOST-MCP.md",
-            "/usr/local/share/ghost-os/GHOST-MCP.md",
+            "/opt/homebrew/share/ORACLE-MCP.md",
+            "/opt/homebrew/share/oracle-os/ORACLE-MCP.md",
+            "/usr/local/share/ORACLE-MCP.md",
+            "/usr/local/share/oracle-os/ORACLE-MCP.md",
         ]
         for path in sharePaths {
             if let content = try? String(contentsOfFile: path, encoding: .utf8) {
@@ -275,15 +275,15 @@ public final class MCPServer {
 
         // Try loading from the source directory (development)
         let binaryAncestor = ((binaryDir as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
-        let devPath = (binaryAncestor as NSString).appendingPathComponent("GHOST-MCP.md")
+        let devPath = (binaryAncestor as NSString).appendingPathComponent("ORACLE-MCP.md")
         if let content = try? String(contentsOfFile: devPath, encoding: .utf8) {
             return content
         }
 
         // Fallback minimal instructions
         return """
-        Oracle OS gives you eyes and hands on macOS. Call ghost_recipes first for multi-step tasks. \
-        Call ghost_context before acting. Use ghost_find to locate elements. \
+        Oracle OS gives you eyes and hands on macOS. Call oracle_recipes first for multi-step tasks. \\
+        Call oracle_context before acting. Use oracle_find to locate elements. \\
         Always pass the app parameter to action tools.
         """
     }

@@ -52,7 +52,7 @@ final class ControllerRuntimeBridge {
 
     func healthStatus() -> HealthStatus {
         let claudeConfig = loadClaudeConfig()
-        let claudeConfigured = (claudeConfig?["mcpServers"] as? [String: Any])?["ghost-os"] != nil
+        let claudeConfigured = (claudeConfig?["mcpServers"] as? [String: Any])?["oracle-os"] != nil
         let health = VisionBridge.healthCheck()
         let permissions = [
             PermissionStatus(
@@ -124,7 +124,7 @@ final class ControllerRuntimeBridge {
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
-                toolName: "ghost_focus"
+                toolName: "oracle_focus"
             )
 
         case .click:
@@ -141,7 +141,7 @@ final class ControllerRuntimeBridge {
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
-                toolName: "ghost_click"
+                toolName: "oracle_click"
             )
 
         case .type:
@@ -155,7 +155,7 @@ final class ControllerRuntimeBridge {
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
-                toolName: "ghost_type"
+                toolName: "oracle_type"
             )
 
         case .press:
@@ -167,7 +167,7 @@ final class ControllerRuntimeBridge {
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
-                toolName: "ghost_press"
+                toolName: "oracle_press"
             )
 
         case .scroll:
@@ -181,7 +181,7 @@ final class ControllerRuntimeBridge {
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
-                toolName: "ghost_scroll"
+                toolName: "oracle_scroll"
             )
 
         case .wait:
@@ -214,7 +214,7 @@ final class ControllerRuntimeBridge {
             savedName = document.name
         }
         guard let saved = loadRecipe(named: savedName) else {
-            throw GhostError.actionFailed(description: "Saved recipe could not be reloaded")
+            throw OracleError.actionFailed(description: "Saved recipe could not be reloaded")
         }
         return saved
     }

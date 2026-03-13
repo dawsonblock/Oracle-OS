@@ -113,10 +113,10 @@ public struct ScreenshotResult: Sendable {
     }
 }
 
-// MARK: - Ghost Error
+// MARK: - Oracle Error
 
 /// Errors specific to Oracle OS operations.
-public enum GhostError: Error, Sendable {
+public enum OracleError: Error, Sendable {
     case timeout(seconds: TimeInterval)
     case elementNotFound(description: String)
     case actionFailed(description: String)
@@ -144,7 +144,7 @@ public enum GhostError: Error, Sendable {
 
 // MARK: - Constants
 
-public enum GhostConstants {
+public enum OracleConstants {
     public static let semanticDepthBudget = 25
     public static let defaultTimeoutSeconds: TimeInterval = 30
     public static let defaultPollInterval: TimeInterval = 0.5

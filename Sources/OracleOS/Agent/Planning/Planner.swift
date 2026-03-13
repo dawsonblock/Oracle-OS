@@ -124,29 +124,14 @@ public final class Planner: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         memoryStore: AppMemoryStore = AppMemoryStore(),
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         guard let currentGoal else { return nil }
 
         // Hard gate: strategy selection must occur before plan generation.
-        // Callers are expected to always provide a SelectedStrategy.
-        //
-        // Temporary backward-compatibility path:
-        // When no strategy is provided, we still create a permissive default
-        // to avoid breaking existing callers. This path is deprecated and
-        // will be removed once all call sites perform explicit strategy
-        // selection. New code paths must always pass a strategy.
-        if selectedStrategy == nil {
-            assertionFailure("Planner.nextStep called without a SelectedStrategy. Callers must perform strategy selection before planning.")
-        }
-        let strategy = selectedStrategy ?? SelectedStrategy(
-            kind: .graphNavigation,
-            confidence: 0.3,
-            rationale: "fallback: no strategy provided to planner",
-            allowedOperatorFamilies: OperatorFamily.allCases.map { $0 }
-        )
-        precondition(!strategy.allowedOperatorFamilies.isEmpty,
+        precondition(!selectedStrategy.allowedOperatorFamilies.isEmpty,
                      "SelectedStrategy must have at least one allowed operator family")
+        let strategy = selectedStrategy
 
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)

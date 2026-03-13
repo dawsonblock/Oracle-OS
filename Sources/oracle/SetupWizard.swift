@@ -201,7 +201,7 @@ struct SetupWizard {
             print("  Install it from: https://claude.ai/download")
             print("")
             print("  After installing, run this command to add Oracle OS:")
-            print("    claude mcp add ghost-os \(binaryPath) -- mcp")
+            print("    claude mcp add oracle-os \(binaryPath) -- mcp")
             print("")
             return
         }
@@ -211,7 +211,7 @@ struct SetupWizard {
         if let data = FileManager.default.contents(atPath: configPath),
            let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let mcpServers = config["mcpServers"] as? [String: Any],
-           mcpServers["ghost-os"] != nil
+           mcpServers["oracle-os"] != nil
         {
             printOK("Already configured")
             return
@@ -223,7 +223,7 @@ struct SetupWizard {
             guard let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 print("  WARNING: ~/.claude.json contains non-standard JSON.")
                 print("  Please add Oracle OS manually:")
-                print("    claude mcp add ghost-os \(binaryPath) -- mcp")
+                print("    claude mcp add oracle-os \(binaryPath) -- mcp")
                 print("")
                 return
             }
@@ -231,7 +231,7 @@ struct SetupWizard {
         }
 
         var mcpServers = config["mcpServers"] as? [String: Any] ?? [:]
-        mcpServers["ghost-os"] = [
+        mcpServers["oracle-os"] = [
             "type": "stdio",
             "command": binaryPath,
             "args": ["mcp"],
@@ -244,11 +244,11 @@ struct SetupWizard {
             print("  MCP server: \(binaryPath)")
         } catch {
             print("  Could not write MCP config. Run this command manually:")
-            print("    claude mcp add ghost-os \(binaryPath) -- mcp")
+            print("    claude mcp add oracle-os \(binaryPath) -- mcp")
             print("")
         }
 
-        // Add tool permissions to ~/.claude/settings.json so all ghost-os
+        // Add tool permissions to ~/.claude/settings.json so all oracle-os
         // MCP tools are auto-approved globally (no per-session prompts).
         let settingsPath = NSHomeDirectory() + "/.claude/settings.json"
         var settings: [String: Any] = [:]
@@ -261,9 +261,9 @@ struct SetupWizard {
         }
 
         var allowedTools = settings["allowedTools"] as? [String] ?? []
-        let ghostPermission = "mcp__ghost-os__*"
-        if !allowedTools.contains(ghostPermission) {
-            allowedTools.append(ghostPermission)
+        let oraclePermission = "mcp__oracle-os__*"
+        if !allowedTools.contains(oraclePermission) {
+            allowedTools.append(oraclePermission)
             settings["allowedTools"] = allowedTools
 
             do {
@@ -276,7 +276,7 @@ struct SetupWizard {
                 print("  Tool permissions: auto-approved")
             } catch {
                 print("  Could not set tool permissions automatically.")
-                print("  You may be prompted to approve ghost-os tools on first use.")
+                print("  You may be prompted to approve oracle-os tools on first use.")
             }
         }
 
@@ -288,7 +288,7 @@ struct SetupWizard {
     private func installRecipes() {
         printStep(5, "Bundled Recipes")
 
-        let recipesDir = NSHomeDirectory() + "/.ghost-os/recipes"
+        let recipesDir = NSHomeDirectory() + "/.oracle-os/recipes"
         try? FileManager.default.createDirectory(atPath: recipesDir, withIntermediateDirectories: true)
 
         // Find bundled recipes in the repo's recipes/ directory
@@ -328,8 +328,8 @@ struct SetupWizard {
     private func setupVision() -> Bool {
         printStep(6, "Vision (ShowUI-2B)")
 
-        // Check if ghost-vision is available
-        let hasLauncher = findGhostVisionBinary() != nil
+        // Check if oracle-vision is available
+        let hasLauncher = findOracleVisionBinary() != nil
         let hasPython = checkPythonWithMLX()
 
         // Check for model
@@ -345,10 +345,10 @@ struct SetupWizard {
             print("  Setting up Python environment...")
             if !setupPythonVenv() {
                 printFail("Python venv setup failed")
-                print("  Vision grounding (ghost_ground) will not be available.")
+                print("  Vision grounding (oracle_ground) will not be available.")
                 print("  You can set it up manually later:")
-                print("    python3 -m venv ~/.ghost-os/venv")
-                print("    ~/.ghost-os/venv/bin/pip install mlx mlx-vlm transformers Pillow")
+                print("    python3 -m venv ~/.oracle-os/venv")
+                print("    ~/.oracle-os/venv/bin/pip install mlx mlx-vlm transformers Pillow")
                 print("")
                 return false
             }
@@ -356,7 +356,7 @@ struct SetupWizard {
         } else if hasPython {
             print("  Python environment: ready")
         } else {
-            print("  Launcher: \(findGhostVisionBinary() ?? "found")")
+            print("  Launcher: \(findOracleVisionBinary() ?? "found")")
         }
 
         // Step 6b: Download model if missing
@@ -370,7 +370,7 @@ struct SetupWizard {
 
             let answer = readLine()?.lowercased() ?? "y"
             if answer == "n" || answer == "no" {
-                printOK("Skipped (ghost_ground won't work without the model)")
+                printOK("Skipped (oracle_ground won't work without the model)")
                 return false
             }
 
@@ -379,7 +379,7 @@ struct SetupWizard {
                 printFail("Model download failed")
                 print("  You can download manually:")
                 print("    pip3 install huggingface-hub")
-                print("    huggingface-cli download showlab/ShowUI-2B --local-dir ~/.ghost-os/models/ShowUI-2B")
+                print("    huggingface-cli download showlab/ShowUI-2B --local-dir ~/.oracle-os/models/ShowUI-2B")
                 print("")
                 return false
             }
@@ -399,7 +399,7 @@ struct SetupWizard {
     /// Check if system Python has mlx_vlm
     private func checkPythonWithMLX() -> Bool {
         // Check venv first
-        let venvPython = NSHomeDirectory() + "/.ghost-os/venv/bin/python3"
+        let venvPython = NSHomeDirectory() + "/.oracle-os/venv/bin/python3"
         if FileManager.default.isExecutableFile(atPath: venvPython) {
             let result = runShell("\(venvPython) -c 'import mlx_vlm' 2>/dev/null")
             if result.exitCode == 0 { return true }
@@ -410,9 +410,9 @@ struct SetupWizard {
         return result.exitCode == 0
     }
 
-    /// Set up a Python virtual environment at ~/.ghost-os/venv/
+    /// Set up a Python virtual environment at ~/.oracle-os/venv/
     private func setupPythonVenv() -> Bool {
-        let venvPath = NSHomeDirectory() + "/.ghost-os/venv"
+        let venvPath = NSHomeDirectory() + "/.oracle-os/venv"
 
         // Find system Python
         let pythonPath: String
@@ -472,13 +472,13 @@ struct SetupWizard {
 
     /// Download ShowUI-2B model from HuggingFace
     private func downloadModel() -> Bool {
-        let destDir = NSHomeDirectory() + "/.ghost-os/models/ShowUI-2B"
+        let destDir = NSHomeDirectory() + "/.oracle-os/models/ShowUI-2B"
 
         // Create directory
         try? FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true)
 
         // Use huggingface-cli if available, otherwise use Python
-        let venvPython = NSHomeDirectory() + "/.ghost-os/venv/bin/python3"
+        let venvPython = NSHomeDirectory() + "/.oracle-os/venv/bin/python3"
         let python: String
         if FileManager.default.isExecutableFile(atPath: venvPython) {
             python = venvPython
@@ -519,7 +519,7 @@ struct SetupWizard {
             sys.exit(1)
         """
 
-        let tmpScript = NSTemporaryDirectory() + "ghost_download_model_\(UUID().uuidString).py"
+        let tmpScript = NSTemporaryDirectory() + "oracle_download_model_\(UUID().uuidString).py"
         try? downloadScript.write(toFile: tmpScript, atomically: true, encoding: .utf8)
 
         let result = runShellLive(python, args: [tmpScript, destDir])
@@ -563,13 +563,13 @@ struct SetupWizard {
         return false
     }
 
-    /// Find ghost-vision launcher
-    private func findGhostVisionBinary() -> String? {
+    /// Find oracle-vision launcher
+    private func findOracleVisionBinary() -> String? {
         let candidates = [
-            "/opt/homebrew/bin/ghost-vision",
-            "/usr/local/bin/ghost-vision",
+            "/opt/homebrew/bin/oracle-vision",
+            "/usr/local/bin/oracle-vision",
             (ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent + "/ghost-vision",
+                .deletingLastPathComponent + "/oracle-vision",
         ]
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
@@ -617,9 +617,9 @@ struct SetupWizard {
             if let modelPath = findModelPath() {
                 print("  Vision model: \(modelPath)")
             }
-            print("  Vision: ready (model loads on first ghost_ground call)")
+            print("  Vision: ready (model loads on first oracle_ground call)")
         } else {
-            print("  Vision: not configured (ghost_ground won't work)")
+            print("  Vision: not configured (oracle_ground won't work)")
         }
 
         printOK("All tests passed")
@@ -646,7 +646,7 @@ struct SetupWizard {
             if vision {
                 print("")
                 print("  Vision grounding is enabled.")
-                print("  ghost_ground will auto-start the vision sidecar when needed.")
+                print("  oracle_ground will auto-start the vision sidecar when needed.")
             }
         } else {
             print("  Setup incomplete.")
@@ -711,10 +711,10 @@ struct SetupWizard {
         let binaryPath = ProcessInfo.processInfo.arguments[0]
         let binaryDir = (binaryPath as NSString).deletingLastPathComponent
 
-        // Homebrew: /opt/homebrew/share/ghost-os/recipes/
+        // Homebrew: /opt/homebrew/share/oracle-os/recipes/
         let brewPaths = [
-            "/opt/homebrew/share/ghost-os/recipes",
-            "/usr/local/share/ghost-os/recipes",
+            "/opt/homebrew/share/oracle-os/recipes",
+            "/usr/local/share/oracle-os/recipes",
         ]
         for path in brewPaths {
             if FileManager.default.fileExists(atPath: path) {

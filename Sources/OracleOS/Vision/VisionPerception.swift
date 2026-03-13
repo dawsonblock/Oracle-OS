@@ -1,13 +1,13 @@
 // VisionPerception.swift - Vision-based perception tools for Oracle OS v2
 //
-// Maps to MCP tools: ghost_parse_screen, ghost_ground
+// Maps to MCP tools: oracle_parse_screen, oracle_ground
 //
 // These tools use the Python vision sidecar (localhost:9876) for ML inference.
 // The sidecar handles grounding and experimental full-screen parsing/detection.
 //
 // Architecture:
-//   ghost_parse_screen → screenshot → sidecar /parse → experimental structured output
-//   ghost_ground       → screenshot → sidecar /ground → (x, y) coordinates
+//   oracle_parse_screen → screenshot → sidecar /parse → experimental structured output
+//   oracle_ground       → screenshot → sidecar /ground → (x, y) coordinates
 //
 // Both tools take a screenshot automatically using the existing ScreenCapture
 // module, then send it to the sidecar for processing.
@@ -19,7 +19,7 @@ import Foundation
 @MainActor
 public enum VisionPerception {
 
-    // MARK: - ghost_parse_screen
+    // MARK: - oracle_parse_screen
 
     /// Experimental full-screen vision parsing.
     /// The sidecar can return structured output, but the runtime still treats
@@ -30,7 +30,7 @@ public enum VisionPerception {
     ) -> ToolResult {
         // Check sidecar availability
         guard VisionBridge.isAvailable() else {
-            return sidecarUnavailableResult(tool: "ghost_parse_screen")
+            return sidecarUnavailableResult(tool: "oracle_parse_screen")
         }
 
         // Take screenshot
@@ -67,7 +67,7 @@ public enum VisionPerception {
         )
     }
 
-    // MARK: - ghost_ground
+    // MARK: - oracle_ground
 
     /// Find precise screen coordinates for a described UI element using VLM.
     /// Takes a screenshot, sends it to the vision sidecar with the description,
@@ -81,7 +81,7 @@ public enum VisionPerception {
         if !VisionBridge.isAvailable() {
             Log.info("Vision sidecar not running, attempting to start...")
             if !VisionBridge.startSidecar() {
-                return sidecarUnavailableResult(tool: "ghost_ground")
+                return sidecarUnavailableResult(tool: "oracle_ground")
             }
         }
 
@@ -199,7 +199,7 @@ public enum VisionPerception {
         var suggestion: String?
         if result.confidence < 0.3 {
             suggestion = "Low confidence (\(result.confidence)). The element may not be visible on screen. " +
-                         "Try ghost_screenshot to verify, or use ghost_find for AX-based search."
+                         "Try oracle_screenshot to verify, or use oracle_find for AX-based search."
         } else if result.confidence < 0.6 {
             suggestion = "Medium confidence. Consider using crop_box to narrow the search area for better accuracy."
         }
@@ -211,13 +211,13 @@ public enum VisionPerception {
         )
     }
 
-    // MARK: - Vision-Enhanced Find (fallback for ghost_find)
+    // MARK: - Vision-Enhanced Find (fallback for oracle_find)
 
     /// Try to find an element using VLM grounding as a fallback when AX search fails.
     /// Called by Perception.findElements when AX returns no results.
     ///
     /// Returns a synthetic element summary with VLM-grounded coordinates that can
-    /// be used directly with ghost_click(x:, y:).
+    /// be used directly with oracle_click(x:, y:).
     public static func visionFallbackFind(
         query: String,
         appName: String?
@@ -273,7 +273,7 @@ public enum VisionPerception {
 
         Log.info("Vision fallback found '\(query)' at screen (\(mappedX), \(mappedY)) conf=\(result.confidence)")
 
-        // Return as a synthetic element summary matching ghost_find's output format
+        // Return as a synthetic element summary matching oracle_find's output format
         let element: [String: Any] = [
             "name": query,
             "role": "VisionGrounded",
@@ -282,13 +282,13 @@ public enum VisionPerception {
             "actionable": true,
             "grounded_by": "vlm",
             "confidence": result.confidence,
-            "note": "Found by VLM vision grounding. Use ghost_click with x:\(mappedX) y:\(mappedY) to click.",
+            "note": "Found by VLM vision grounding. Use oracle_click with x:\(mappedX) y:\(mappedY) to click.",
         ]
 
         return [element]
     }
 
-    // MARK: - Vision-Enhanced Click (fallback for ghost_click)
+    // MARK: - Vision-Enhanced Click (fallback for oracle_click)
 
     /// Try to click an element using VLM grounding as a fallback when AX can't find it.
     /// Called by Actions.click when AX-based click fails.
@@ -359,16 +359,16 @@ public enum VisionPerception {
                 "method": "vlm-grounded",
                 "description": query,
                 "inference_ms": result.inferenceMs,
-                "note": "Element found by VLM vision grounding. Use ghost_click(x:\(Int(mappedX)), y:\(Int(mappedY))) to click.",
+                "note": "Element found by VLM vision grounding. Use oracle_click(x:\(Int(mappedX)), y:\(Int(mappedY))) to click.",
             ],
-            suggestion: "To click this element, use ghost_click with x:\(Int(mappedX)) y:\(Int(mappedY))"
+            suggestion: "To click this element, use oracle_click with x:\(Int(mappedX)) y:\(Int(mappedY))"
         )
     }
 
     // MARK: - Private Helpers
 
     /// Capture a screenshot suitable for vision processing.
-    /// Uses the existing ScreenCapture module (same as ghost_screenshot).
+    /// Uses the existing ScreenCapture module (same as oracle_screenshot).
     /// Includes activate-and-retry logic for windows that are off-screen.
     private static func captureForVision(
         appName: String?,
@@ -422,8 +422,8 @@ public enum VisionPerception {
         ToolResult(
             success: false,
             error: "Vision sidecar not running. \(tool) requires the Python vision sidecar.",
-            suggestion: "Start the sidecar: cd ghost-os-v2/vision-sidecar && python3 server.py &\n" +
-                        "Or use ghost_find for AX-based element search (works without sidecar)."
+            suggestion: "Start the sidecar: cd oracle-os-v2/vision-sidecar && python3 server.py &\n" +
+                        "Or use oracle_find for AX-based element search (works without sidecar)."
         )
     }
 }

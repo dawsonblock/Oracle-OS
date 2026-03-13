@@ -35,7 +35,7 @@ public struct GraphNavigator: Sendable {
         in graph: TaskGraph,
         scorer: GraphScorer,
         goal: Goal? = nil,
-        allowedFamilies: [OperatorFamily]? = nil
+        allowedFamilies: [OperatorFamily]
     ) -> [ScoredPath] {
         guard let startNode = graph.node(for: nodeID) else { return [] }
 
@@ -67,7 +67,7 @@ public struct GraphNavigator: Sendable {
         in graph: TaskGraph,
         scorer: GraphScorer,
         goal: Goal? = nil,
-        allowedFamilies: [OperatorFamily]? = nil
+        allowedFamilies: [OperatorFamily]
     ) -> TaskEdge? {
         let paths = expand(from: nodeID, in: graph, scorer: scorer, goal: goal, allowedFamilies: allowedFamilies)
         return paths.first?.edges.first
@@ -85,7 +85,7 @@ public struct GraphNavigator: Sendable {
         graph: TaskGraph,
         scorer: GraphScorer,
         goal: Goal?,
-        allowedFamilies: [OperatorFamily]?,
+        allowedFamilies: [OperatorFamily],
         results: inout [ScoredPath]
     ) {
         // Record the path ending here when depth > 0
@@ -103,11 +103,9 @@ public struct GraphNavigator: Sendable {
         var outgoing = graph.viableEdges(from: currentNode.id)
 
         // ── Strategy filter: only expand edges whose operator family is allowed ──
-        if let families = allowedFamilies {
-            outgoing = outgoing.filter { edge in
-                let family = Self.operatorFamilyForAction(edge.action)
-                return families.contains(family)
-            }
+        outgoing = outgoing.filter { edge in
+            let family = Self.operatorFamilyForAction(edge.action)
+            return allowedFamilies.contains(family)
         }
 
         let sorted = outgoing

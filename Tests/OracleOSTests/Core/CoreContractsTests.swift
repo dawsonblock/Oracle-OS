@@ -209,7 +209,7 @@ struct CoreContractsTests {
             sessionID: "session-1",
             taskID: nil,
             stepID: 1,
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             actionName: "click",
             actionTarget: "Send",
             actionText: nil,

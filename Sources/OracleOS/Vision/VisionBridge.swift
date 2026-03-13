@@ -8,7 +8,7 @@
 //   Oracle OS (Swift) --HTTP--> Vision Sidecar (Python) --MLX--> ShowUI-2B
 //
 // The sidecar runs on localhost:9876. VisionBridge auto-starts it when
-// needed via the `ghost-vision` launcher script.
+// needed via the `oracle-vision` launcher script.
 //
 // VisionBridge handles:
 //   1. Health check (is the sidecar running?)
@@ -21,12 +21,12 @@ import Foundation
 /// All methods are synchronous (blocking) because the MCP server is synchronous.
 public enum VisionBridge {
 
-    /// Default sidecar URL. Can be overridden via GHOST_VISION_URL env var.
+    /// Default sidecar URL. Can be overridden via ORACLE_VISION_URL env var.
     private static let baseURL: String = {
-        if let url = ProcessInfo.processInfo.environment["GHOST_VISION_URL"] {
+        if let url = ProcessInfo.processInfo.environment["ORACLE_VISION_URL"] {
             return url
         }
-        let port = ProcessInfo.processInfo.environment["GHOST_VISION_PORT"] ?? "9876"
+        let port = ProcessInfo.processInfo.environment["ORACLE_VISION_PORT"] ?? "9876"
         return "http://127.0.0.1:\(port)"
     }()
 
@@ -219,7 +219,7 @@ public enum VisionBridge {
     // MARK: - Sidecar Lifecycle
 
     /// Attempt to start the vision sidecar process.
-    /// Looks for `ghost-vision` launcher script, then falls back to running server.py directly.
+    /// Looks for `oracle-vision` launcher script, then falls back to running server.py directly.
     /// Uses a state machine to prevent concurrent double-start attempts.
     @discardableResult
     public static func startSidecar() -> Bool {
@@ -247,8 +247,8 @@ public enum VisionBridge {
             return false
         }
 
-        // Strategy 1: Use ghost-vision launcher script (handles venv/Python resolution)
-        if let launcher = findGhostVisionBinary() {
+        // Strategy 1: Use oracle-vision launcher script (handles venv/Python resolution)
+        if let launcher = findOracleVisionBinary() {
             Log.info("Starting vision sidecar via \(launcher)")
             let process = Process()
             process.executableURL = URL(fileURLWithPath: launcher)
@@ -327,16 +327,16 @@ public enum VisionBridge {
         return false
     }
 
-    /// Find the ghost-vision launcher script/binary.
-    private static func findGhostVisionBinary() -> String? {
+    /// Find the oracle-vision launcher script/binary.
+    private static func findOracleVisionBinary() -> String? {
         let executableDirectory = (ProcessInfo.processInfo.arguments[0] as NSString).deletingLastPathComponent
         let candidates: [String] = [
-            OracleProductPaths.visionInstallDirectory.appendingPathComponent("ghost-vision", isDirectory: false).path,
-            OracleProductPaths.bundledVisionBootstrapDirectory?.appendingPathComponent("ghost-vision", isDirectory: false).path,
-            "/opt/homebrew/bin/ghost-vision",
-            "/usr/local/bin/ghost-vision",
-            executableDirectory + "/ghost-vision",
-            executableDirectory + "/../vision-sidecar/ghost-vision",
+            OracleProductPaths.visionInstallDirectory.appendingPathComponent("oracle-vision", isDirectory: false).path,
+            OracleProductPaths.bundledVisionBootstrapDirectory?.appendingPathComponent("oracle-vision", isDirectory: false).path,
+            "/opt/homebrew/bin/oracle-vision",
+            "/usr/local/bin/oracle-vision",
+            executableDirectory + "/oracle-vision",
+            executableDirectory + "/../vision-sidecar/oracle-vision",
         ].compactMap { $0 }
 
         for path in candidates {
@@ -354,8 +354,8 @@ public enum VisionBridge {
         let candidates: [String] = [
             OracleProductPaths.visionInstallDirectory.appendingPathComponent("server.py", isDirectory: false).path,
             bundledVisionDirectory?.appendingPathComponent("server.py", isDirectory: false).path,
-            "/opt/homebrew/share/ghost-os/vision-sidecar/server.py",
-            "/usr/local/share/ghost-os/vision-sidecar/server.py",
+            "/opt/homebrew/share/oracle-os/vision-sidecar/server.py",
+            "/usr/local/share/oracle-os/vision-sidecar/server.py",
             executableDirectory + "/vision-sidecar/server.py",
             (executableDirectory as NSString).deletingLastPathComponent + "/vision-sidecar/server.py",
             ((executableDirectory as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent + "/vision-sidecar/server.py",
@@ -377,7 +377,7 @@ public enum VisionBridge {
             OracleProductPaths.visionInstallDirectory
                 .appendingPathComponent(".venv/bin/python3", isDirectory: false)
                 .path,
-            NSHomeDirectory() + "/.ghost-os/venv/bin/python3",
+            NSHomeDirectory() + "/.oracle-os/venv/bin/python3",
         ]
         for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
             return candidate
@@ -400,9 +400,9 @@ public enum VisionBridge {
     public static func findModelPath() -> String? {
         let candidates = [
             OracleProductPaths.visionModelDirectory.path,
-            "/opt/homebrew/share/ghost-os/models/ShowUI-2B",
-            NSHomeDirectory() + "/.ghost-os/models/ShowUI-2B",
-            NSHomeDirectory() + "/.shadow/models/llm/ShowUI-2B-bf16-8bit",
+            "/opt/homebrew/share/oracle-os/models/ShowUI-2B",
+            NSHomeDirectory() + "/.oracle-os/models/ShowUI-2B",
+            NSHomeDirectory() + "/.oracle-os/models/llm/ShowUI-2B-bf16-8bit",
         ]
 
         for path in candidates {

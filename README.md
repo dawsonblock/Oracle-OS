@@ -51,7 +51,7 @@ git clone https://github.com/dawsonblock/Oracle-OS.git
 cd Oracle-OS
 swift build
 
-- 22 public MCP tools remain available under stable `ghost_*` names
+- 22 public MCP tools remain available under stable `oracle_*` names
 - native local controller and bundled host process are working
 - verified execution is active for the core interaction actions
 - canonical observation snapshots are real and used by runtime logic
@@ -169,15 +169,15 @@ See [GOVERNANCE.md](GOVERNANCE.md) for the full normative contract.
 
 ## 🔌 MCP Tool Surface
 
-Oracle OS exposes **22 stable public MCP tools** under `ghost_*` names:
+Oracle OS exposes **22 stable public MCP tools** under `oracle_*` names:
 
 | Category | Tools |
 |---|---|
-| **Perception** | `ghost_context` · `ghost_state` · `ghost_find` · `ghost_read` · `ghost_inspect` · `ghost_element_at` · `ghost_screenshot` |
-| **Actions** | `ghost_click` · `ghost_type` · `ghost_press` · `ghost_hotkey` · `ghost_scroll` · `ghost_focus` · `ghost_window` |
-| **Vision** | `ghost_ground` · `ghost_parse_screen` |
-| **Diagnostics** | `ghost_wait` · `ghost_permissions` · `ghost_doctor` |
-| **Recipes** | `ghost_recipes` · `ghost_run` · `ghost_recipe_show` · `ghost_recipe_save` · `ghost_recipe_delete` |
+| **Perception** | `oracle_context` · `oracle_state` · `oracle_find` · `oracle_read` · `oracle_inspect` · `oracle_element_at` · `oracle_screenshot` |
+| **Actions** | `oracle_click` · `oracle_type` · `oracle_press` · `oracle_hotkey` · `oracle_scroll` · `oracle_focus` · `oracle_window` |
+| **Vision** | `oracle_ground` · `oracle_parse_screen` |
+| **Diaoracle-os** | `oracle_wait` · `oracle_permissions` · `oracle_doctor` |
+| **Recipes** | `oracle_recipes` · `oracle_run` · `oracle_recipe_show` · `oracle_recipe_save` · `oracle_recipe_delete` |
 
 ## 🎛 Oracle Controller
 
@@ -318,4 +318,4 @@ Contributions are welcome! The easiest way to contribute is by submitting **reci
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 Ghostwright
+[MIT](LICENSE) © 2026 Oraclewright

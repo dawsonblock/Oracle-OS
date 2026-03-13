@@ -34,7 +34,7 @@ It now supports both developer and packaged-app flows:
 - the UI never calls heavy OracleOS APIs directly
 - verified actions and recipe runs flow through `OracleControllerHost`
 - packaged builds write to `~/Library/Application Support/Oracle OS/`
-- legacy `~/.ghost-os` data is migrated when present
+- legacy `~/.oracle-os` data is migrated when present
 
 ## Packaged App Layout
 

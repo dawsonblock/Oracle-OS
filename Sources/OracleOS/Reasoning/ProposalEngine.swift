@@ -67,7 +67,7 @@ public final class ProposalEngine: @unchecked Sendable {
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> Proposal {
         let deterministicPlans = reasoningEngine.generatePlans(from: state)
 
@@ -81,9 +81,7 @@ public final class ProposalEngine: @unchecked Sendable {
         var allPlans = deterministicPlans + llmPlans
 
         // ── Strategy filter: drop plans outside allowed operator families ──
-        if let strategy = selectedStrategy {
-            allPlans = allPlans.filter { $0.isAllowed(by: strategy) }
-        }
+        allPlans = allPlans.filter { $0.isAllowed(by: selectedStrategy) }
 
         let scored = planEvaluator.evaluate(
             plans: allPlans,
@@ -125,7 +123,7 @@ public final class ProposalEngine: @unchecked Sendable {
         state: ReasoningPlanningState,
         goal: Goal,
         operators: [String],
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> ([PlanCandidate], Int?) {
         let prompt = buildPlanningPrompt(state: state, goal: goal, operators: operators, selectedStrategy: selectedStrategy)
         let request = LLMRequest(
@@ -154,20 +152,18 @@ public final class ProposalEngine: @unchecked Sendable {
         state: ReasoningPlanningState,
         goal: Goal,
         operators: [String],
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> String {
         var lines: [String] = []
         lines.append("You are controlling a computer operator.")
         lines.append("")
 
         // ── Strategy context: bound the LLM's reasoning ──
-        if let strategy = selectedStrategy {
-            lines.append("Current strategy: \(strategy.kind.rawValue)")
-            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
-            lines.append("Strategy rationale: \(strategy.rationale)")
-            lines.append("IMPORTANT: Only generate plans using operators from the allowed families.")
-            lines.append("")
-        }
+        lines.append("Current strategy: \(selectedStrategy.kind.rawValue)")
+        lines.append("Allowed operator families: \(selectedStrategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+        lines.append("Strategy rationale: \(selectedStrategy.rationale)")
+        lines.append("IMPORTANT: Only generate plans using operators from the allowed families.")
+        lines.append("")
 
         lines.append("Current state:")
         lines.append("- agent kind: \(state.agentKind.rawValue)")

@@ -23,7 +23,7 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> [PlanCandidate] {
         let deterministicPlans = reasoningEngine.generatePlans(from: state)
 
@@ -32,9 +32,7 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         var combined = deterministicPlans + llmPlans
 
         // ── Strategy filter: drop plans outside allowed operator families ──
-        if let strategy = selectedStrategy {
-            combined = combined.filter { $0.isAllowed(by: strategy) }
-        }
+        combined = combined.filter { $0.isAllowed(by: selectedStrategy) }
 
         return planEvaluator.evaluate(
             plans: combined,
@@ -56,7 +54,7 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
         minimumScore: Double = 0.6,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> PlanCandidate? {
         let scored = await generate(
             state: state,
@@ -74,7 +72,7 @@ public final class LLMPlanGenerator: @unchecked Sendable {
     private func requestLLMPlans(
         state: ReasoningPlanningState,
         goal: Goal,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> [PlanCandidate] {
         let prompt = buildPrompt(state: state, goal: goal, selectedStrategy: selectedStrategy)
         let request = LLMRequest(
@@ -92,18 +90,16 @@ public final class LLMPlanGenerator: @unchecked Sendable {
         }
     }
 
-    private func buildPrompt(state: ReasoningPlanningState, goal: Goal, selectedStrategy: SelectedStrategy? = nil) -> String {
+    private func buildPrompt(state: ReasoningPlanningState, goal: Goal, selectedStrategy: SelectedStrategy) -> String {
         var lines: [String] = []
         lines.append("You are controlling a computer operator.")
         lines.append("")
 
         // ── Strategy context ──
-        if let strategy = selectedStrategy {
-            lines.append("Current strategy: \(strategy.kind.rawValue)")
-            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
-            lines.append("IMPORTANT: Only generate plans using operators from the allowed families.")
-            lines.append("")
-        }
+        lines.append("Current strategy: \(selectedStrategy.kind.rawValue)")
+        lines.append("Allowed operator families: \(selectedStrategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+        lines.append("IMPORTANT: Only generate plans using operators from the allowed families.")
+        lines.append("")
 
         lines.append("Current state:")
         lines.append("- agent kind: \(state.agentKind.rawValue)")

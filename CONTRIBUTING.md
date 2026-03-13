@@ -22,13 +22,13 @@ Oracle OS should work with every app. Test it with apps you use daily and report
 - The output from `oracle doctor`
 
 ### Bug Fixes
-Check the [issues](https://github.com/ghostwright/ghost-os/issues) page. Issues labeled `good first issue` are a great starting point.
+Check the [issues](https://github.com/dawsonblock/Oracle-OS/issues) page. Issues labeled `good first issue` are a great starting point.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/ghostwright/ghost-os.git
-cd ghost-os
+git clone https://github.com/dawsonblock/Oracle-OS.git
+cd oracle-os
 swift build
 ```
 
@@ -38,12 +38,12 @@ Requirements:
 - Accessibility permission for your terminal app
 - Screen Recording permission (optional, for screenshots)
 
-The project depends on [AXorcist](https://github.com/steipete/AXorcist) which is referenced as a local package at `../AXorcist`. Clone it alongside ghost-os:
+The project depends on [AXorcist](https://github.com/steipete/AXorcist) which is referenced as a local package at `../AXorcist`. Clone it alongside oracle-os:
 
 ```
 your-workspace/
 ├── AXorcist/      # git clone https://github.com/steipete/AXorcist
-└── ghost-os/      # this repo
+└── oracle-os/      # this repo
 ```
 
 ## Project Structure
@@ -52,8 +52,8 @@ your-workspace/
 Sources/
 ├── OracleOS/                   # Library (the MCP server logic)
 │   ├── MCP/                    # MCPServer, MCPTools, MCPDispatch
-│   ├── Perception/             # ghost_context, ghost_find, ghost_read, etc.
-│   ├── Actions/                # ghost_click, ghost_type, ghost_hotkey, etc.
+│   ├── Perception/             # oracle_context, oracle_find, oracle_read, etc.
+│   ├── Actions/                # oracle_click, oracle_type, oracle_hotkey, etc.
 │   ├── Recipes/                # RecipeEngine, RecipeStore, RecipeTypes
 │   ├── Screenshot/             # ScreenCaptureKit wrapper
 │   └── Common/                 # Logger, Types, LocatorBuilder
@@ -65,7 +65,7 @@ Sources/
 
 ## Writing a Recipe
 
-Recipes are JSON files stored in `~/.ghost-os/recipes/`. Here's the structure:
+Recipes are JSON files stored in `~/.oracle-os/recipes/`. Here's the structure:
 
 ```json
 {

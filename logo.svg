@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
-    <linearGradient id="ghostBody" x1="0.5" y1="0" x2="0.5" y2="1">
+    <linearGradient id="oracleBody" x1="0.5" y1="0" x2="0.5" y2="1">
       <stop offset="0%" stop-color="#6ee7a8"/>
       <stop offset="100%" stop-color="#34d48c"/>
     </linearGradient>
   </defs>
 
-  <!-- Ghost body — vibrant green with stronger stroke -->
+  <!-- Oracle body — vibrant green with stronger stroke -->
   <path d="
     M 256 52
     C 160 52, 100 130, 100 230
@@ -24,7 +24,7 @@
     L 412 230
     C 412 130, 352 52, 256 52
     Z
-  " fill="url(#ghostBody)" stroke="#1fa86e" stroke-width="3"/>
+  " fill="url(#oracleBody)" stroke="#1fa86e" stroke-width="3"/>
 
   <!-- Left eye -->
   <ellipse cx="210" cy="225" rx="32" ry="38" fill="#1a1a2e"/>

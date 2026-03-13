@@ -40,7 +40,7 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
         goal: Goal,
         worldState: WorldState,
         taskContext: TaskContext,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> MemoryDecisionBias {
         guard let firstOperator = plan.operators.first else {
             return MemoryDecisionBias()
@@ -90,15 +90,13 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
         }
 
         // ── Strategy-aware bias adjustments ──
-        if let strategy = selectedStrategy {
-            let strategyBoost = strategySpecificBias(
-                strategy: strategy,
-                plan: plan,
-                memoryInfluence: memoryInfluence,
-                notes: &notes
-            )
-            successBias += strategyBoost
-        }
+        let strategyBoost = strategySpecificBias(
+            strategy: selectedStrategy,
+            plan: plan,
+            memoryInfluence: memoryInfluence,
+            notes: &notes
+        )
+        successBias += strategyBoost
 
         return MemoryDecisionBias(
             successPatternBias: successBias + preferredPathMatch,
@@ -115,7 +113,7 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
         goal: Goal,
         worldState: WorldState,
         taskContext: TaskContext,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> Double {
         bias(
             plan: plan,

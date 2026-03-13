@@ -47,7 +47,7 @@ public final class TaskGraph: @unchecked Sendable {
             return existing
         }
 
-        guard nodes.count < maxNodesPerTask else {
+        if nodes.count >= maxNodesPerTask {
             pruneOldestNodes()
             guard nodes.count < maxNodesPerTask else {
                 // Cannot grow further; return an existing stored node to avoid

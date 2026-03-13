@@ -776,7 +776,7 @@ struct GraphAwareLoopTests {
 
         let result = runtime.performAction(
             surface: .mcp,
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             intent: .click(app: "Google Chrome", query: "Send")
         ) {
             ToolResult(success: true, data: ["method": "synthetic"])

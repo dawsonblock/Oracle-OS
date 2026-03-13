@@ -76,7 +76,7 @@ public enum RecipeStore {
     /// Validates the JSON parses correctly before saving.
     public static func saveRecipeJSON(_ jsonString: String) throws -> String {
         guard let data = jsonString.data(using: .utf8) else {
-            throw GhostError.invalidParameter("Invalid JSON string")
+            throw OracleError.invalidParameter("Invalid JSON string")
         }
         do {
             let recipe = try JSONDecoder().decode(Recipe.self, from: data)
@@ -97,7 +97,7 @@ public enum RecipeStore {
             @unknown default:
                 detail = "\(decodingError)"
             }
-            throw GhostError.invalidParameter("Recipe JSON decode error: \(detail)")
+            throw OracleError.invalidParameter("Recipe JSON decode error: \(detail)")
         }
     }
 

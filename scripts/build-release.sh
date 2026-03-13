@@ -1,11 +1,11 @@
 #!/bin/bash
 # build-release.sh — Build Oracle OS v2 release tarball
 #
-# Produces: ghost-os-{VERSION}-macos-arm64.tar.gz
+# Produces: oracle-os-{VERSION}-macos-arm64.tar.gz
 # Contents:
-#   ghost                                    — MCP server binary (Swift, arm64)
-#   ghost-vision                             — Vision sidecar launcher (shell script)
-#   GHOST-MCP.md                             — Agent instructions
+#   oracle                                   — MCP server binary (Swift, arm64)
+#   oracle-vision                             — Vision sidecar launcher (shell script)
+#   ORACLE-MCP.md                             — Agent instructions
 #   recipes/*.json                           — Bundled recipes
 #   vision-sidecar/server.py                 — Vision sidecar Python server
 #   vision-sidecar/requirements.txt          — Python dependencies
@@ -16,11 +16,11 @@
 #
 # The Homebrew formula downloads this tarball and installs:
 #   /opt/homebrew/bin/oracle
-#   /opt/homebrew/bin/ghost-vision
-#   /opt/homebrew/share/ghost-os/GHOST-MCP.md
-#   /opt/homebrew/share/ghost-os/recipes/*.json
-#   /opt/homebrew/share/ghost-os/vision-sidecar/server.py
-#   /opt/homebrew/share/ghost-os/vision-sidecar/requirements.txt
+#   /opt/homebrew/bin/oracle-vision
+#   /opt/homebrew/share/oracle-os/ORACLE-MCP.md
+#   /opt/homebrew/share/oracle-os/recipes/*.json
+#   /opt/homebrew/share/oracle-os/vision-sidecar/server.py
+#   /opt/homebrew/share/oracle-os/vision-sidecar/requirements.txt
 
 set -euo pipefail
 
@@ -41,16 +41,16 @@ fi
 
 # Verify version consistency across all files
 PYTHON_VERSION=$(grep '__version__' "$PROJECT_ROOT/vision-sidecar/server.py" | head -1 | cut -d'"' -f2)
-BASH_VERSION=$(grep '^VERSION=' "$PROJECT_ROOT/vision-sidecar/ghost-vision" | cut -d'"' -f2)
+BASH_VERSION=$(grep '^VERSION=' "$PROJECT_ROOT/vision-sidecar/oracle-vision" | cut -d'"' -f2)
 if [[ "$VERSION" != "$PYTHON_VERSION" || "$VERSION" != "$BASH_VERSION" ]]; then
     echo "ERROR: Version mismatch!" >&2
     echo "  Types.swift:  $VERSION" >&2
     echo "  server.py:    $PYTHON_VERSION" >&2
-    echo "  ghost-vision: $BASH_VERSION" >&2
+    echo "  oracle-vision: $BASH_VERSION" >&2
     exit 1
 fi
 
-TARBALL_NAME="ghost-os-${VERSION}-macos-arm64.tar.gz"
+TARBALL_NAME="oracle-os-${VERSION}-macos-arm64.tar.gz"
 STAGE_DIR="$PROJECT_ROOT/.build/${CONFIG}-stage"
 
 echo "Building Oracle OS v${VERSION} ($CONFIG)"
@@ -82,12 +82,12 @@ mkdir -p "$STAGE_DIR/vision-sidecar"
 # Binary
 cp "$BINARY" "$STAGE_DIR/oracle"
 
-# ghost-vision launcher
-cp "$PROJECT_ROOT/vision-sidecar/ghost-vision" "$STAGE_DIR/ghost-vision"
-chmod +x "$STAGE_DIR/ghost-vision"
+# oracle-vision launcher
+cp "$PROJECT_ROOT/vision-sidecar/oracle-vision" "$STAGE_DIR/oracle-vision"
+chmod +x "$STAGE_DIR/oracle-vision"
 
 # Agent instructions
-cp "$PROJECT_ROOT/GHOST-MCP.md" "$STAGE_DIR/"
+cp "$PROJECT_ROOT/ORACLE-MCP.md" "$STAGE_DIR/"
 
 # Recipes
 cp "$PROJECT_ROOT/recipes/"*.json "$STAGE_DIR/recipes/" 2>/dev/null || true
@@ -127,12 +127,12 @@ echo "Tarball: $TARBALL_NAME"
 echo "SHA256:  $SHA256"
 echo ""
 echo "To install locally:"
-echo "  tar xzf $TARBALL_NAME -C /tmp/ghost-os-install"
-echo "  cp /tmp/ghost-os-install/oracle /opt/homebrew/bin/"
-echo "  cp /tmp/ghost-os-install/ghost-vision /opt/homebrew/bin/"
+echo "  tar xzf $TARBALL_NAME -C /tmp/oracle-os-install"
+echo "  cp /tmp/oracle-os-install/oracle /opt/homebrew/bin/"
+echo "  cp /tmp/oracle-os-install/oracle-vision /opt/homebrew/bin/"
 echo ""
 echo "To update Homebrew formula:"
-echo "  url \"https://github.com/ghostwright/ghost-os/releases/download/v${VERSION}/${TARBALL_NAME}\""
+echo "  url \"https://github.com/dawsonblock/Oracle-OS/releases/download/v${VERSION}/${TARBALL_NAME}\""
 echo "  sha256 \"${SHA256}\""
 echo ""
 echo "To create GitHub release:"

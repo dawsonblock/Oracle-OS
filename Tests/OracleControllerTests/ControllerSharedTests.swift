@@ -40,7 +40,7 @@ struct ControllerSharedTests {
             sessionID: "session-1",
             stepID: 1,
             timestamp: Date(timeIntervalSince1970: 1_700_000_000),
-            toolName: "ghost_focus",
+            toolName: "oracle_focus",
             actionName: "focus",
             actionTarget: "Finder",
             actionText: nil,

@@ -95,7 +95,7 @@ public final class PolicyEngine: @unchecked Sendable {
     }
 
     public static func defaultMode() -> PolicyMode {
-        guard let raw = ProcessInfo.processInfo.environment["GHOST_OS_POLICY_MODE"] else {
+        guard let raw = ProcessInfo.processInfo.environment["ORACLE_OS_POLICY_MODE"] else {
             return .confirmRisky
         }
         return PolicyMode(rawValue: raw) ?? .confirmRisky

@@ -32,7 +32,7 @@ public enum CDPBridge {
     private static let defaultPort = 9222
 
     /// Timeout for CDP HTTP requests (listing tabs, etc.).
-    /// Keep short: called as a fallback in ghost_find/ghost_click hot path.
+    /// Keep short: called as a fallback in oracle_find/oracle_click hot path.
     /// If Chrome debug port isn't open, connection-refused is instant anyway.
     private static let httpTimeout: TimeInterval = 1.5
 
@@ -197,7 +197,7 @@ public enum CDPBridge {
 
     /// List interactive elements in the target tab for observation fusion.
     /// This is intentionally broad and lightweight: it snapshots actionable
-    /// DOM candidates so Ghost can merge them with AX observations.
+    /// DOM candidates so Oracle can merge them with AX observations.
     public static func listInteractiveElements(tabIndex: Int = 0) -> [[String: Any]]? {
         guard let targets = getDebugTargets() else {
             return nil

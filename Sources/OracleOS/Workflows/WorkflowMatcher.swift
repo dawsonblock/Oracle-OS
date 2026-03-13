@@ -25,7 +25,7 @@ public struct WorkflowMatcher: Sendable {
     public func match(
         currentState: AbstractTaskState,
         workflowIndex: WorkflowIndex,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> [Match] {
         let allPlans = workflowIndex.allPlans()
         return allPlans.compactMap { plan -> Match? in
@@ -36,11 +36,9 @@ public struct WorkflowMatcher: Sendable {
             guard stepState == currentState else { return nil }
 
             // ── Strategy filter: skip workflows outside the strategy scope ──
-            if let strategy = selectedStrategy {
-                let workflowFamily = inferStrategyKind(for: plan)
-                if workflowFamily != strategy.kind && workflowFamily != .graphNavigation {
-                    return nil
-                }
+            let workflowFamily = inferStrategyKind(for: plan)
+            if workflowFamily != selectedStrategy.kind && workflowFamily != .graphNavigation {
+                return nil
             }
 
             let proposedActions = plan.steps.dropFirst().prefix(5).map {

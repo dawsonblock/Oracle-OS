@@ -101,7 +101,7 @@ public enum RecipeEngine {
                         return ToolResult(
                             success: false,
                             error: "Missing required parameter: '\(name)' (\(def.description))",
-                            suggestion: "Provide all required parameters. Use ghost_recipe_show to see parameter details."
+                            suggestion: "Provide all required parameters. Use oracle_recipe_show to see parameter details."
                         )
                     }
                 }
@@ -124,7 +124,7 @@ public enum RecipeEngine {
                 return ToolResult(
                     success: false,
                     error: "Failed to focus '\(app)' for recipe '\(recipe.name)'",
-                    suggestion: "Ensure the app is running. Use ghost_state to check."
+                    suggestion: "Ensure the app is running. Use oracle_state to check."
                 )
             }
             Thread.sleep(forTimeInterval: 0.3)
@@ -223,7 +223,7 @@ public enum RecipeEngine {
                     success: false,
                     data: failureData,
                     error: "Recipe '\(recipe.name)' failed at step \(step.id) (\(step.note ?? step.action)): \(result.error ?? "")",
-                    suggestion: "Check the current_context and failed_step details. Use ghost_screenshot for visual debugging."
+                    suggestion: "Check the current_context and failed_step details. Use oracle_screenshot for visual debugging."
                 )
             }
 
@@ -244,7 +244,7 @@ public enum RecipeEngine {
                             "step_results": stepResults.map { stepResultDict($0) },
                         ],
                         error: "Recipe '\(recipe.name)' step \(step.id) wait_after failed: \(waitResult.error ?? "")",
-                        suggestion: "The action succeeded but the expected result didn't appear. Use ghost_context and ghost_screenshot to diagnose."
+                        suggestion: "The action succeeded but the expected result didn't appear. Use oracle_context and oracle_screenshot to diagnose."
                     )
                 }
             }
@@ -297,7 +297,7 @@ public enum RecipeEngine {
                 return ToolResult(
                     success: false,
                     error: "Precondition failed: URL should contain '\(requiredURL)' but current URL is '\(currentURL)'",
-                    suggestion: "Navigate to the correct page first. Use ghost_hotkey keys:[\"cmd\",\"l\"] then ghost_type to go to the right URL."
+                    suggestion: "Navigate to the correct page first. Use oracle_hotkey keys:[\"cmd\",\"l\"] then oracle_type to go to the right URL."
                 )
             }
         }
@@ -376,7 +376,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_click"
+                toolName: "oracle_click"
             )
 
         case "type":
@@ -395,7 +395,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_type"
+                toolName: "oracle_type"
             )
 
         case "press":
@@ -412,7 +412,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_press"
+                toolName: "oracle_press"
             )
 
         case "hotkey":
@@ -427,7 +427,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_hotkey"
+                toolName: "oracle_hotkey"
             )
 
         case "focus":
@@ -440,7 +440,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_focus"
+                toolName: "oracle_focus"
             )
 
         case "scroll":
@@ -455,7 +455,7 @@ public enum RecipeEngine {
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
                 taskID: taskID,
-                toolName: "ghost_scroll"
+                toolName: "oracle_scroll"
             )
 
         case "wait":

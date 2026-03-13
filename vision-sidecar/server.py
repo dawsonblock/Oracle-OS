@@ -58,8 +58,8 @@ def resolve_model_path(explicit_path=None):
     """
     Find the ShowUI-2B model in order of priority:
       1. Explicit --model-path argument
-      2. /opt/homebrew/share/ghost-os/models/ShowUI-2B/ (Homebrew install)
-      3. ~/.ghost-os/models/ShowUI-2B/ (user-local install)
+      2. /opt/homebrew/share/oracle-os/models/ShowUI-2B/ (Homebrew install)
+      3. ~/.oracle-os/models/ShowUI-2B/ (user-local install)
       4. ~/.shadow/models/llm/ShowUI-2B-bf16-8bit/ (legacy Shadow path)
 
     Returns the first path that exists and contains model.safetensors,
@@ -71,8 +71,8 @@ def resolve_model_path(explicit_path=None):
         candidates.append(explicit_path)
 
     candidates.extend([
-        "/opt/homebrew/share/ghost-os/models/ShowUI-2B",
-        str(Path.home() / ".ghost-os/models/ShowUI-2B"),
+        "/opt/homebrew/share/oracle-os/models/ShowUI-2B",
+        str(Path.home() / ".oracle-os/models/ShowUI-2B"),
         str(Path.home() / ".shadow/models/llm/ShowUI-2B-bf16-8bit"),
     ])
 
@@ -85,7 +85,7 @@ def resolve_model_path(explicit_path=None):
                 return path
 
     # Return first candidate for error message
-    return candidates[0] if candidates else str(Path.home() / ".ghost-os/models/ShowUI-2B")
+    return candidates[0] if candidates else str(Path.home() / ".oracle-os/models/ShowUI-2B")
 
 
 # ── Model State (lazy-loaded, thread-safe) ─────────────────────────
@@ -152,7 +152,7 @@ def _vlm_ground(image_path: str, description: str, screen_w: float, screen_h: fl
     img: Any = Image.open(image_path)
     max_edge = 1280
     w, h = img.size
-    _f = tempfile.NamedTemporaryFile(suffix=".jpg", prefix="ghost_vlm_", delete=False)
+    _f = tempfile.NamedTemporaryFile(suffix=".jpg", prefix="oracle_vlm_", delete=False)
     resized_path = _f.name
     _f.close()
     if max(w, h) > max_edge:
@@ -381,7 +381,7 @@ class VisionHandler(BaseHTTPRequestHandler):
                 crop = img.crop((px1, py1, px2, py2))
 
                 # Save crop to temp file
-                _cf = tempfile.NamedTemporaryFile(suffix=".png", prefix="ghost_crop_", delete=False)
+                _cf = tempfile.NamedTemporaryFile(suffix=".png", prefix="oracle_crop_", delete=False)
                 crop_path = _cf.name
                 _cf.close()
                 crop.save(crop_path)
@@ -403,7 +403,7 @@ class VisionHandler(BaseHTTPRequestHandler):
                     pass
             else:
                 # Full-screen grounding
-                _ff = tempfile.NamedTemporaryFile(suffix=".png", prefix="ghost_full_", delete=False)
+                _ff = tempfile.NamedTemporaryFile(suffix=".png", prefix="oracle_full_", delete=False)
                 img_path = _ff.name
                 _ff.close()
                 img.save(img_path)
@@ -525,11 +525,11 @@ def _signal_handler(signum, frame):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        prog="ghost-vision",
+        prog="oracle-vision",
         description="Oracle OS Vision Sidecar — VLM grounding server for UI element detection",
     )
     parser.add_argument(
-        "--version", action="version", version=f"ghost-vision {__version__}",
+        "--version", action="version", version=f"oracle-vision {__version__}",
     )
     parser.add_argument(
         "--host", default="127.0.0.1",
@@ -537,8 +537,8 @@ def parse_args():
     )
     parser.add_argument(
         "--port", type=int,
-        default=int(os.environ.get("GHOST_VISION_PORT", "9876")),
-        help="Port to listen on (default: 9876, or GHOST_VISION_PORT env var)",
+        default=int(os.environ.get("ORACLE_VISION_PORT", "9876")),
+        help="Port to listen on (default: 9876, or ORACLE_VISION_PORT env var)",
     )
     parser.add_argument(
         "--model-path", default=None,

@@ -4,10 +4,10 @@
 
 - The repository identity is `OracleOS` with the `oracle` executable.
 - The public MCP surface is 22 tools.
-- The first verified execution slice is in place for `ghost_click`, `ghost_type`, `ghost_press`, and `ghost_focus`.
-- `ghost_context` now carries a canonical `Observation` snapshot in addition to the legacy summary fields.
+- The first verified execution slice is in place for `oracle_click`, `oracle_type`, `oracle_press`, and `oracle_focus`.
+- `oracle_context` now carries a canonical `Observation` snapshot in addition to the legacy summary fields.
 - Recipes remain replay-only. Trace-to-recipe induction is not integrated.
-- `ghost_parse_screen` is available through the vision sidecar, but remains experimental at the Oracle runtime layer.
+- `oracle_parse_screen` is available through the vision sidecar, but remains experimental at the Oracle runtime layer.
 
 ## Working
 

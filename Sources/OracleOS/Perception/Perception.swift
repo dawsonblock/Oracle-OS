@@ -1,10 +1,10 @@
 // Perception.swift - All perception functions for Oracle OS v2
 //
-// Maps to MCP tools: ghost_context, ghost_state, ghost_find, ghost_read,
-// ghost_inspect, ghost_element_at, ghost_screenshot
+// Maps to MCP tools: oracle_context, oracle_state, oracle_find, oracle_read,
+// oracle_inspect, oracle_element_at, oracle_screenshot
 //
 // Uses AXorcist's Element, Locator, and command system directly.
-// Custom code only for semantic depth tunneling (ghost_read).
+// Custom code only for semantic depth tunneling (oracle_read).
 
 import AppKit
 import AXorcist
@@ -26,7 +26,7 @@ public enum Perception {
         element.setMessagingTimeout(0)
     }
 
-    // MARK: - ghost_context
+    // MARK: - oracle_context
 
     /// Get orientation context: focused app, window, URL, focused element, visible interactive elements.
     public static func getContext(appName: String?) -> ToolResult {
@@ -35,7 +35,7 @@ public enum Perception {
                 return ToolResult(
                     success: false,
                     error: "Application '\(appName)' not found or not running",
-                    suggestion: "Use ghost_state to see all running apps"
+                    suggestion: "Use oracle_state to see all running apps"
                 )
             }
             return buildContext(for: app)
@@ -47,7 +47,7 @@ public enum Perception {
         }
     }
 
-    // MARK: - ghost_state
+    // MARK: - oracle_state
 
     /// Get all running apps and their windows.
     public static func getState(appName: String?) -> ToolResult {
@@ -62,7 +62,7 @@ public enum Perception {
                 return ToolResult(
                     success: false,
                     error: "Application '\(appName)' not found",
-                    suggestion: "Use ghost_state without app parameter to see all running apps"
+                    suggestion: "Use oracle_state without app parameter to see all running apps"
                 )
             }
             return ToolResult(success: true, data: ["apps": [buildAppInfo(app)]])
@@ -75,7 +75,7 @@ public enum Perception {
         ])
     }
 
-    // MARK: - ghost_find
+    // MARK: - oracle_find
 
     /// Find elements matching criteria in any app.
     public static func findElements(
@@ -92,7 +92,7 @@ public enum Perception {
             return ToolResult(
                 success: false,
                 error: "At least one search parameter required (query, role, dom_id, identifier, or dom_class)",
-                suggestion: "Use ghost_context to see what's on screen first"
+                suggestion: "Use oracle_context to see what's on screen first"
             )
         }
 
@@ -105,7 +105,7 @@ public enum Perception {
                 return ToolResult(
                     success: false,
                     error: "Application '\(appName)' not found",
-                    suggestion: "Use ghost_state to see all running apps"
+                    suggestion: "Use oracle_state to see all running apps"
                 )
             }
             searchRoot = appElement
@@ -118,7 +118,7 @@ public enum Perception {
             searchRoot = appElement
         }
 
-        let maxDepth = min(depth ?? GhostConstants.semanticDepthBudget, GhostConstants.maxSearchDepth)
+        let maxDepth = min(depth ?? OracleConstants.semanticDepthBudget, OracleConstants.maxSearchDepth)
 
         // Set per-element timeout for this search. Deep tree walks on Chrome
         // can hang on individual AX calls; this ensures each call returns
@@ -134,7 +134,7 @@ public enum Perception {
             return ToolResult(
                 success: true,
                 data: ["elements": [] as [Any], "count": 0],
-                suggestion: "No element with DOM id '\(domId)' found. Try ghost_read to see what's on the page."
+                suggestion: "No element with DOM id '\(domId)' found. Try oracle_read to see what's on the page."
             )
         }
 
@@ -176,7 +176,7 @@ public enum Perception {
                         "source": "cdp-fallback",
                     ],
                     suggestion: "Elements found via Chrome DevTools Protocol (AX tree search found nothing). " +
-                                "Use ghost_click with the x/y coordinates shown in the position field."
+                                "Use oracle_click with the x/y coordinates shown in the position field."
                 )
             }
         }
@@ -198,7 +198,7 @@ public enum Perception {
                         "source": "vision-fallback",
                     ],
                     suggestion: "Elements found by VLM vision grounding (AX tree search found nothing). " +
-                                "Use ghost_click with the x/y coordinates shown in the position field."
+                                "Use oracle_click with the x/y coordinates shown in the position field."
                 )
             }
         }
@@ -227,7 +227,7 @@ public enum Perception {
         )
     }
 
-    // MARK: - ghost_read
+    // MARK: - oracle_read
 
     /// Read text content from screen using semantic depth tunneling.
     public static func readContent(appName: String?, query: String?, depth: Int?) -> ToolResult {
@@ -248,7 +248,7 @@ public enum Perception {
             searchRoot = appElement
         }
 
-        let maxDepth = depth ?? GhostConstants.semanticDepthBudget
+        let maxDepth = depth ?? OracleConstants.semanticDepthBudget
 
         // Set per-element timeout for the read operation.
         setElementTimeout(searchRoot, seconds: 3.0)
@@ -286,7 +286,7 @@ public enum Perception {
         )
     }
 
-    // MARK: - ghost_inspect
+    // MARK: - oracle_inspect
 
     /// Full metadata about one element.
     public static func inspect(
@@ -315,10 +315,10 @@ public enum Perception {
         // Find the element
         let element: Element?
         if let domId {
-            element = findByDOMId(domId, in: searchRoot, maxDepth: GhostConstants.semanticDepthBudget)
+            element = findByDOMId(domId, in: searchRoot, maxDepth: OracleConstants.semanticDepthBudget)
         } else {
             var options = ElementSearchOptions()
-            options.maxDepth = GhostConstants.semanticDepthBudget
+            options.maxDepth = OracleConstants.semanticDepthBudget
             if let role { options.includeRoles = [role] }
             element = searchRoot.findElement(matching: query, options: options)
         }
@@ -327,14 +327,14 @@ public enum Perception {
             return ToolResult(
                 success: false,
                 error: "Element '\(query)' not found",
-                suggestion: "Try ghost_find to see what elements are available, or ghost_context for orientation"
+                suggestion: "Try oracle_find to see what elements are available, or oracle_context for orientation"
             )
         }
 
         return ToolResult(success: true, data: fullElementInfo(element))
     }
 
-    // MARK: - ghost_element_at
+    // MARK: - oracle_element_at
 
     /// Get element at screen coordinates.
     public static func elementAt(x: Double, y: Double) -> ToolResult {
@@ -344,14 +344,14 @@ public enum Perception {
             return ToolResult(
                 success: false,
                 error: "No element found at (\(Int(x)), \(Int(y)))",
-                suggestion: "Coordinates may be outside any window. Use ghost_state to see window positions."
+                suggestion: "Coordinates may be outside any window. Use oracle_state to see window positions."
             )
         }
 
         return ToolResult(success: true, data: fullElementInfo(element))
     }
 
-    // MARK: - ghost_screenshot
+    // MARK: - oracle_screenshot
 
     /// Take a screenshot of an app window.
     public static func screenshot(appName: String?, fullResolution: Bool) -> ToolResult {
@@ -429,13 +429,13 @@ public enum Perception {
                 suggestion = "Grant Screen Recording in System Settings > Privacy & Security > Screen Recording, then restart Oracle OS."
             case .noWindowsForApp:
                 errorMsg = "Application '\(appDisplayName)' has no open windows"
-                suggestion = "The app is running but has no windows. Open a window first, or check ghost_state to verify."
+                suggestion = "The app is running but has no windows. Open a window first, or check oracle_state to verify."
             case .captureReturnedNil(let wid):
                 errorMsg = "Window capture failed for '\(appDisplayName)' (windowID \(wid)) — window may be in an unsupported state"
-                suggestion = "Try ghost_focus on the app first, wait a moment, then retry ghost_screenshot."
+                suggestion = "Try oracle_focus on the app first, wait a moment, then retry oracle_screenshot."
             case .imageTooSmall(let w, let h):
                 errorMsg = "Window appears minimized for '\(appDisplayName)' (captured \(w)x\(h))"
-                suggestion = "The window may be minimized. Use ghost_window action:\"restore\" to un-minimize it, then retry."
+                suggestion = "The window may be minimized. Use oracle_window action:\"restore\" to un-minimize it, then retry."
             default:
                 errorMsg = "Screenshot capture failed for '\(appDisplayName)'"
                 suggestion = "Ensure Screen Recording permission is granted in System Settings > Privacy & Security > Screen Recording."
@@ -495,11 +495,11 @@ public enum Perception {
                     "observation": observation.toDict(),
                     "note": "Could not read accessibility tree. App may need focus for native apps.",
                 ],
-                suggestion: "Try ghost_focus to bring the app to front first"
+                suggestion: "Try oracle_focus to bring the app to front first"
             )
         }
 
-        // Set per-element timeout for context building. ghost_context walks
+        // Set per-element timeout for context building. oracle_context walks
         // the interactive elements tree; a hung app would block the MCP server.
         setElementTimeout(appElement, seconds: 3.0)
         defer { resetElementTimeout(appElement) }
@@ -615,7 +615,7 @@ public enum Perception {
 
     // MARK: - Element Summary
 
-    /// Build a concise summary of an element (for ghost_find results).
+    /// Build a concise summary of an element (for oracle_find results).
     private static func elementSummary(_ element: Element) -> [String: Any] {
         var info: [String: Any] = [:]
         if let role = element.role() { info["role"] = role }
@@ -637,7 +637,7 @@ public enum Perception {
         return info
     }
 
-    /// Build full metadata for an element (for ghost_inspect).
+    /// Build full metadata for an element (for oracle_inspect).
     private static func fullElementInfo(_ element: Element) -> [String: Any] {
         var info: [String: Any] = [:]
 
@@ -692,7 +692,7 @@ public enum Perception {
             // For text areas, just report the length
             if let numChars = element.numberOfCharacters() {
                 info["value_length"] = numChars
-                info["value"] = "(text area with \(numChars) characters - use ghost_read to extract content)"
+                info["value"] = "(text area with \(numChars) characters - use oracle_read to extract content)"
             }
         }
         if let selectedText = element.selectedText() {
@@ -717,7 +717,7 @@ public enum Perception {
 
     /// Try finding elements via Chrome DevTools Protocol.
     /// Only works when Chrome is running with --remote-debugging-port=9222.
-    /// Returns elements as dictionaries matching ghost_find's output format,
+    /// Returns elements as dictionaries matching oracle_find's output format,
     /// with viewport coordinates converted to screen coordinates.
     private static func cdpFallbackFind(query: String, appName: String?) -> [[String: Any]]? {
         // Only try CDP for Chrome-based apps
@@ -736,7 +736,7 @@ public enum Perception {
         // Get Chrome window position for coordinate conversion
         let windowOrigin = chromeWindowOrigin(appName: appName)
 
-        // Convert CDP results to ghost_find format
+        // Convert CDP results to oracle_find format
         let results: [[String: Any]] = cdpElements.map { el in
             let viewportX = el["centerX"] as? Int ?? 0
             let viewportY = el["centerY"] as? Int ?? 0

@@ -62,7 +62,7 @@ public final class LLMRepairAdvisor: @unchecked Sendable {
         errorSignature: String,
         faultCandidates: [String],
         memoryInfluence: MemoryInfluence,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> RepairAdvice {
         let prompt = buildRepairPrompt(
             errorSignature: errorSignature,
@@ -103,16 +103,14 @@ public final class LLMRepairAdvisor: @unchecked Sendable {
         errorSignature: String,
         faultCandidates: [String],
         memoryInfluence: MemoryInfluence,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> String {
         var lines: [String] = []
 
         // ── Strategy context ──
-        if let strategy = selectedStrategy {
-            lines.append("Current strategy: \(strategy.kind.rawValue)")
-            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
-            lines.append("")
-        }
+        lines.append("Current strategy: \(selectedStrategy.kind.rawValue)")
+        lines.append("Allowed operator families: \(selectedStrategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+        lines.append("")
 
         lines.append("A test or build failed.")
         lines.append("")

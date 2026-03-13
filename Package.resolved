@@ -5,7 +5,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/steipete/AXorcist.git",
       "state" : {
-        "revision" : "a10bbaba1efe73b1e5037eb29f1f07bfd9adc8ef"
+        "revision" : "cf1d7e372a625f4ffabdb938ca3028ae9b8ca7f7"
       }
     },
     {
@@ -18,5 +18,5 @@
       }
     }
   ],
-  "version" : 3
+  "version" : 2
 }

@@ -11,7 +11,7 @@ struct SafeRuntimeTests {
         let engine = PolicyEngine(mode: .confirmRisky)
         let decision = engine.evaluate(
             intent: .focus(app: "Finder"),
-            context: PolicyEvaluationContext(surface: .mcp, toolName: "ghost_focus", appName: "Finder")
+            context: PolicyEvaluationContext(surface: .mcp, toolName: "oracle_focus", appName: "Finder")
         )
 
         #expect(decision.allowed)
@@ -25,7 +25,7 @@ struct SafeRuntimeTests {
         let intent = ActionIntent.click(app: "Google Chrome", query: "Send")
         let decision = engine.evaluate(
             intent: intent,
-            context: PolicyEvaluationContext(surface: .mcp, toolName: "ghost_click", appName: "Google Chrome")
+            context: PolicyEvaluationContext(surface: .mcp, toolName: "oracle_click", appName: "Google Chrome")
         )
 
         #expect(decision.allowed == false)
@@ -39,7 +39,7 @@ struct SafeRuntimeTests {
         let engine = PolicyEngine(mode: .confirmRisky)
         let decision = engine.evaluate(
             intent: .press(app: "Terminal", key: "return"),
-            context: PolicyEvaluationContext(surface: .cli, toolName: "ghost_press", appName: "Terminal")
+            context: PolicyEvaluationContext(surface: .cli, toolName: "oracle_press", appName: "Terminal")
         )
 
         #expect(decision.allowed == false)
@@ -53,7 +53,7 @@ struct SafeRuntimeTests {
         let store = ApprovalStore(rootDirectory: root)
         let request = ApprovalRequest(
             surface: .controller,
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             appName: "Google Chrome",
             displayTitle: "Click Send",
             reason: "Action requires approval",
@@ -80,7 +80,7 @@ struct SafeRuntimeTests {
         let result = runtime.performAction(
             surface: .mcp,
             taskID: "test-task",
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             intent: .click(app: "Google Chrome", query: "Send")
         ) {
             ToolResult(success: true, data: ["method": "synthetic"])
@@ -97,7 +97,7 @@ struct SafeRuntimeTests {
         let result = runtime.performAction(
             surface: .mcp,
             taskID: "test-task",
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             intent: .click(app: "Google Chrome", query: "Send")
         ) {
             ToolResult(success: true, data: ["method": "synthetic"])
@@ -115,7 +115,7 @@ struct SafeRuntimeTests {
         let result = runtime.performAction(
             surface: .mcp,
             taskID: "test-task",
-            toolName: "ghost_focus",
+            toolName: "oracle_focus",
             intent: .focus(app: "Finder")
         ) {
             ToolResult(success: true, data: ["method": "synthetic-focus"])
@@ -134,7 +134,7 @@ struct SafeRuntimeTests {
         let result = runtime.performAction(
             surface: .mcp,
             taskID: "test-task",
-            toolName: "ghost_click",
+            toolName: "oracle_click",
             intent: .click(app: "Finder", query: "Missing")
         ) {
             ToolResult(success: false, error: "not found")

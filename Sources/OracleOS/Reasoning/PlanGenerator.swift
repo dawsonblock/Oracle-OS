@@ -23,7 +23,7 @@ public final class PlanGenerator: @unchecked Sendable {
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> [PlanCandidate] {
         var allPlans: [PlanCandidate] = []
 
@@ -48,9 +48,7 @@ public final class PlanGenerator: @unchecked Sendable {
         allPlans.append(contentsOf: reasoningPlans)
 
         // ── Strategy filter: drop plans whose operator families violate the strategy ──
-        if let strategy = selectedStrategy {
-            allPlans = allPlans.filter { $0.isAllowed(by: strategy) }
-        }
+        allPlans = allPlans.filter { $0.isAllowed(by: selectedStrategy) }
 
         let scored = planEvaluator.evaluate(
             plans: allPlans,
@@ -73,7 +71,7 @@ public final class PlanGenerator: @unchecked Sendable {
         workflowIndex: WorkflowIndex,
         memoryStore: AppMemoryStore,
         minimumScore: Double = 0.6,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> PlanCandidate? {
         let scored = generate(
             state: state,

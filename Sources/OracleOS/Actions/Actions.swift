@@ -1,7 +1,7 @@
 // Actions.swift - All action functions for Oracle OS v2
 //
-// Maps to MCP tools: ghost_click, ghost_type, ghost_press, ghost_hotkey,
-// ghost_scroll, ghost_window
+// Maps to MCP tools: oracle_click, oracle_type, oracle_press, oracle_hotkey,
+// oracle_scroll, oracle_window
 //
 // Architecture: Uses AXorcist's COMMAND SYSTEM (runCommand with Locators)
 // for AX-native operations, with synthetic fallback for Chrome/web apps.
@@ -20,7 +20,7 @@ import Foundation
 @MainActor
 public enum Actions {
 
-    // MARK: - ghost_click
+    // MARK: - oracle_click
 
     /// Click an element. AX-native first via AXorcist's PerformAction command,
     /// synthetic fallback with position-based click.
@@ -38,7 +38,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_click"
+        toolName: String? = "oracle_click"
     ) -> ToolResult {
         let intent = ActionIntent.click(
             app: appName,
@@ -128,7 +128,7 @@ public enum Actions {
             return ToolResult(
                 success: false,
                 error: "Either query/dom_id or x/y coordinates required",
-                suggestion: "Use ghost_find to locate elements, or ghost_element_at for coordinates"
+                suggestion: "Use oracle_find to locate elements, or oracle_element_at for coordinates"
             )
         }
 
@@ -142,7 +142,7 @@ public enum Actions {
                 appIdentifier: appName,
                 locator: locator,
                 action: "AXPress",
-                maxDepthForSearch: GhostConstants.semanticDepthBudget
+                maxDepthForSearch: OracleConstants.semanticDepthBudget
             )
             let response = AXorcist.shared.runCommand(
                 AXCommandEnvelope(commandID: "click", command: .performAction(actionCmd))
@@ -275,7 +275,7 @@ public enum Actions {
             return ToolResult(
                 success: false,
                 error: "Element '\(query ?? domId ?? "")' not found in \(appName ?? "frontmost app")",
-                suggestion: "Use ghost_find to see what elements are available, or ghost_ground for visual search"
+                suggestion: "Use oracle_find to see what elements are available, or oracle_ground for visual search"
             )
         }
 
@@ -284,7 +284,7 @@ public enum Actions {
             return ToolResult(
                 success: false,
                 error: "Element '\(element.computedName() ?? query ?? "")' is not actionable",
-                suggestion: "Element may be disabled, hidden, or off-screen. Use ghost_inspect to check."
+                suggestion: "Element may be disabled, hidden, or off-screen. Use oracle_inspect to check."
             )
         }
 
@@ -308,12 +308,12 @@ public enum Actions {
             return ToolResult(
                 success: false,
                 error: "Click failed: \(error)",
-                suggestion: "Try ghost_inspect on the element, or use x/y coordinates"
+                suggestion: "Try oracle_inspect on the element, or use x/y coordinates"
             )
         }
     }
 
-    // MARK: - ghost_type
+    // MARK: - oracle_type
 
     /// Type text into a field. Uses AXorcist's SetFocusedValue command for
     /// AX-native typing (focus + setValue), with synthetic typeText fallback.
@@ -328,7 +328,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_type"
+        toolName: String? = "oracle_type"
     ) -> ToolResult {
         let intent = ActionIntent.type(
             app: appName,
@@ -397,7 +397,7 @@ public enum Actions {
                 return ToolResult(
                     success: false,
                     error: "Field '\(fieldName)' not found",
-                    suggestion: "Use ghost_find to see available fields, or ghost_context for orientation"
+                    suggestion: "Use oracle_find to see available fields, or oracle_context for orientation"
                 )
             }
 
@@ -536,7 +536,7 @@ public enum Actions {
         }
     }
 
-    // MARK: - ghost_press
+    // MARK: - oracle_press
 
     /// Press a single key with optional modifiers.
     public static func pressKey(
@@ -548,7 +548,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_press"
+        toolName: String? = "oracle_press"
     ) -> ToolResult {
         let intent = ActionIntent.press(
             app: appName,
@@ -624,7 +624,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_focus"
+        toolName: String? = "oracle_focus"
     ) -> ToolResult {
         let postconditions = inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
         let intent = ActionIntent.focus(
@@ -651,7 +651,7 @@ public enum Actions {
         }
     }
 
-    // MARK: - ghost_hotkey
+    // MARK: - oracle_hotkey
 
     /// Press a key combination. Clears modifier flags after to prevent stuck keys.
     public static func hotkey(
@@ -661,7 +661,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_hotkey"
+        toolName: String? = "oracle_hotkey"
     ) -> ToolResult {
         guard !keys.isEmpty else {
             return ToolResult(success: false, error: "Keys array cannot be empty")
@@ -718,7 +718,7 @@ public enum Actions {
         }
     }
 
-    // MARK: - ghost_scroll
+    // MARK: - oracle_scroll
 
     /// Scroll in a direction. Uses AXorcist's element-based scroll when app is
     /// specified (auto-handles multi-monitor via AX coordinates). Falls back to
@@ -733,7 +733,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_scroll"
+        toolName: String? = "oracle_scroll"
     ) -> ToolResult {
         let intent = ActionIntent(
             app: appName ?? "unknown",
@@ -870,7 +870,7 @@ public enum Actions {
         }
     }
 
-    // MARK: - ghost_window
+    // MARK: - oracle_window
 
     /// Window management operations.
     public static func manageWindow(
@@ -883,7 +883,7 @@ public enum Actions {
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
-        toolName: String? = "ghost_window"
+        toolName: String? = "oracle_window"
     ) -> ToolResult {
         if action.lowercased() == "list" {
             return performWindowAction(
@@ -974,7 +974,7 @@ public enum Actions {
             return ToolResult(
                 success: false,
                 error: "Window not found in '\(appName)'",
-                suggestion: "Use ghost_window with action:'list' to see windows"
+                suggestion: "Use oracle_window with action:'list' to see windows"
             )
         }
 
@@ -1034,7 +1034,7 @@ public enum Actions {
         // Try AXorcist's built-in search first
         if let query = locator.computedNameContains {
             var options = ElementSearchOptions()
-            options.maxDepth = GhostConstants.semanticDepthBudget
+            options.maxDepth = OracleConstants.semanticDepthBudget
             if let roleCriteria = locator.criteria.first(where: { $0.attribute == "AXRole" }) {
                 options.includeRoles = [roleCriteria.value]
             }
@@ -1060,7 +1060,7 @@ public enum Actions {
         return Element.application(for: frontApp.processIdentifier)
     }
 
-    // MARK: - Field Finding for ghost_type into
+    // MARK: - Field Finding for oracle_type into
 
     /// Editable/input roles that the 'into' parameter should match against.
     /// When someone says into:"To", they mean a field labeled "To", not
@@ -1099,7 +1099,7 @@ public enum Actions {
             queryLower: queryLower,
             candidates: &candidates,
             semanticDepth: 0,
-            maxSemanticDepth: GhostConstants.semanticDepthBudget
+            maxSemanticDepth: OracleConstants.semanticDepthBudget
         )
 
         // Return the highest-scoring candidate
@@ -1107,7 +1107,7 @@ public enum Actions {
     }
 
     /// Layout roles that cost zero semantic depth (tunneled through).
-    /// Same set used by ghost_read's semantic depth tunneling.
+    /// Same set used by oracle_read's semantic depth tunneling.
     private static let layoutRoles: Set<String> = [
         "AXGroup", "AXGenericElement", "AXSection", "AXDiv",
         "AXList", "AXLandmarkMain", "AXLandmarkNavigation",

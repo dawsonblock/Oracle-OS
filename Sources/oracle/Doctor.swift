@@ -72,18 +72,18 @@ struct Doctor {
         }
     }
 
-    // MARK: - Ghost Processes
+    // MARK: - Oracle Processes
 
     private mutating func checkProcesses() {
         let result = runShell("ps aux | grep '[g]host mcp' | awk '{print $2, $11, $12}'")
         let lines = result.output.split(separator: "\n").map(String.init)
 
         if lines.isEmpty {
-            print("  [ok] Processes: no ghost MCP processes running")
+            print("  [ok] Processes: no oracle MCP processes running")
         } else if lines.count == 1 {
-            print("  [ok] Processes: 1 ghost MCP process (PID: \(lines[0].split(separator: " ").first ?? "?"))")
+            print("  [ok] Processes: 1 oracle MCP process (PID: \(lines[0].split(separator: " ").first ?? "?"))")
         } else {
-            print("  [FAIL] Processes: \(lines.count) ghost MCP processes found (expect 0 or 1)")
+            print("  [FAIL] Processes: \(lines.count) oracle MCP processes found (expect 0 or 1)")
             for line in lines {
                 let parts = line.split(separator: " ")
                 let pid = parts.first ?? "?"
@@ -116,15 +116,15 @@ struct Doctor {
         if let data = FileManager.default.contents(atPath: configPath),
            let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let mcpServers = config["mcpServers"] as? [String: Any],
-           let ghostConfig = mcpServers["ghost-os"] as? [String: Any]
+           let oracleConfig = mcpServers["oracle-os"] as? [String: Any]
         {
-            let command = ghostConfig["command"] as? String ?? "(unknown)"
-            print("  [ok] MCP Config: ghost-os configured")
+            let command = oracleConfig["command"] as? String ?? "(unknown)"
+            print("  [ok] MCP Config: oracle-os configured")
             print("    Binary: \(command)")
         } else {
-            print("  [FAIL] MCP Config: ghost-os not configured")
+            print("  [FAIL] MCP Config: oracle-os not configured")
             let binaryPath = resolveBinaryPath()
-            print("    Fix: claude mcp add ghost-os \(binaryPath) -- mcp")
+            print("    Fix: claude mcp add oracle-os \(binaryPath) -- mcp")
             issueCount += 1
         }
     }
@@ -132,9 +132,9 @@ struct Doctor {
     // MARK: - Recipes
 
     private mutating func checkRecipes() {
-        let recipesDir = NSHomeDirectory() + "/.ghost-os/recipes"
+        let recipesDir = NSHomeDirectory() + "/.oracle-os/recipes"
         if !FileManager.default.fileExists(atPath: recipesDir) {
-            print("  [FAIL] Recipes: directory missing (~/.ghost-os/recipes/)")
+            print("  [FAIL] Recipes: directory missing (~/.oracle-os/recipes/)")
             print("    Fix: oracle setup (installs bundled recipes)")
             issueCount += 1
             return
@@ -208,16 +208,16 @@ struct Doctor {
 
     private mutating func checkVisionBinary() {
         let candidates = [
-            "/opt/homebrew/bin/ghost-vision",
-            "/usr/local/bin/ghost-vision",
+            "/opt/homebrew/bin/oracle-vision",
+            "/usr/local/bin/oracle-vision",
             (ProcessInfo.processInfo.arguments[0] as NSString)
-                .deletingLastPathComponent + "/ghost-vision",
+                .deletingLastPathComponent + "/oracle-vision",
         ]
 
         var found = false
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
-                print("  [ok] ghost-vision: \(path)")
+                print("  [ok] oracle-vision: \(path)")
                 found = true
                 break
             }
@@ -225,11 +225,11 @@ struct Doctor {
 
         if !found {
             // Check venv fallback
-            let venvPython = NSHomeDirectory() + "/.ghost-os/venv/bin/python3"
+            let venvPython = NSHomeDirectory() + "/.oracle-os/venv/bin/python3"
             if FileManager.default.isExecutableFile(atPath: venvPython) {
                 let result = runShell("\(venvPython) -c 'import mlx_vlm; print(\"ok\")' 2>/dev/null")
                 if result.exitCode == 0 && result.output.contains("ok") {
-                    print("  [ok] Vision Python: ~/.ghost-os/venv/ (mlx_vlm available)")
+                    print("  [ok] Vision Python: ~/.oracle-os/venv/ (mlx_vlm available)")
                     found = true
                 }
             }
@@ -245,8 +245,8 @@ struct Doctor {
         }
 
         if !found {
-            print("  [!] ghost-vision: not found")
-            print("    Vision grounding (ghost_ground) won't work.")
+            print("  [!] oracle-vision: not found")
+            print("    Vision grounding (oracle_ground) won't work.")
             print("    Fix: oracle setup (sets up Python environment)")
             warningCount += 1
         }
@@ -293,9 +293,9 @@ struct Doctor {
         } else {
             print("  [!] ShowUI-2B model: not found")
             print("    Checked:")
-            print("      /opt/homebrew/share/ghost-os/models/ShowUI-2B/")
-            print("      ~/.ghost-os/models/ShowUI-2B/")
-            print("      ~/.shadow/models/llm/ShowUI-2B-bf16-8bit/")
+            print("      /opt/homebrew/share/oracle-os/models/ShowUI-2B/")
+            print("      ~/.oracle-os/models/ShowUI-2B/")
+            print("      ~/.oracle-os/models/llm/ShowUI-2B-bf16-8bit/")
             print("    Fix: oracle setup (downloads the model)")
             warningCount += 1
         }
@@ -325,7 +325,7 @@ struct Doctor {
             }
         } else {
             print("  [ok] Vision Sidecar: not running (auto-starts when needed)")
-            print("    ghost_ground will start the sidecar automatically on first call.")
+            print("    oracle_ground will start the sidecar automatically on first call.")
         }
     }
 

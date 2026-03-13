@@ -37,7 +37,7 @@ public enum MCPDispatch {
 
         // Screenshot returns MCP image content directly (not text-wrapped JSON)
         let response: [String: Any]
-        if toolName == "ghost_screenshot" {
+        if toolName == "oracle_screenshot" {
             response = handleScreenshot(args)
         } else {
             let result = dispatch(tool: toolName, args: args)
@@ -66,7 +66,7 @@ public enum MCPDispatch {
               let data = result.data,
               let base64 = data["image"] as? String
         else {
-            return formatResult(result, toolName: "ghost_screenshot")
+            return formatResult(result, toolName: "oracle_screenshot")
         }
 
         // Return as MCP image + text caption (v1 pattern: both content types)
@@ -99,13 +99,13 @@ public enum MCPDispatch {
         switch tool {
 
         // Perception
-        case "ghost_context":
+        case "oracle_context":
             return Perception.getContext(appName: str(args, "app"))
 
-        case "ghost_state":
+        case "oracle_state":
             return Perception.getState(appName: str(args, "app"))
 
-        case "ghost_find":
+        case "oracle_find":
             return Perception.findElements(
                 query: str(args, "query"),
                 role: str(args, "role"),
@@ -116,14 +116,14 @@ public enum MCPDispatch {
                 depth: int(args, "depth")
             )
 
-        case "ghost_read":
+        case "oracle_read":
             return Perception.readContent(
                 appName: str(args, "app"),
                 query: str(args, "query"),
                 depth: int(args, "depth")
             )
 
-        case "ghost_inspect":
+        case "oracle_inspect":
             guard let query = str(args, "query") else {
                 return ToolResult(success: false, error: "Missing required parameter: query")
             }
@@ -134,20 +134,20 @@ public enum MCPDispatch {
                 appName: str(args, "app")
             )
 
-        case "ghost_element_at":
+        case "oracle_element_at":
             guard let x = double(args, "x"), let y = double(args, "y") else {
                 return ToolResult(success: false, error: "Missing required parameters: x, y")
             }
             return Perception.elementAt(x: x, y: y)
 
-        case "ghost_screenshot":
+        case "oracle_screenshot":
             return Perception.screenshot(
                 appName: str(args, "app"),
                 fullResolution: bool(args, "full_resolution") ?? false
             )
 
         // Actions
-        case "ghost_click":
+        case "oracle_click":
             return FocusManager.withFocusRestore {
                 Actions.click(
                     query: str(args, "query"),
@@ -165,7 +165,7 @@ public enum MCPDispatch {
                 )
             }
 
-        case "ghost_type":
+        case "oracle_type":
             guard let text = str(args, "text") else {
                 return ToolResult(success: false, error: "Missing required parameter: text")
             }
@@ -185,11 +185,11 @@ public enum MCPDispatch {
 
         // Press, hotkey, scroll are synthetic input tools that send events to the
         // FRONTMOST app. They need the target app to STAY focused after the tool
-        // returns - the agent will call ghost_focus to restore when ready.
+        // returns - the agent will call oracle_focus to restore when ready.
         // Do NOT wrap these in withFocusRestore, which would steal focus back
         // before the app processes the event (e.g. Cmd+L needs Chrome to stay
         // focused while it selects the address bar text).
-        case "ghost_press":
+        case "oracle_press":
             guard let key = str(args, "key") else {
                 return ToolResult(success: false, error: "Missing required parameter: key")
             }
@@ -204,7 +204,7 @@ public enum MCPDispatch {
                 toolName: tool
             )
 
-        case "ghost_hotkey":
+        case "oracle_hotkey":
             guard let keys = args["keys"] as? [String] else {
                 return ToolResult(success: false, error: "Missing required parameter: keys (array of strings)")
             }
@@ -217,7 +217,7 @@ public enum MCPDispatch {
                 toolName: tool
             )
 
-        case "ghost_scroll":
+        case "oracle_scroll":
             guard let direction = str(args, "direction") else {
                 return ToolResult(success: false, error: "Missing required parameter: direction")
             }
@@ -233,7 +233,7 @@ public enum MCPDispatch {
                 toolName: tool
             )
 
-        case "ghost_focus":
+        case "oracle_focus":
             guard let app = str(args, "app") else {
                 return ToolResult(success: false, error: "Missing required parameter: app")
             }
@@ -246,7 +246,7 @@ public enum MCPDispatch {
                 toolName: tool
             )
 
-        case "ghost_window":
+        case "oracle_window":
             guard let action = str(args, "action"),
                   let app = str(args, "app")
             else {
@@ -267,7 +267,7 @@ public enum MCPDispatch {
             )
 
         // Wait
-        case "ghost_wait":
+        case "oracle_wait":
             guard let condition = str(args, "condition") else {
                 return ToolResult(success: false, error: "Missing required parameter: condition")
             }
@@ -280,7 +280,7 @@ public enum MCPDispatch {
             )
 
         // Recipes
-        case "ghost_recipes":
+        case "oracle_recipes":
             let recipes = RecipeStore.listRecipes()
             let summaries: [[String: Any]] = recipes.map { recipe in
                 var summary: [String: Any] = [
@@ -298,7 +298,7 @@ public enum MCPDispatch {
             }
             return ToolResult(success: true, data: ["recipes": summaries, "count": summaries.count])
 
-        case "ghost_run":
+        case "oracle_run":
             if let resumeToken = str(args, "resume_token") {
                 return RecipeEngine.resume(
                     resumeToken: resumeToken,
@@ -315,7 +315,7 @@ public enum MCPDispatch {
                 return ToolResult(
                     success: false,
                     error: "Recipe '\(recipeName)' not found",
-                    suggestion: "Use ghost_recipes to list available recipes"
+                    suggestion: "Use oracle_recipes to list available recipes"
                 )
             }
             // Parse params from the MCP arguments
@@ -335,7 +335,7 @@ public enum MCPDispatch {
                 taskID: traceRecorder.sessionID
             )
 
-        case "ghost_recipe_show":
+        case "oracle_recipe_show":
             guard let name = str(args, "name") else {
                 return ToolResult(success: false, error: "Missing required parameter: name")
             }
@@ -343,7 +343,7 @@ public enum MCPDispatch {
                 return ToolResult(
                     success: false,
                     error: "Recipe '\(name)' not found",
-                    suggestion: "Use ghost_recipes to list available recipes"
+                    suggestion: "Use oracle_recipes to list available recipes"
                 )
             }
             if let data = try? JSONEncoder().encode(recipe),
@@ -353,7 +353,7 @@ public enum MCPDispatch {
             }
             return ToolResult(success: false, error: "Failed to serialize recipe")
 
-        case "ghost_recipe_save":
+        case "oracle_recipe_save":
             guard let jsonStr = str(args, "recipe_json") else {
                 return ToolResult(success: false, error: "Missing required parameter: recipe_json")
             }
@@ -364,7 +364,7 @@ public enum MCPDispatch {
                 return ToolResult(success: false, error: "Failed to save recipe: \(error)")
             }
 
-        case "ghost_recipe_delete":
+        case "oracle_recipe_delete":
             guard let name = str(args, "name") else {
                 return ToolResult(success: false, error: "Missing required parameter: name")
             }
@@ -376,13 +376,13 @@ public enum MCPDispatch {
             )
 
         // Vision
-        case "ghost_parse_screen":
+        case "oracle_parse_screen":
             return VisionPerception.parseScreen(
                 appName: str(args, "app"),
                 fullResolution: bool(args, "full_resolution") ?? false
             )
 
-        case "ghost_ground":
+        case "oracle_ground":
             guard let description = str(args, "description") else {
                 return ToolResult(success: false, error: "Missing required parameter: description")
             }

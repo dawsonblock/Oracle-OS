@@ -86,7 +86,7 @@ final class ProductEnvironmentManager {
         try OracleProductPaths.ensureUserDirectories()
         try copyItem(at: bundledVisionDirectory, to: destination)
 
-        let launcher = destination.appendingPathComponent("ghost-vision", isDirectory: false)
+        let launcher = destination.appendingPathComponent("oracle-vision", isDirectory: false)
         if fileManager.fileExists(atPath: launcher.path) {
             try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
         }

@@ -11,6 +11,7 @@ public final class TaskEdge: @unchecked Sendable {
     public let toNodeID: String
     public let action: String
     public let actionContractID: String?
+    public let operatorFamily: OperatorFamily
     public private(set) var status: TaskEdgeStatus
     public private(set) var successCount: Int
     public private(set) var failureCount: Int
@@ -26,6 +27,7 @@ public final class TaskEdge: @unchecked Sendable {
         toNodeID: String,
         action: String,
         actionContractID: String? = nil,
+        operatorFamily: OperatorFamily? = nil,
         status: TaskEdgeStatus = .candidate,
         successCount: Int = 0,
         failureCount: Int = 0,
@@ -40,6 +42,7 @@ public final class TaskEdge: @unchecked Sendable {
         self.toNodeID = toNodeID
         self.action = action
         self.actionContractID = actionContractID
+        self.operatorFamily = operatorFamily ?? GraphNavigator.operatorFamilyForAction(action)
         self.status = status
         self.successCount = successCount
         self.failureCount = failureCount

@@ -19,21 +19,21 @@ public enum MCPTools {
     @MainActor
     private static let perception: [[String: Any]] = [
         tool(
-            name: "ghost_context",
+            name: "oracle_context",
             description: "Get orientation for an app. Returns summary fields plus a canonical fused observation snapshot with element source and confidence metadata. Call this before acting on any app.",
             properties: [
                 "app": prop("string", "App name to get context for. If omitted, returns focused app."),
             ]
         ),
         tool(
-            name: "ghost_state",
+            name: "oracle_state",
             description: "List all running apps and their windows with titles, positions, and sizes.",
             properties: [
                 "app": prop("string", "Filter to a specific app."),
             ]
         ),
         tool(
-            name: "ghost_find",
+            name: "oracle_find",
             description: "Find elements in any app. Returns matching elements with role, name, position, and available actions.",
             properties: [
                 "query": prop("string", "Text to search for (matches title, value, identifier, description)."),
@@ -46,7 +46,7 @@ public enum MCPTools {
             ]
         ),
         tool(
-            name: "ghost_read",
+            name: "oracle_read",
             description: "Read text content from screen. Returns concatenated text from the element subtree.",
             properties: [
                 "app": prop("string", "Which app to read from."),
@@ -55,7 +55,7 @@ public enum MCPTools {
             ]
         ),
         tool(
-            name: "ghost_inspect",
+            name: "oracle_inspect",
             description: "Full metadata about one element. Call this before acting on something you're unsure about. Returns role, title, position, size, actionable status, supported actions, editable, DOM id, and more.",
             properties: [
                 "query": prop("string", "Element to inspect."),
@@ -66,7 +66,7 @@ public enum MCPTools {
             required: ["query"]
         ),
         tool(
-            name: "ghost_element_at",
+            name: "oracle_element_at",
             description: "What element is at this screen position? Bridges screenshots and accessibility tree.",
             properties: [
                 "x": prop("number", "X coordinate."),
@@ -75,7 +75,7 @@ public enum MCPTools {
             required: ["x", "y"]
         ),
         tool(
-            name: "ghost_screenshot",
+            name: "oracle_screenshot",
             description: "Take a screenshot for visual debugging. Returns base64 PNG.",
             properties: [
                 "app": prop("string", "Screenshot specific app window."),
@@ -89,7 +89,7 @@ public enum MCPTools {
     @MainActor
     private static let actions: [[String: Any]] = [
         tool(
-            name: "ghost_click",
+            name: "oracle_click",
             description: "Click an element. Tries AX-native first, falls back to synthetic click. Risky actions may return pending approval instead of executing immediately.",
             properties: [
                 "query": prop("string", "What to click (element text/name)."),
@@ -104,7 +104,7 @@ public enum MCPTools {
             ]
         ),
         tool(
-            name: "ghost_type",
+            name: "oracle_type",
             description: "Type text into a field. If 'into' is specified, finds the field first. Risky text entry may require approval before execution.",
             properties: [
                 "text": prop("string", "Text to type."),
@@ -117,8 +117,8 @@ public enum MCPTools {
             required: ["text"]
         ),
         tool(
-            name: "ghost_press",
-            description: "Press a single key. When app is provided, Ghost verifies the target app is frontmost after dispatch.",
+            name: "oracle_press",
+            description: "Press a single key. When app is provided, Oracle verifies the target app is frontmost after dispatch.",
             properties: [
                 "key": prop("string", "Key name: return, tab, escape, space, delete, up, down, left, right, f1-f12."),
                 "modifiers": propArray("string", "Modifier keys: cmd, shift, option, control."),
@@ -128,7 +128,7 @@ public enum MCPTools {
             required: ["key"]
         ),
         tool(
-            name: "ghost_hotkey",
+            name: "oracle_hotkey",
             description: "Press a key combination. Modifier keys are auto-cleared afterward. Always include app parameter.",
             properties: [
                 "keys": propArray("string", "Key combo, e.g. [\"cmd\", \"return\"] or [\"cmd\", \"shift\", \"p\"]."),
@@ -138,7 +138,7 @@ public enum MCPTools {
             required: ["keys"]
         ),
         tool(
-            name: "ghost_scroll",
+            name: "oracle_scroll",
             description: "Scroll content in a direction.",
             properties: [
                 "direction": prop("string", "up, down, left, or right."),
@@ -151,7 +151,7 @@ public enum MCPTools {
             required: ["direction"]
         ),
         tool(
-            name: "ghost_focus",
+            name: "oracle_focus",
             description: "Bring an app or window to the front. Returns verified success when the requested app becomes frontmost.",
             properties: [
                 "app": prop("string", "App name to focus."),
@@ -161,7 +161,7 @@ public enum MCPTools {
             required: ["app"]
         ),
         tool(
-            name: "ghost_window",
+            name: "oracle_window",
             description: "Window management: minimize, maximize, close, restore, move, resize, or list windows.",
             properties: [
                 "action": prop("string", "minimize, maximize, close, restore, move, resize, or list."),
@@ -182,7 +182,7 @@ public enum MCPTools {
     @MainActor
     private static let wait: [[String: Any]] = [
         tool(
-            name: "ghost_wait",
+            name: "oracle_wait",
             description: "Wait for a condition instead of using fixed delays. Polls until condition is met or timeout.",
             properties: [
                 "condition": prop("string", "appFrontmost, urlContains, windowTitleContains, titleContains, elementExists, elementGone, urlChanged, titleChanged, focusEquals, valueEquals."),
@@ -200,12 +200,12 @@ public enum MCPTools {
     @MainActor
     private static let recipes: [[String: Any]] = [
         tool(
-            name: "ghost_recipes",
+            name: "oracle_recipes",
             description: "List all installed recipes with descriptions and parameters. ALWAYS check this first before doing multi-step tasks manually.",
             properties: [:]
         ),
         tool(
-            name: "ghost_run",
+            name: "oracle_run",
             description: "Execute a recipe with parameter substitution. Risky steps pause for approval and can be resumed with resume_token plus approval_request_id.",
             properties: [
                 "recipe": prop("string", "Recipe name."),
@@ -216,7 +216,7 @@ public enum MCPTools {
             required: []
         ),
         tool(
-            name: "ghost_recipe_show",
+            name: "oracle_recipe_show",
             description: "View full recipe details: steps, parameters, preconditions.",
             properties: [
                 "name": prop("string", "Recipe name."),
@@ -224,7 +224,7 @@ public enum MCPTools {
             required: ["name"]
         ),
         tool(
-            name: "ghost_recipe_save",
+            name: "oracle_recipe_save",
             description: "Install a new recipe from JSON.",
             properties: [
                 "recipe_json": prop("string", "Complete recipe JSON string."),
@@ -232,7 +232,7 @@ public enum MCPTools {
             required: ["recipe_json"]
         ),
         tool(
-            name: "ghost_recipe_delete",
+            name: "oracle_recipe_delete",
             description: "Delete a recipe.",
             properties: [
                 "name": prop("string", "Recipe name to delete."),
@@ -246,16 +246,16 @@ public enum MCPTools {
     @MainActor
     private static let vision: [[String: Any]] = [
         tool(
-            name: "ghost_parse_screen",
-            description: "Experimental full-screen vision parsing via the sidecar. The tool is available, but its schema and reliability are still being hardened. Prefer ghost_find for stable AX queries and ghost_ground for precise visual grounding.",
+            name: "oracle_parse_screen",
+            description: "Experimental full-screen vision parsing via the sidecar. The tool is available, but its schema and reliability are still being hardened. Prefer oracle_find for stable AX queries and oracle_ground for precise visual grounding.",
             properties: [
                 "app": prop("string", "Screenshot specific app window."),
                 "full_resolution": prop("boolean", "Native resolution instead of 1280px resize (default: false)."),
             ]
         ),
         tool(
-            name: "ghost_ground",
-            description: "Find precise screen coordinates for a described UI element using vision (VLM). Use when ghost_find can't locate the element or returns AXGroup elements. Pass a text description of what to click. Requires the vision sidecar to be running.",
+            name: "oracle_ground",
+            description: "Find precise screen coordinates for a described UI element using vision (VLM). Use when oracle_find can't locate the element or returns AXGroup elements. Pass a text description of what to click. Requires the vision sidecar to be running.",
             properties: [
                 "description": prop("string", "What to find (e.g. 'Compose button', 'Send button', 'search field')."),
                 "app": prop("string", "Screenshot specific app window."),

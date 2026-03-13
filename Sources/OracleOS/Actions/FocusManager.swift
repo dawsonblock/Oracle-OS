@@ -1,6 +1,6 @@
 // FocusManager.swift - Focus orchestration for Oracle OS v2
 //
-// Handles: ghost_focus, ghost_window, focus save/restore, modifier clearing.
+// Handles: oracle_focus, oracle_window, focus save/restore, modifier clearing.
 // Uses AXorcist's Element.activateApplication(), focusWindow(), etc.
 
 import AppKit
@@ -20,7 +20,7 @@ public enum FocusManager {
             return ToolResult(
                 success: false,
                 error: "Application '\(appName)' not found",
-                suggestion: "Use ghost_state to see all running apps"
+                suggestion: "Use oracle_state to see all running apps"
             )
         }
 
@@ -31,7 +31,7 @@ public enum FocusManager {
                 return ToolResult(
                     success: false,
                     error: "Failed to activate '\(appName)'",
-                    suggestion: "The app may be unresponsive. Try ghost_state to check its status."
+                    suggestion: "The app may be unresponsive. Try oracle_state to check its status."
                 )
             }
 

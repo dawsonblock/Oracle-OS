@@ -36,6 +36,6 @@ struct RecipeCompatibilityTests {
             }
             current.deleteLastPathComponent()
         }
-        throw GhostError.actionFailed(description: "Could not locate repository root from \(fileURL.path)")
+        throw OracleError.actionFailed(description: "Could not locate repository root from \(fileURL.path)")
     }
 }

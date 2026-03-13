@@ -7,8 +7,8 @@ public enum OracleProductPaths {
     private static let logsOverrideKey = "ORACLE_OS_LOG_DIR"
     private static let recipesOverrideKey = "ORACLE_OS_RECIPES_DIR"
     private static let approvalsOverrideKey = "ORACLE_OS_APPROVALS_DIR"
-    private static let graphOverrideKey = "GHOST_OS_GRAPH_DB"
-    private static let traceOverrideKey = "GHOST_OS_TRACE_DIR"
+    private static let graphOverrideKey = "ORACLE_OS_GRAPH_DB"
+    private static let traceOverrideKey = "ORACLE_OS_TRACE_DIR"
 
     public static var dataRootDirectory: URL {
         if let override = environmentURL(for: dataRootOverrideKey, isDirectory: true) {
@@ -100,29 +100,29 @@ public enum OracleProductPaths {
         visionModelsDirectory.appendingPathComponent("ShowUI-2B", isDirectory: true)
     }
 
-    public static var legacyGhostRootDirectory: URL {
+    public static var legacyOracleRootDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".ghost-os", isDirectory: true)
+            .appendingPathComponent(".oracle-os", isDirectory: true)
     }
 
     public static var legacyRecipesDirectory: URL {
-        legacyGhostRootDirectory.appendingPathComponent("recipes", isDirectory: true)
+        legacyOracleRootDirectory.appendingPathComponent("recipes", isDirectory: true)
     }
 
     public static var legacyApprovalsDirectory: URL {
-        legacyGhostRootDirectory.appendingPathComponent("approvals", isDirectory: true)
+        legacyOracleRootDirectory.appendingPathComponent("approvals", isDirectory: true)
     }
 
     public static var legacyLogsDirectory: URL {
-        legacyGhostRootDirectory.appendingPathComponent("logs", isDirectory: true)
+        legacyOracleRootDirectory.appendingPathComponent("logs", isDirectory: true)
     }
 
     public static var legacyGraphDirectory: URL {
-        legacyGhostRootDirectory.appendingPathComponent("graph", isDirectory: true)
+        legacyOracleRootDirectory.appendingPathComponent("graph", isDirectory: true)
     }
 
     public static var legacyVisionDirectory: URL {
-        legacyGhostRootDirectory
+        legacyOracleRootDirectory
     }
 
     public static var runningFromAppBundle: Bool {

@@ -14,7 +14,7 @@ struct TraceStoreTests {
             sessionID: "trace-session",
             taskID: nil,
             stepID: 1,
-            toolName: "ghost_type",
+            toolName: "oracle_type",
             actionName: "type",
             actionTarget: "Body",
             actionText: "hello",
@@ -45,7 +45,7 @@ struct TraceStoreTests {
 
         #expect(object?["sessionID"] as? String == "trace-session")
         #expect(object?["preObservationHash"] as? String == "pre")
-        #expect(object?["toolName"] as? String == "ghost_type")
+        #expect(object?["toolName"] as? String == "oracle_type")
         #expect(object?["verified"] as? Bool == true)
     }
 
@@ -60,7 +60,7 @@ struct TraceStoreTests {
                 sessionID: recorder.sessionID,
                 taskID: nil,
                 stepID: recorder.makeStepID(),
-                toolName: "ghost_\(action)",
+                toolName: "oracle_\(action)",
                 actionName: action,
                 actionTarget: nil,
                 actionText: nil,

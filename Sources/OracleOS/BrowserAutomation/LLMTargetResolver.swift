@@ -48,7 +48,7 @@ public final class LLMTargetResolver: @unchecked Sendable {
         goal: String,
         domSummary: String,
         visibleElements: [String],
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) async -> LLMTargetResolution {
         let prompt = buildBrowserPrompt(
             goal: goal,
@@ -83,16 +83,14 @@ public final class LLMTargetResolver: @unchecked Sendable {
         goal: String,
         domSummary: String,
         visibleElements: [String],
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> String {
         var lines: [String] = []
 
         // ── Strategy context ──
-        if let strategy = selectedStrategy {
-            lines.append("Current strategy: \(strategy.kind.rawValue)")
-            lines.append("Allowed operator families: \(strategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
-            lines.append("")
-        }
+        lines.append("Current strategy: \(selectedStrategy.kind.rawValue)")
+        lines.append("Allowed operator families: \(selectedStrategy.allowedOperatorFamilies.map(\.rawValue).joined(separator: ", "))")
+        lines.append("")
 
         lines.append("User goal:")
         lines.append(goal)

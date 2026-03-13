@@ -1,4 +1,4 @@
-// WaitManager.swift - ghost_wait polling implementation
+// WaitManager.swift - oracle_wait polling implementation
 //
 // Polls for conditions (urlContains, elementExists, etc.) with timeout.
 // Reuses the typed wait contracts in Core/Wait.
@@ -49,7 +49,7 @@ public final class WaitManager {
             success: false,
             error: "Timed out after \(Int(timeout))s waiting for \(condition)" +
                 (value != nil ? " '\(value!)'" : ""),
-            suggestion: "Increase timeout or check if the condition can be met. Use ghost_context to see current state."
+            suggestion: "Increase timeout or check if the condition can be met. Use oracle_context to see current state."
         )
     }
 
