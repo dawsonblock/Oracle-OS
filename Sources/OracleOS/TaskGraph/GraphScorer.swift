@@ -99,8 +99,8 @@ public struct GraphScorer: Sendable {
             workflowSimilarity: workflowWeight * min(1, max(0, workflowBias)),
             memoryBias: memoryWeight * min(1, max(0, memoryBias)),
             goalAlignment: goalAlignmentWeight * goalAlignment,
-            costPenalty: costPenaltyWeight * costPenalty,
-            riskPenalty: riskPenaltyWeight * riskPenalty,
+            costPenalty: -(costPenaltyWeight * costPenalty),
+            riskPenalty: -(riskPenaltyWeight * riskPenalty),
             noveltyBonus: noveltyBonus,
             total: total
         )
