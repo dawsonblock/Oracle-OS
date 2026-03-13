@@ -46,6 +46,9 @@ public final class ProposalEngine: @unchecked Sendable {
     private let reasoningEngine: ReasoningEngine
     private let planEvaluator: PlanEvaluator
 
+    // Stores the latency (in milliseconds) of the most recent LLM planning request.
+    private var lastLLMPlanningLatencyMs: Double = 0
+
     public init(
         llmClient: LLMClient,
         reasoningEngine: ReasoningEngine = ReasoningEngine(),
@@ -125,6 +128,8 @@ public final class ProposalEngine: @unchecked Sendable {
 
         do {
             let response = try await llmClient.complete(request)
+            // Preserve the LLM latency so it can be exposed via ProposalDiagnostics.
+            self.lastLLMPlanningLatencyMs = response.latencyMs
             let parsed = ReasoningParser.parsePlans(from: response.text)
             let plans = ReasoningParser.toPlanCandidates(
                 parsedPlans: parsed,
