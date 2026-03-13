@@ -61,7 +61,8 @@ public final class DecisionCoordinator {
                 worldState: stateBundle.worldState,
                 memoryInfluence: memoryInfluence,
                 workflowIndex: planner.workflowIndex,
-                agentKind: stateBundle.taskContext.agentKind
+                agentKind: stateBundle.taskContext.agentKind,
+                recentFailureCount: stateBundle.recentFailureCount
             )
             activeStrategy = strategy
             strategyEvaluator.setCurrentStrategy(strategy)
