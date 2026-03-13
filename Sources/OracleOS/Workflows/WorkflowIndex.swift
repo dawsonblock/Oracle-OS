@@ -40,4 +40,13 @@ public final class WorkflowIndex: @unchecked Sendable {
             )
         }
     }
+
+    /// Returns promoted workflows whose goal pattern matches the given goal.
+    public func matching(goal: Goal) -> [WorkflowPlan] {
+        let goalLower = goal.description.lowercased()
+        return promotedPlans(for: goal.preferredAgentKind).filter { plan in
+            let patternLower = plan.goalPattern.lowercased()
+            return goalLower.contains(patternLower) || patternLower.contains(goalLower)
+        }
+    }
 }
