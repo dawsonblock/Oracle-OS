@@ -50,7 +50,18 @@ public final class TaskGraph: @unchecked Sendable {
         guard nodes.count < maxNodesPerTask else {
             pruneOldestNodes()
             guard nodes.count < maxNodesPerTask else {
-                // Cannot grow further; return the node without storing.
+                // Cannot grow further; return an existing stored node to avoid
+                // desynchronizing the returned value from the graph state.
+                if let currentID = currentNodeID, let current = nodes[currentID] {
+                    current.recordVisit()
+                    return current
+                }
+                if let anyExisting = nodes.values.first {
+                    anyExisting.recordVisit()
+                    return anyExisting
+                }
+                // Fallback: in the unlikely event of an inconsistent empty state,
+                // return the input node.
                 return node
             }
         }
