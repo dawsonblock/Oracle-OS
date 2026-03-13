@@ -179,8 +179,7 @@ public final class Planner: @unchecked Sendable {
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            fallbackDecision: familyDecision,
-            selectedStrategy: strategy
+            fallbackDecision: familyDecision
         )
 
         let decision = selectBestDecision(
