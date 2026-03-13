@@ -3,6 +3,15 @@ import Foundation
 // Planner chooses execution structure only: workflow, graph path, graph edge,
 // or bounded exploration. It must not resolve exact UI targets, mutate files,
 // execute commands, or inline recovery mechanics.
+//
+// The planner navigates the live TaskGraph as its primary control substrate.
+// Each planning cycle:
+//   1. Updates the current task-graph node from world state
+//   2. Expands candidate edges from the current node
+//   3. Evaluates future paths via GraphNavigator
+//   4. Selects the best edge
+// The task graph is the canonical representation of task position — not
+// a post-hoc log.
 public final class Planner: @unchecked Sendable {
     private var currentGoal: Goal?
     public let workflowIndex: WorkflowIndex
@@ -14,6 +23,9 @@ public final class Planner: @unchecked Sendable {
     private let planEvaluator: PlanEvaluator
     private let promptEngine: PromptEngine
     private let reasoningThreshold: Double
+    public let taskGraphStore: TaskGraphStore
+    private let graphNavigator: GraphNavigator
+    private let graphScorer: GraphScorer
 
     public init(
         workflowIndex: WorkflowIndex? = nil,
@@ -22,7 +34,8 @@ public final class Planner: @unchecked Sendable {
         mixedTaskPlanner: MixedTaskPlanner? = nil,
         reasoningEngine: ReasoningEngine? = nil,
         promptEngine: PromptEngine = PromptEngine(),
-        reasoningThreshold: Double = 0.6
+        reasoningThreshold: Double = 0.6,
+        taskGraphStore: TaskGraphStore? = nil
     ) {
         let sharedWorkflowIndex = workflowIndex ?? WorkflowIndex()
         let sharedGraphPlanner = GraphPlanner(maxDepth: 6, beamWidth: 5)
@@ -52,6 +65,9 @@ public final class Planner: @unchecked Sendable {
         self.planEvaluator = PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
         self.promptEngine = promptEngine
         self.reasoningThreshold = reasoningThreshold
+        self.taskGraphStore = taskGraphStore ?? TaskGraphStore()
+        self.graphNavigator = GraphNavigator()
+        self.graphScorer = GraphScorer()
     }
 
     public func setGoal(_ goal: Goal) {
@@ -113,6 +129,22 @@ public final class Planner: @unchecked Sendable {
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
 
+        // ── Task-graph substrate: update the current node from world state ──
+        // The graph is the canonical representation of task position.
+        let currentTaskNode = taskGraphStore.updateCurrentNode(
+            worldState: worldState
+        )
+
+        // ── Task-graph substrate: try graph-navigated decision first ──
+        // Expand candidate edges from the current node and evaluate paths.
+        let taskGraphDecision = taskGraphNavigatedDecision(
+            taskNode: currentTaskNode,
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore
+        )
+
         // Deliberate plan comparison:
         // 1. Gather candidates from family planner (workflow, graph, exploration)
         // 2. Gather candidates from reasoning engine
@@ -138,6 +170,7 @@ public final class Planner: @unchecked Sendable {
         return selectBestDecision(
             familyDecision: familyDecision,
             reasoningDecision: reasoning,
+            taskGraphDecision: taskGraphDecision,
             taskContext: taskContext,
             worldState: worldState,
             memoryStore: memoryStore
@@ -147,6 +180,7 @@ public final class Planner: @unchecked Sendable {
     private func selectBestDecision(
         familyDecision: PlannerDecision?,
         reasoningDecision: PlannerDecision?,
+        taskGraphDecision: PlannerDecision? = nil,
         taskContext: TaskContext,
         worldState: WorldState,
         memoryStore: AppMemoryStore
@@ -155,6 +189,16 @@ public final class Planner: @unchecked Sendable {
             for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
         )
         let memoryBias = MemoryScorer.planBias(influence: memoryInfluence)
+
+        // Task-graph navigated decisions get a confidence boost because they
+        // represent path-expanded, evidence-backed selections from the live
+        // graph substrate rather than isolated one-shot decisions.
+        let taskGraphScore = taskGraphDecision.map { decision -> Double in
+            let baseScore = sourceConfidence(decision.source) + memoryBias
+            // Boost for task-graph navigation: the decision was scored via
+            // multi-step path expansion.
+            return baseScore + 0.1
+        }
 
         switch (familyDecision, reasoningDecision) {
         case let (family?, reasoning?):
@@ -165,16 +209,31 @@ public final class Planner: @unchecked Sendable {
             // When reasoning has no plan diagnostics (e.g. no viable plans generated),
             // score defaults to 0 so the family decision is preferred.
             let reasoningScore = reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0
+
+            // If the task-graph path decision outscores both, prefer it.
+            if let tgScore = taskGraphScore, let tgDecision = taskGraphDecision,
+               tgScore >= familyScore && tgScore >= reasoningScore {
+                return tgDecision
+            }
+
             if family.source == .workflow || family.source == .stableGraph {
                 return familyScore >= reasoningScore ? family : reasoning
             }
             return reasoningScore > familyScore ? reasoning : family
         case let (family?, nil):
+            if let tgScore = taskGraphScore, let tgDecision = taskGraphDecision {
+                let familyScore = sourceConfidence(family.source) + memoryBias
+                return tgScore >= familyScore ? tgDecision : family
+            }
             return family
         case let (nil, reasoning?):
+            if let tgScore = taskGraphScore, let tgDecision = taskGraphDecision {
+                let reasoningScore = reasoning.planDiagnostics?.candidatePlans.first?.score ?? 0
+                return tgScore >= reasoningScore ? tgDecision : reasoning
+            }
             return reasoning
         case (nil, nil):
-            return nil
+            return taskGraphDecision
         }
     }
 
@@ -315,6 +374,54 @@ public final class Planner: @unchecked Sendable {
             ] + selectedPlan.reasons,
             planDiagnostics: diagnostics,
             promptDiagnostics: promptDiagnostics
+        )
+    }
+
+    /// Use the task graph as the live planning substrate: expand paths from
+    /// the current node, score them, and return the best edge as a decision.
+    private func taskGraphNavigatedDecision(
+        taskNode: TaskNode,
+        taskContext: TaskContext,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: AppMemoryStore
+    ) -> PlannerDecision? {
+        let graph = taskGraphStore.graph
+        let nodeID = taskNode.id
+        let outgoing = graph.viableEdges(from: nodeID)
+
+        guard !outgoing.isEmpty else { return nil }
+
+        // Expand paths from the current node and score them.
+        let paths = graphNavigator.expand(
+            from: nodeID,
+            in: graph,
+            scorer: graphScorer,
+            goal: currentGoal
+        )
+
+        guard let bestPath = paths.first,
+              let bestEdge = bestPath.edges.first,
+              let contractID = bestEdge.actionContractID else {
+            return nil
+        }
+
+        let actionContract = graphStore.actionContract(for: contractID)
+        guard let actionContract else { return nil }
+
+        return PlannerDecision(
+            agentKind: actionContract.agentKind,
+            plannerFamily: plannerFamily(for: taskContext.agentKind),
+            stepPhase: .operatingSystem,
+            actionContract: actionContract,
+            source: .stableGraph,
+            fallbackReason: "task-graph path expansion selected edge",
+            notes: [
+                "task-graph navigated decision",
+                "path depth: \(bestPath.edges.count)",
+                "path score: \(String(format: "%.3f", bestPath.cumulativeScore))",
+                "terminal state: \(bestPath.terminalState?.rawValue ?? "unknown")",
+            ]
         )
     }
 

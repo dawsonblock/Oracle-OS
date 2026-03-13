@@ -203,4 +203,15 @@ public final class RecoveryPlanner: @unchecked Sendable {
 
         return min(max(probability, 0.05), 0.95)
     }
+
+    /// Graph-based recovery: when an edge fails, re-evaluate alternate
+    /// edges from the same task-graph node instead of using a separate
+    /// recovery channel. This keeps recovery within the graph substrate.
+    public func graphRecoveryEdges(
+        failedEdgeID: String,
+        taskGraphStore: TaskGraphStore
+    ) -> [TaskEdge] {
+        taskGraphStore.recoveryEdges(excludingEdgeID: failedEdgeID)
+            .sorted { $0.successProbability > $1.successProbability }
+    }
 }
