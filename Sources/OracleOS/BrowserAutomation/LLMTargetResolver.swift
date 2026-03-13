@@ -143,6 +143,66 @@ public final class LLMTargetResolver: @unchecked Sendable {
             ))
         }
 
-        return candidates.sorted { $0.confidence > $1.confidence }
+        // Normalize and filter candidates to the provided visible elements.
+        let normalizedVisibleElements: [String] = visibleElements.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        func bestMatchingVisibleElement(for description: String) -> String? {
+            let normalizedDescription = description
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            guard !normalizedDescription.isEmpty else {
+                return nil
+            }
+
+            var bestMatch: String?
+            var bestScore = 0
+
+            for element in normalizedVisibleElements {
+                let normalizedElement = element.lowercased()
+
+                var score = 0
+                if normalizedElement == normalizedDescription {
+                    // Strongest match: exact (case-insensitive).
+                    score = 3
+                } else if normalizedElement.contains(normalizedDescription) || normalizedDescription.contains(normalizedElement) {
+                    // Next best: one string contains the other.
+                    score = 2
+                } else {
+                    // Weak match: any shared word between the two strings.
+                    let descriptionWords = Set(normalizedDescription.split(separator: " "))
+                    let elementWords = Set(normalizedElement.split(separator: " "))
+                    if !descriptionWords.isDisjoint(with: elementWords) {
+                        score = 1
+                    }
+                }
+
+                if score > bestScore {
+                    bestScore = score
+                    bestMatch = element
+                }
+            }
+
+            // Require at least some non-trivial similarity.
+            return bestScore > 0 ? bestMatch : nil
+        }
+
+        let filteredCandidates: [LLMTargetCandidate] = candidates.compactMap { candidate in
+            guard let matchedElement = bestMatchingVisibleElement(for: candidate.elementDescription) else {
+                // Drop candidates that cannot be mapped to any visible element.
+                return nil
+            }
+
+            // Normalize elementDescription to the matched visible element.
+            return LLMTargetCandidate(
+                elementDescription: matchedElement,
+                confidence: candidate.confidence,
+                rationale: candidate.rationale
+            )
+        }
+
+        return filteredCandidates.sorted { $0.confidence > $1.confidence }
     }
 }
