@@ -542,7 +542,7 @@ struct TaskGraphTests {
         let scorer = GraphScorer()
         let paths = navigator.expand(from: nodeA.id, in: graph, scorer: scorer)
 
-        // No path should have more than 2 edges (A->B is fine, but B->A is a cycle)
+        // Cycle detection should prevent A->B->A. Only A->B (1 edge) should be found.
         for path in paths {
             #expect(path.edges.count <= 1)
         }
