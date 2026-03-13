@@ -224,7 +224,9 @@ public final class VerifiedActionExecutor {
         if let taskGraphStore, let currentEdgeID {
             let postWorldState = WorldState(
                 observationHash: postHash,
-                planningState: postPlanningState
+                planningState: postPlanningState,
+                observation: postObservation,
+                repositorySnapshot: postRepositorySnapshot
             )
             if verified {
                 taskGraphStore.recordVerifiedExecution(

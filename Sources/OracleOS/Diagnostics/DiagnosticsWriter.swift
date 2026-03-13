@@ -24,7 +24,7 @@ public struct DiagnosticsWriter: Sendable {
     // MARK: - Planner Paths
 
     /// Diagnostic snapshot of a single candidate path.
-    public struct PathSnapshot: Sendable {
+    public struct PathSnapshot: @unchecked Sendable {
         public let edgeIDs: [String]
         public let actions: [String]
         public let terminalState: String?
