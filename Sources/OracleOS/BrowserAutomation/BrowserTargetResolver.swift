@@ -9,6 +9,9 @@ public struct BrowserTargetScore: Sendable {
     public let textSimilarity: Double
     public let roleMatch: Double
     public let visibilityScore: Double
+    public let spatialProximity: Double
+    public let contextMatch: Double
+    public let historicalSuccess: Double
     public let totalScore: Double
     public let notes: [String]
 
@@ -16,12 +19,23 @@ public struct BrowserTargetScore: Sendable {
         textSimilarity: Double,
         roleMatch: Double,
         visibilityScore: Double,
+        spatialProximity: Double = 0,
+        contextMatch: Double = 0,
+        historicalSuccess: Double = 0,
         notes: [String] = []
     ) {
         self.textSimilarity = textSimilarity
         self.roleMatch = roleMatch
         self.visibilityScore = visibilityScore
-        self.totalScore = 0.50 * textSimilarity + 0.30 * roleMatch + 0.20 * visibilityScore
+        self.spatialProximity = spatialProximity
+        self.contextMatch = contextMatch
+        self.historicalSuccess = historicalSuccess
+        self.totalScore = 0.40 * textSimilarity
+            + 0.25 * roleMatch
+            + 0.15 * visibilityScore
+            + 0.05 * spatialProximity
+            + 0.05 * contextMatch
+            + 0.10 * historicalSuccess
         self.notes = notes
     }
 }
@@ -32,7 +46,8 @@ public enum BrowserTargetResolver {
 
     public static func resolve(
         query: ElementQuery,
-        in snapshot: PageSnapshot
+        in snapshot: PageSnapshot,
+        memoryStore: AppMemoryStore? = nil
     ) throws -> BrowserTargetSelection {
         let matches = BrowserPageQuery.query(snapshot: snapshot, text: query.text, role: query.role)
         guard let best = matches.first else {
@@ -56,9 +71,19 @@ public enum BrowserTargetResolver {
 
     public static func score(
         query: ElementQuery,
-        in snapshot: PageSnapshot
+        in snapshot: PageSnapshot,
+        memoryStore: AppMemoryStore? = nil
     ) -> [BrowserTargetScore] {
         let matches = BrowserPageQuery.query(snapshot: snapshot, text: query.text, role: query.role)
+        let memoryBias = memoryStore.map { store -> Double in
+            MemoryRouter(memoryStore: store).rankingBias(
+                label: query.text,
+                app: query.app,
+                goalDescription: query.text ?? query.role ?? "",
+                repositorySnapshot: nil,
+                planningState: nil
+            )
+        } ?? 0
         return matches.map { match in
             let textSim = match.score
             let roleMatch: Double = query.role != nil && match.element.role == query.role ? 1.0 : 0.5
@@ -70,10 +95,14 @@ public enum BrowserTargetResolver {
             if query.role != nil && match.element.role == query.role {
                 notes.append("exact role match")
             }
+            if memoryBias > 0 {
+                notes.append("memory historical success")
+            }
             return BrowserTargetScore(
                 textSimilarity: textSim,
                 roleMatch: roleMatch,
                 visibilityScore: visibilityScore,
+                historicalSuccess: min(memoryBias, 1.0),
                 notes: notes
             )
         }

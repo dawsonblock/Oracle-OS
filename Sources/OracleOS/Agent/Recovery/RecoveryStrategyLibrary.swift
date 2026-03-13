@@ -91,5 +91,12 @@ public final class RecoveryStrategyLibrary: @unchecked Sendable {
             baseCost: 2.0,
             risk: 0.20
         ),
+        RecoveryStrategyEntry(
+            name: "retry_workflow",
+            applicableFailures: [.workflowReplayFailure, .verificationFailed],
+            description: "Re-parameterize and retry the workflow from the beginning.",
+            baseCost: 0.9,
+            risk: 0.10
+        ),
     ]
 }

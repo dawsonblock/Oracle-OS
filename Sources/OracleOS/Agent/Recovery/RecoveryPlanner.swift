@@ -161,6 +161,18 @@ public final class RecoveryPlanner: @unchecked Sendable {
              .workspaceScopeViolation, .gitPolicyBlocked, .noRelevantFiles,
              .ambiguousEditTarget:
             return []
+
+        case .workflowReplayFailure:
+            var plans: [[Operator]] = []
+            let focusOp = Operator(kind: .focusWindow)
+            if focusOp.precondition(state) {
+                plans.append([focusOp])
+            }
+            let navOp = Operator(kind: .navigateBrowser)
+            if navOp.precondition(state) {
+                plans.append([navOp])
+            }
+            return plans
         }
     }
 
@@ -180,6 +192,8 @@ public final class RecoveryPlanner: @unchecked Sendable {
             probability += state.patchApplied ? 0.2 : 0
         case .testFailed:
             probability += state.repoOpen ? 0.15 : 0
+        case .workflowReplayFailure:
+            probability += state.targetApplication != nil ? 0.15 : 0
         default:
             break
         }

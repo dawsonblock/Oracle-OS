@@ -89,7 +89,8 @@ public final class PlanEvaluator: @unchecked Sendable {
                 projectedState: plan.projectedState,
                 score: score,
                 reasons: reasons,
-                simulatedOutcome: simulatedOutcome
+                simulatedOutcome: simulatedOutcome,
+                sourceType: plan.sourceType
             )
         }
         .sorted { lhs, rhs in

@@ -19,4 +19,5 @@ public enum FailureClass: String, Codable, Sendable {
     case permissionBlocked
     case unexpectedDialog
     case environmentMismatch
+    case workflowReplayFailure
 }
