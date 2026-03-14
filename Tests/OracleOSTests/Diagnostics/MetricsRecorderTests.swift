@@ -65,7 +65,7 @@ struct MetricsRecorderTests {
         let m = recorder.current
         #expect(m.actionSuccessRate > 0.66)
         #expect(m.actionSuccessRate < 0.67)
-        #expect(m.medianTimePerAction == 200)
+        #expect(m.meanTimePerAction == 200)
     }
 
     @Test("Wrong-target rate computes correctly")

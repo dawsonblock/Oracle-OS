@@ -339,6 +339,7 @@ OracleCore
 ├── Core                    (execution, policy, trace, observation, world)
 ├── Runtime                 (agent loop, coordinators)
 ├── Agent                   (planning, recovery, skills)
+├── Search                  (candidate generation, search-centric selection)
 ├── StateAbstraction        (compressed semantic UI state)
 ├── ActionSchema            (typed action schemas)
 ├── Critic                  (self-evaluation loop)
@@ -361,7 +362,7 @@ OracleCore
 ├── Workflows               (reusable action sequences)
 ├── Recipes                 (user-defined task macros)
 ├── MCP                     (Model Context Protocol)
-├── Diagnostics             (runtime debugging)
+├── Diagnostics             (runtime debugging, MetricsRecorder)
 ├── Tools                   (utility functions)
 ├── Strategy                (high-level planning strategies)
 └── Learning                (success probability updates)
@@ -382,15 +383,29 @@ The integrated control loop after the architecture upgrades:
 ```
 observe environment
   → compress state (StateAbstractionEngine)
-  → query state memory for known strategies (StateMemoryIndex)
-  → planner chooses action schema (ActionSchemaLibrary / PlanningGraphEngine)
-  → executor performs action (VerifiedActionExecutor)
-  → critic evaluates result (CriticLoop)
+  → query state memory for known strategies (StateMemoryIndex.likelyActions)
+  → generate candidates: memory → graph → LLM fallback (CandidateGenerator)
+  → execute candidate actions (VerifiedActionExecutor via SearchController)
+  → critic evaluates each result (CriticLoop)
+  → select best verified result (ResultSelector)
   → critic verdict drives graph promotion/demotion (TaskGraphStore)
   → update state memory with outcome (StateMemoryIndex)
+  → record metrics (MetricsRecorder)
   → record step for replay (TraceReplayEngine)
   → repeat
 ```
+
+### Search-Centric Selection
+
+The `SearchController` replaces single-path action selection with
+candidate generation and verified selection:
+
+- `CandidateGenerator` produces candidates in priority order:
+  memory suggestions → graph-valid actions → LLM fallback
+- `SearchController` orchestrates execution of each candidate
+- `ResultSelector` chooses the best verified outcome
+- `MetricsRecorder` tracks action success rates, candidate source
+  distribution, and runtime performance
 
 ## Trust Model
 
@@ -420,6 +435,11 @@ Only reusable knowledge is eligible for canonical long-term storage.
 - architecture review emits governance reports tied to rule IDs
 - CI runs build and test as the minimum repo gate
 - critic verdict drives state memory, planning graph, and task graph updates
+- `SearchController` selects from multiple verified candidates per state
+- `CandidateGenerator` prioritises memory → graph → LLM fallback
+- `PlanningGraphEngine.validActions(for:)` constrains the candidate action space
+- `StateMemoryIndex.likelyActions(for:)` provides memory-driven action ranking
+- `MetricsRecorder` tracks action success, patch rates, and search cycle statistics
 
 ## Known Boundaries
 

@@ -163,11 +163,14 @@ public struct ActionIntent: Sendable, Codable {
     /// Create an ``ActionIntent`` from an ``ActionSchema``.
     ///
     /// Used by the search-centric runtime loop to convert search
-    /// candidates back into executable intents.
-    public static func fromSchema(_ schema: ActionSchema) -> ActionIntent {
+    /// candidates back into executable intents. The `app` field
+    /// defaults to `"unknown"` because schema-level actions do not
+    /// carry app context; the runtime resolves the actual app name
+    /// from the current observation before execution.
+    public static func fromSchema(_ schema: ActionSchema, app: String = "unknown") -> ActionIntent {
         ActionIntent(
             agentKind: schema.kind.isCodeAction ? .code : .os,
-            app: "unknown",
+            app: app,
             name: schema.name,
             action: schema.kind.rawValue,
             query: nil

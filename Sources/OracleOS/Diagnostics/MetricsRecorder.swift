@@ -76,8 +76,8 @@ public struct RuntimeMetrics: Sendable, Codable {
         return Double(patchSuccesses) / Double(patchAttempts)
     }
 
-    /// Median time per action in milliseconds.
-    public var medianTimePerAction: Double {
+    /// Mean time per action in milliseconds.
+    public var meanTimePerAction: Double {
         guard actionsAttempted > 0 else { return 0 }
         return totalElapsedMs / Double(actionsAttempted)
     }
