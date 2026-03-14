@@ -883,7 +883,8 @@ public final class OracleRuntime {
             )
             let elapsedMs = Date().timeIntervalSince(start) * 1000.0
 
-            let postObservation = ObservationBuilder.capture(appName: intent.app)
+            let observationAppName = intent.app == "unknown" ? compressedState.app : intent.app
+            let postObservation = ObservationBuilder.capture(appName: observationAppName)
             let postCompressed = stateAbstractionEngine.compress(postObservation)
             let actionResult = ActionResult(
                 success: toolResult.success,
