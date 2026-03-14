@@ -72,12 +72,6 @@ swift build
 
 ### 🖥️ macOS Operator Agent
 
-- full autonomous long-horizon project execution
-- autonomous refactor control with enforced architectural governance
-- workflow synthesis and promotion from traces
-- neural policies
-- OpenFst planning
-- distributed execution
 Control apps, browsers, windows, and files through safe, verified action paths.
 
 - **AX-first perception** — inspect UI state, capture screenshots and element context
@@ -306,9 +300,9 @@ Oracle OS is on the path from **safe local operator + bounded coding agent** tow
 | 🔄 | Vision as dominant fused perception path |
 | 🔄 | Project-memory promotion workflows |
 | 🔄 | Architecture governance beyond advisory |
-| 🔜 | Full autonomous long-horizon project execution |
+| 🔜 | Long-horizon project execution with eval-backed gating |
 | 🔜 | Workflow synthesis and promotion from traces |
-| 🔜 | Belief-state reasoning and neural policies |
+| 🔜 | Belief-state reasoning and learned policies |
 
 See [STATUS.md](STATUS.md), [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md), and [docs/progress.md](docs/progress.md) for detailed tracking.
 
