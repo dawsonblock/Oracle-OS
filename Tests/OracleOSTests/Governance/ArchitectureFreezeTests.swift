@@ -116,6 +116,29 @@ struct ArchitectureFreezeTests {
         }
     }
 
+    // MARK: - R6: Planning files do not instantiate competing planners
+
+    @Test("Planning files do not instantiate PlanGenerator or PlanEvaluator directly")
+    func plannerFilesDoNotInstantiateCompetingPlanners() throws {
+        let planningDir = sourcesRoot()
+            .appendingPathComponent("Agent")
+            .appendingPathComponent("Planning")
+        let files = try swiftFilesRecursive(in: planningDir)
+
+        for file in files {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            #expect(
+                !content.contains("PlanGenerator("),
+                "Planning file \(filename) must not instantiate PlanGenerator directly; use DecisionCoordinator → Planner"
+            )
+            #expect(
+                !content.contains("PlanEvaluator("),
+                "Planning file \(filename) must not instantiate PlanEvaluator directly"
+            )
+        }
+    }
+
     // MARK: - Protected backbone modules exist
 
     @Test("Protected backbone modules are present in the source tree")

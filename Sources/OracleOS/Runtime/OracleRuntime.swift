@@ -1,5 +1,14 @@
 import Foundation
 
+/// The top-level runtime that orchestrates every environment-mutating action.
+///
+/// Required runtime sequence:
+///
+///     planner proposes → policy authorizes → executor acts → verifier judges
+///     → runtime commits → trace records → recovery reacts
+///
+/// No component may skip a step. The executor is the **sole authority** for
+/// environment mutations; the planner and reasoning layers are read-only.
 @MainActor
 public final class OracleRuntime {
     public let context: RuntimeContext

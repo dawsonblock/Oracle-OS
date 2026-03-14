@@ -1,5 +1,11 @@
 import Foundation
 
+/// **Static support material** — NOT live runtime memory.
+///
+/// `ProjectMemoryStore` persists documentation-like knowledge (patterns,
+/// decisions, risks) that **inform** but do not **drive** runtime decisions.
+/// Runtime components must never instantiate this store directly; they
+/// access memory through `MemoryRouter` instead.
 public final class ProjectMemoryStore: @unchecked Sendable {
     public let projectRootURL: URL
     public let rootURL: URL
