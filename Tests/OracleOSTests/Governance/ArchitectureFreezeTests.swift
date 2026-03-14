@@ -128,6 +128,9 @@ struct ArchitectureFreezeTests {
         for file in files {
             let content = try String(contentsOf: file, encoding: .utf8)
             let filename = file.lastPathComponent
+            // Planner.swift is the canonical planner orchestrator and is
+            // expected to compose PlanEvaluator and PlanGenerator internally.
+            guard filename != "Planner.swift" else { continue }
             #expect(
                 !content.contains("PlanGenerator("),
                 "Planning file \(filename) must not instantiate PlanGenerator directly; use DecisionCoordinator → Planner"

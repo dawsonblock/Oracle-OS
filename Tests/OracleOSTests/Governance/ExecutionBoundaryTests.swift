@@ -77,7 +77,7 @@ struct ExecutionBoundaryTests {
     @Test("VisionPerception does not reference the planner")
     func visionPerceptionDoesNotReferencePlanner() throws {
         let visionURL = sourcesRoot().appendingPathComponent(
-            "Core/Observation/VisionPerception.swift",
+            "Vision/VisionPerception.swift",
             isDirectory: false
         )
         guard FileManager.default.fileExists(atPath: visionURL.path) else { return }
