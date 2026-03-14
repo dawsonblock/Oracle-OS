@@ -295,7 +295,7 @@ public final class VerifiedActionExecutor {
             let actionName = schema?.name ?? intent.action
             let succeeded = criticVerdict.outcome == .success
             stateMemoryIndex.record(
-                state: postCompressed,
+                state: preCompressed,
                 actionName: actionName,
                 success: succeeded
             )
