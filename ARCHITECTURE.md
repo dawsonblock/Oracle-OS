@@ -22,7 +22,7 @@ The system reduces to five dominant layers:
 | Layer | Role |
 |-------|------|
 | **Execution kernel** | Verified interaction with the environment |
-| **Perception** | Reliable, compressed environment state |
+| **Perception** | Reliable, compressed environment state via PerceptionEngine |
 | **Planner** | Goal decomposition and action selection |
 | **Evaluator (Critic)** | Detect failure and drive recovery |
 | **Memory / Graph** | Persistent learning |
@@ -140,8 +140,13 @@ Responsibilities:
 - failure classification
 - transition semantics emission
 - trace event creation
+- stamps `executedThroughExecutor` on every `ActionResult`
+- feeds critic verdict into state memory index
+- feeds critic verdict into planning graph engine
 
 This is the execution truth boundary, not the planner and not the architecture engine.
+Every action must pass through this executor; the runtime asserts
+`executedThroughExecutor == true` on every result to enforce the trust boundary.
 
 ### Critic (Self-Evaluation Loop)
 
@@ -156,13 +161,21 @@ Responsibilities:
 - check expected postconditions from action schemas
 - signal the planner when recovery is needed
 - drive graph edge promotion/demotion via verdict outcome
+- trigger state memory updates based on action outcome
+- trigger planning graph updates to refine candidate ranking
 
 The critic loop is what allows the agent to correct itself. Every action
 step is followed by a critic pass that provides the planner with recovery
 signals when expected state changes do not occur. The critic verdict
-directly influences task graph updates: only critic-confirmed successes
-promote an edge; failures and unknowns record failed executions, reducing
-the edge's success probability and potentially demoting it.
+directly influences:
+
+1. **Task graph**: only critic-confirmed successes promote an edge; failures
+   and unknowns record failed executions, reducing the edge's success
+   probability and potentially demoting it.
+2. **State memory**: the critic outcome is recorded so the planner can
+   consult historical success rates for the current UI state.
+3. **Planning graph**: successful transitions strengthen candidate edges;
+   failures weaken them or create new edges from execution experience.
 
 ### Planning Graph Engine
 
@@ -249,11 +262,11 @@ The planner operates on task graph nodes and edges — not on raw ephemeral
 state alone. Every verified action creates or updates a graph edge, and
 recovery branches through alternate edges rather than side channels.
 
-### Perception and Vision
+### Perception Engine and Vision
 
 Primary files:
 
-- `Sources/OracleOS/Perception/*`
+- `Sources/OracleOS/PerceptionEngine/*`
 - `Sources/OracleOS/Vision/*`
 
 Responsibilities:
@@ -262,6 +275,25 @@ Responsibilities:
 - provide screenshot capture (`ScreenCapture`) for visual grounding
 - bridge to vision sidecar for OCR, object detection, layout analysis
 - bridge to Chrome DevTools Protocol for structured DOM information
+
+The perception pipeline flows:
+  environment → PerceptionEngine → StateAbstractionEngine → planner
+
+Planner must only receive compressed semantic state objects such as
+`Button("Send")`, `Input("Search")`, never raw AX structures.
+
+### Browser Bridge
+
+Primary files:
+
+- `Sources/OracleOS/BrowserAutomation/BrowserBridge.swift`
+
+Responsibilities:
+
+- provide high-level DOM interaction via CSS selectors
+- expose querySelector, getBoundingRect, getText, click, type
+- abstract over CDP transport so callers need no protocol knowledge
+- complement AX-based perception for web content
 
 ### Memory
 
@@ -313,10 +345,10 @@ OracleCore
 ├── PlanningGraph           (deterministic planning graph)
 ├── TraceReplay             (execution replay and divergence detection)
 ├── StateMemory             (compressed state caching and reuse)
-├── Perception              (AX + DOM + vision fusion)
+├── PerceptionEngine        (AX + DOM + vision fusion)
 ├── Vision                  (screen capture, vision sidecar, CDP bridge)
 ├── HostAutomation          (macOS app control)
-├── BrowserAutomation       (browser control)
+├── BrowserAutomation       (browser control, BrowserBridge)
 ├── CodeExecution            (safe command execution)
 ├── CodeIntelligence         (repository indexing)
 ├── Graph                   (long-term knowledge)
@@ -341,6 +373,7 @@ Removed or archived modules:
 - `Simulation` — removed (rarely useful in UI agents)
 - `WorldModel` — merged into `Core/World`
 - `Screenshot` — merged into `Vision`
+- `Perception` — renamed to `PerceptionEngine`
 
 ## Core Control Loop
 
@@ -380,11 +413,13 @@ Only reusable knowledge is eligible for canonical long-term storage.
 ## Current Enforcement
 
 - runtime owns post-execution updates
+- runtime asserts `executedThroughExecutor` on every action result to enforce the trust boundary
 - graph promotion blocks experiment and recovery evidence from stable promotion
 - target-bearing OS skills resolve through ranking
 - project-memory episode residue is kept out of canonical `ProjectMemory/`
 - architecture review emits governance reports tied to rule IDs
 - CI runs build and test as the minimum repo gate
+- critic verdict drives state memory, planning graph, and task graph updates
 
 ## Known Boundaries
 

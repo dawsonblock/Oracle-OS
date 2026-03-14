@@ -297,7 +297,7 @@ public final class VerifiedActionExecutor {
             stateMemoryIndex.record(
                 state: postCompressed,
                 actionName: actionName,
-                succeeded: succeeded
+                success: succeeded
             )
         }
 

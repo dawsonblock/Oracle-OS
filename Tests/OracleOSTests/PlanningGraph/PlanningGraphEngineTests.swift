@@ -168,4 +168,58 @@ struct PlanningGraphEngineTests {
         #expect(states.contains(.idle))
         #expect(states.contains(.repo_loaded))
     }
+
+    // MARK: - recordOutcome by state + schema
+
+    @Test("recordOutcome by state creates new edge when none exists")
+    func recordOutcomeByStateCreatesEdge() {
+        var engine = PlanningGraphEngine()
+        let schema = ActionSchema(name: "run_tests", kind: .runTests)
+        engine.recordOutcome(
+            fromState: "repo_loaded",
+            toState: "tests_running",
+            schema: schema,
+            success: true
+        )
+        let candidates = engine.candidateEdges(from: .repoLoaded)
+        #expect(candidates.count == 1)
+        #expect(candidates.first?.schema.name == "run_tests")
+        #expect(candidates.first?.successes == 1)
+        #expect(candidates.first?.attempts == 1)
+    }
+
+    @Test("recordOutcome by state updates existing edge")
+    func recordOutcomeByStateUpdatesExisting() {
+        var engine = PlanningGraphEngine()
+        let schema = ActionSchema(name: "build", kind: .buildProject)
+        engine.recordOutcome(
+            fromState: "repo_loaded",
+            toState: "build_succeeded",
+            schema: schema,
+            success: true
+        )
+        engine.recordOutcome(
+            fromState: "repo_loaded",
+            toState: "build_succeeded",
+            schema: schema,
+            success: false
+        )
+        let candidates = engine.candidateEdges(from: .repoLoaded)
+        #expect(candidates.count == 1)
+        #expect(candidates.first?.attempts == 2)
+        #expect(candidates.first?.successes == 1)
+    }
+
+    @Test("recordOutcome by state ignores invalid raw values")
+    func recordOutcomeByStateIgnoresInvalid() {
+        var engine = PlanningGraphEngine()
+        let schema = ActionSchema(name: "test", kind: .custom)
+        engine.recordOutcome(
+            fromState: "not_a_real_state",
+            toState: "also_invalid",
+            schema: schema,
+            success: true
+        )
+        #expect(engine.edgeCount == 0)
+    }
 }
