@@ -63,6 +63,12 @@ public struct StateMemoryEntry: Sendable, Codable {
 
 /// Aggregated success/failure counts for one action in one state.
 public struct ActionStats: Sendable, Codable {
+    private enum CodingKeys: String, CodingKey {
+        case actionName
+        case attempts
+        case successes
+    }
+
     /// The action name this statistic tracks.
     public let actionName: String
     public var attempts: Int
@@ -77,6 +83,14 @@ public struct ActionStats: Sendable, Codable {
         self.actionName = actionName
         self.attempts = attempts
         self.successes = successes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // For backward compatibility, default `actionName` when missing.
+        self.actionName = try container.decodeIfPresent(String.self, forKey: .actionName) ?? ""
+        self.attempts = try container.decode(Int.self, forKey: .attempts)
+        self.successes = try container.decode(Int.self, forKey: .successes)
     }
 }
 
