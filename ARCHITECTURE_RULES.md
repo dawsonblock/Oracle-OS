@@ -111,7 +111,7 @@ The planner reads **only** from committed world state
 |-------|-------------|
 | **Observed** | Raw perception data from `ObservationBuilder` |
 | **Predicted** | Simulated by `PlanSimulator` before commitment |
-| **Committed** | `WorldStateModel.current` — the only layer planners read |
+| **Committed** | `WorldStateModel.snapshot` — the only layer planners read |
 
 State advances only through delta-based updates via `apply(diff:)`.
 Raw AX/DOM/filesystem artifacts must not reach the planner directly.
