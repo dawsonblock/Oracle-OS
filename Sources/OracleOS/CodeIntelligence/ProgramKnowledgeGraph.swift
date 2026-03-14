@@ -159,7 +159,7 @@ public struct ProgramKnowledgeGraph: Sendable {
             let allIDs = neighborhood.union([targetID])
             for id in allIDs {
                 guard let node = symbolGraph.node(id: id) else { continue }
-                // Direct targets get the highest score; neighbours are discounted
+                // Direct targets get the highest score; neighbors are discounted
                 // by graph distance.
                 let weight: Double = (id == targetID) ? 1.0 : 0.5
                 candidateFiles[node.file, default: 0] += weight
