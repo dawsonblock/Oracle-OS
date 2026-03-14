@@ -155,10 +155,66 @@ Responsibilities:
 - classify outcome as SUCCESS, PARTIAL_SUCCESS, FAILURE, or UNKNOWN
 - check expected postconditions from action schemas
 - signal the planner when recovery is needed
+- drive graph edge promotion/demotion via verdict outcome
 
 The critic loop is what allows the agent to correct itself. Every action
 step is followed by a critic pass that provides the planner with recovery
-signals when expected state changes do not occur.
+signals when expected state changes do not occur. The critic verdict
+directly influences task graph updates: only critic-confirmed successes
+promote an edge; failures and unknowns record failed executions, reducing
+the edge's success probability and potentially demoting it.
+
+### Planning Graph Engine
+
+Primary files:
+
+- `Sources/OracleOS/PlanningGraph/PlanningGraphEngine.swift`
+
+Responsibilities:
+
+- store allowed state transitions as a finite action graph
+- rank candidate edges by score (success_rate − cost − latency)
+- constrain the planner to emit only edges that appear in the graph
+- prune weak edges that fall below a success threshold
+- record traversal outcomes to update edge statistics
+
+The planner should operate over a finite action graph instead of
+generating arbitrary step sequences. Each edge connects two abstract
+task states via a concrete `ActionSchema`.
+
+### Trace Replay Engine
+
+Primary files:
+
+- `Sources/OracleOS/TraceReplay/TraceReplayEngine.swift`
+
+Responsibilities:
+
+- record execution steps as `ReplayStep` values from critic verdicts
+- collect steps into `ReplayTrace` for an entire session
+- compare expected traces against replayed traces
+- surface divergences for debugging and regression analysis
+
+Deterministic replay makes debugging autonomous behaviour tractable.
+Every step records the pre/post state hash, action name, critic outcome,
+and latency.
+
+### State Memory Index
+
+Primary files:
+
+- `Sources/OracleOS/StateMemory/StateMemoryIndex.swift`
+
+Responsibilities:
+
+- index compressed UI states by signature (app + elements)
+- track action statistics (attempts, successes) per state
+- provide the planner with previously successful strategies
+- evict oldest entries when capacity is exceeded
+
+The state memory index allows the planner to reuse known-good strategies
+when it encounters a familiar compressed state, reducing exploration
+overhead.
 
 ### Graph
 
@@ -254,6 +310,9 @@ OracleCore
 ├── StateAbstraction        (compressed semantic UI state)
 ├── ActionSchema            (typed action schemas)
 ├── Critic                  (self-evaluation loop)
+├── PlanningGraph           (deterministic planning graph)
+├── TraceReplay             (execution replay and divergence detection)
+├── StateMemory             (compressed state caching and reuse)
 ├── Perception              (AX + DOM + vision fusion)
 ├── Vision                  (screen capture, vision sidecar, CDP bridge)
 ├── HostAutomation          (macOS app control)
@@ -290,10 +349,13 @@ The integrated control loop after the architecture upgrades:
 ```
 observe environment
   → compress state (StateAbstractionEngine)
-  → planner chooses action schema (ActionSchemaLibrary)
+  → query state memory for known strategies (StateMemoryIndex)
+  → planner chooses action schema (ActionSchemaLibrary / PlanningGraphEngine)
   → executor performs action (VerifiedActionExecutor)
   → critic evaluates result (CriticLoop)
-  → update graph memory
+  → critic verdict drives graph promotion/demotion (TaskGraphStore)
+  → update state memory with outcome (StateMemoryIndex)
+  → record step for replay (TraceReplayEngine)
   → repeat
 ```
 

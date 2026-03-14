@@ -72,12 +72,6 @@ swift build
 
 ### 🖥️ macOS Operator Agent
 
-- full autonomous long-horizon project execution
-- autonomous refactor control with enforced architectural governance
-- workflow synthesis and promotion from traces
-- neural policies
-- OpenFst planning
-- distributed execution
 Control apps, browsers, windows, and files through safe, verified action paths.
 
 - **AX-first perception** — inspect UI state, capture screenshots and element context
@@ -107,10 +101,13 @@ graph TD
     Runtime --> Loop["Bounded AgentLoop"]
     Loop --> Observation["Observation + Planning State"]
     Loop --> Planner["OS Planner / Code Planner / Mixed Planner"]
+    Planner --> PG["PlanningGraphEngine"]
     Planner --> Skills["OS Skills + Code Skills"]
     Skills --> Exec["VerifiedActionExecutor"]
-    Exec --> Trace["Trace + Artifacts"]
-    Exec --> Graph["SQLite GraphStore"]
+    Exec --> Critic["CriticLoop (verdict)"]
+    Critic --> Graph["SQLite GraphStore + TaskGraph"]
+    Critic --> SM["StateMemoryIndex"]
+    Exec --> Trace["Trace + TraceReplayEngine"]
     Exec --> Memory["App Memory + Code Memory"]
     Planner --> PM["Project Memory"]
     Planner --> Arch["Architecture Engine"]
@@ -249,13 +246,20 @@ Sources/OracleOS/
   Core/
     Observation/                canonical observations and fusion
     PlanningState/              reusable planning state abstraction
-    Execution/                  verified execution boundary
+    Execution/                  verified execution boundary + critic integration
     ExecutionSemantics/         action contracts and verified transitions
     Policy/                     gating and approvals
     Ranking/                    ranked target resolution
     Trace/                      structured traces and artifacts
     World/                      shared world view
+  StateAbstraction/             compressed semantic UI state
+  ActionSchema/                 typed action schemas with pre/postconditions
+  Critic/                       self-evaluation loop (SUCCESS/PARTIAL/FAILURE/UNKNOWN)
+  PlanningGraph/                deterministic planning graph for action selection
+  TraceReplay/                  execution replay and divergence detection
+  StateMemory/                  compressed state caching and reuse
   Graph/                        candidate/stable graph + SQLite persistence
+  TaskGraph/                    runtime task tracking
   CodeExecution/                workspace-scoped command runner
   CodeIntelligence/             repository indexing and structural queries
   Experiments/                  git worktree experiment fanout
@@ -270,7 +274,7 @@ Sources/OracleOS/
 Sources/OracleController/       native local controller UI
 Sources/OracleControllerHost/   local host process for controller
 Tests/OracleOSTests/            unit/runtime contract tests
-Tests/OracleOSEvals/            repeated task eval harness
+Tests/OracleOSEvals/            repeated task eval harness with baseline regression detection
 ```
 
 ## 🔧 Development
@@ -306,9 +310,9 @@ Oracle OS is on the path from **safe local operator + bounded coding agent** tow
 | 🔄 | Vision as dominant fused perception path |
 | 🔄 | Project-memory promotion workflows |
 | 🔄 | Architecture governance beyond advisory |
-| 🔜 | Full autonomous long-horizon project execution |
+| 🔜 | Long-horizon project execution with eval-backed gating |
 | 🔜 | Workflow synthesis and promotion from traces |
-| 🔜 | Belief-state reasoning and neural policies |
+| 🔜 | Belief-state reasoning and learned policies |
 
 See [STATUS.md](STATUS.md), [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md), and [docs/progress.md](docs/progress.md) for detailed tracking.
 

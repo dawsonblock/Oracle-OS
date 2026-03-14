@@ -20,9 +20,10 @@ let package = Package(
         .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
-        // Pin AXorcist to the last Swift 5.9-compatible revision until a tagged release
-        // is available again; newer tagged revisions require newer Swift tools in CI.
-        .package(url: "https://github.com/steipete/AXorcist.git", revision: "a10bbaba1efe73b1e5037eb29f1f07bfd9adc8ef"),
+        // Pin AXorcist to the last working Swift 5.9-compatible revision.
+        // Revision a10bbab introduced a broken formatDebugLogMessage reference;
+        // cf1d7e3 is the commit immediately before that and compiles cleanly.
+        .package(url: "https://github.com/steipete/AXorcist.git", revision: "cf1d7e372a625f4ffabdb938ca3028ae9b8ca7f7"),
     ],
     targets: [
         .target(
