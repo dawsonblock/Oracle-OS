@@ -20,6 +20,8 @@ public final class RuntimeContext {
     public let automationHost: AutomationHost
     public let browserController: BrowserController
     public let browserPageStateBuilder: BrowserPageStateBuilder
+    public let stateMemoryIndex: StateMemoryIndex
+    public let planningGraphStore: PlanningGraphStore
 
     public init(
         config: RuntimeConfig = .live(),
@@ -39,7 +41,9 @@ public final class RuntimeContext {
         experimentManager: ExperimentManager = ExperimentManager(),
         automationHost: AutomationHost = .live(),
         browserController: BrowserController = BrowserController(),
-        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder()
+        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
+        stateMemoryIndex: StateMemoryIndex = StateMemoryIndex(),
+        planningGraphStore: PlanningGraphStore = PlanningGraphStore()
     ) {
         self.config = config
         self.traceRecorder = traceRecorder
@@ -59,6 +63,8 @@ public final class RuntimeContext {
         self.automationHost = automationHost
         self.browserController = browserController
         self.browserPageStateBuilder = browserPageStateBuilder
+        self.stateMemoryIndex = stateMemoryIndex
+        self.planningGraphStore = planningGraphStore
     }
 
     public static func live(
@@ -71,14 +77,14 @@ public final class RuntimeContext {
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
         let graphStore = GraphStore()
         let stateMemoryIndex = StateMemoryIndex()
-        let planningGraphEngine = PlanningGraphEngine()
+        let planningGraphStore = PlanningGraphStore()
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter,
             graphStore: graphStore,
             stateMemoryIndex: stateMemoryIndex,
-            planningGraphEngine: planningGraphEngine
+            planningGraphStore: planningGraphStore
         )
 
         return RuntimeContext(
@@ -97,7 +103,9 @@ public final class RuntimeContext {
             experimentManager: ExperimentManager(),
             automationHost: .live(),
             browserController: BrowserController(),
-            browserPageStateBuilder: BrowserPageStateBuilder()
+            browserPageStateBuilder: BrowserPageStateBuilder(),
+            stateMemoryIndex: stateMemoryIndex,
+            planningGraphStore: planningGraphStore
         )
     }
 }

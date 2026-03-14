@@ -798,7 +798,9 @@ public final class OracleRuntime {
             graphStore: context.graphStore,
             policyEngine: context.policyEngine,
             recoveryEngine: context.recoveryEngine,
-            memoryStore: context.memoryStore
+            memoryStore: context.memoryStore,
+            stateMemoryIndex: context.stateMemoryIndex,
+            planningGraphStore: context.planningGraphStore
         )
         return await loop.run(goal: goal, budget: budget, surface: surface)
     }

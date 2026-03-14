@@ -12,7 +12,7 @@ public final class VerifiedActionExecutor {
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskGraphStore?
     private let stateMemoryIndex: StateMemoryIndex?
-    private var planningGraphEngine: PlanningGraphEngine?
+    private let planningGraphStore: PlanningGraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -25,7 +25,7 @@ public final class VerifiedActionExecutor {
         graphStore: GraphStore? = nil,
         taskGraphStore: TaskGraphStore? = nil,
         stateMemoryIndex: StateMemoryIndex? = nil,
-        planningGraphEngine: PlanningGraphEngine? = nil
+        planningGraphStore: PlanningGraphStore? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -37,7 +37,7 @@ public final class VerifiedActionExecutor {
         self.graphStore = graphStore
         self.taskGraphStore = taskGraphStore
         self.stateMemoryIndex = stateMemoryIndex
-        self.planningGraphEngine = planningGraphEngine
+        self.planningGraphStore = planningGraphStore
     }
 
     public func run(
@@ -304,15 +304,15 @@ public final class VerifiedActionExecutor {
         // --- Critic-driven planning graph update ---
         // Feed verified outcomes back into the planning graph so candidate
         // ranking reflects real execution results.
-        if let schema {
+        if let planningGraphStore, let schema {
             let preID = prePlanningState.id.rawValue
             let postID = postPlanningState.id.rawValue
-            planningGraphEngine?.recordOutcome(
+            planningGraphStore.recordOutcome(
                 fromState: preID,
                 toState: postID,
                 schema: schema,
                 success: criticVerdict.outcome == .success,
-                latencyMs: Int(elapsedMs.rounded())
+                latencyMs: elapsedMs
             )
         }
 
