@@ -57,7 +57,7 @@ public enum MCPDispatch {
 
     /// Screenshot handler returns MCP image content type for inline display.
     private static func handleScreenshot(_ args: [String: Any]) -> [String: Any] {
-        let result = Perception.screenshot(
+        let result = PerceptionEngine.screenshot(
             appName: str(args, "app"),
             fullResolution: bool(args, "full_resolution") ?? false
         )
@@ -100,13 +100,13 @@ public enum MCPDispatch {
 
         // Perception
         case "oracle_context":
-            return Perception.getContext(appName: str(args, "app"))
+            return PerceptionEngine.getContext(appName: str(args, "app"))
 
         case "oracle_state":
-            return Perception.getState(appName: str(args, "app"))
+            return PerceptionEngine.getState(appName: str(args, "app"))
 
         case "oracle_find":
-            return Perception.findElements(
+            return PerceptionEngine.findElements(
                 query: str(args, "query"),
                 role: str(args, "role"),
                 domId: str(args, "dom_id"),
@@ -117,7 +117,7 @@ public enum MCPDispatch {
             )
 
         case "oracle_read":
-            return Perception.readContent(
+            return PerceptionEngine.readContent(
                 appName: str(args, "app"),
                 query: str(args, "query"),
                 depth: int(args, "depth")
@@ -127,7 +127,7 @@ public enum MCPDispatch {
             guard let query = str(args, "query") else {
                 return ToolResult(success: false, error: "Missing required parameter: query")
             }
-            return Perception.inspect(
+            return PerceptionEngine.inspect(
                 query: query,
                 role: str(args, "role"),
                 domId: str(args, "dom_id"),
@@ -138,10 +138,10 @@ public enum MCPDispatch {
             guard let x = double(args, "x"), let y = double(args, "y") else {
                 return ToolResult(success: false, error: "Missing required parameters: x, y")
             }
-            return Perception.elementAt(x: x, y: y)
+            return PerceptionEngine.elementAt(x: x, y: y)
 
         case "oracle_screenshot":
-            return Perception.screenshot(
+            return PerceptionEngine.screenshot(
                 appName: str(args, "app"),
                 fullResolution: bool(args, "full_resolution") ?? false
             )

@@ -1,4 +1,4 @@
-// Perception.swift - All perception functions for Oracle OS v2
+// PerceptionEngine.swift - All perception functions for Oracle OS v2
 //
 // Maps to MCP tools: oracle_context, oracle_state, oracle_find, oracle_read,
 // oracle_inspect, oracle_element_at, oracle_screenshot
@@ -10,9 +10,13 @@ import AppKit
 import AXorcist
 import Foundation
 
-/// Perception module: reading the screen state for the agent.
+/// Perception engine: reading the screen state for the agent.
+///
+/// Formerly `Perception`. Renamed to `PerceptionEngine` to align with
+/// the canonical perception pipeline:
+///   environment → perception → semantic state → planner
 @MainActor
-public enum Perception {
+public enum PerceptionEngine {
 
     /// Set a per-element AX messaging timeout before deep tree walks.
     /// Chrome/Electron apps can hang on AX calls for specific elements.

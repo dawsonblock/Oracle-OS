@@ -153,6 +153,51 @@ public struct PlanningGraphEngine: Sendable {
         }
     }
 
+    /// Record a traversal outcome by source state, destination state, and schema.
+    ///
+    /// If an edge matching `fromState`/`toState`/`schema.name` exists it is
+    /// updated. Otherwise a new edge is added so the planning graph grows
+    /// organically from execution experience.
+    public mutating func recordOutcome(
+        fromState: String,
+        toState: String,
+        schema: ActionSchema,
+        success: Bool,
+        latencyMs: Double = 0
+    ) {
+        guard let fromAbstract = AbstractTaskState(rawValue: fromState),
+              let toAbstract = AbstractTaskState(rawValue: toState)
+        else { return }
+
+        // Try to find an existing edge for this transition.
+        if let idx = edgesBySource[fromAbstract]?.firstIndex(where: {
+            $0.toState == toAbstract && $0.schema.name == schema.name
+        }) {
+            if success {
+                edgesBySource[fromAbstract]![idx].recordSuccess(latencyMs: latencyMs)
+            } else {
+                edgesBySource[fromAbstract]![idx].recordFailure(latencyMs: latencyMs)
+            }
+            return
+        }
+
+        // No existing edge — create one seeded with the outcome, then update with latency.
+        var edge = PlanningEdge(
+            fromState: fromAbstract,
+            toState: toAbstract,
+            schema: schema,
+            successRate: 0.0,
+            attempts: 0,
+            successes: 0
+        )
+        if success {
+            edge.recordSuccess(latencyMs: latencyMs)
+        } else {
+            edge.recordFailure(latencyMs: latencyMs)
+        }
+        addEdge(edge)
+    }
+
     /// Remove edges whose success rate has dropped below a threshold
     /// and that have been attempted at least `minAttempts` times.
     public mutating func pruneWeakEdges(

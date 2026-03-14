@@ -28,7 +28,9 @@ public final class AgentLoop {
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         experimentManager: ExperimentManager = ExperimentManager(),
         automationHost: AutomationHost = .live(),
-        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder()
+        browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
+        stateMemoryIndex: StateMemoryIndex? = nil,
+        planningGraphStore: PlanningGraphStore? = nil
     ) {
         self.planner = planner
         self.graphStore = graphStore
@@ -50,7 +52,9 @@ public final class AgentLoop {
         self.decisionCoordinator = DecisionCoordinator(
             planner: planner,
             graphStore: graphStore,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            stateMemoryIndex: stateMemoryIndex,
+            planningGraphStore: planningGraphStore
         )
         self.executionCoordinator = ExecutionCoordinator(
             executionDriver: executionDriver,

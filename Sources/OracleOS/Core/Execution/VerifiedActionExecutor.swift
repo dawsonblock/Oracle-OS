@@ -11,6 +11,8 @@ public final class VerifiedActionExecutor {
     private let artifactWriter: FailureArtifactWriter?
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskGraphStore?
+    private let stateMemoryIndex: StateMemoryIndex?
+    private let planningGraphStore: PlanningGraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -21,7 +23,9 @@ public final class VerifiedActionExecutor {
         traceStore: TraceStore? = nil,
         artifactWriter: FailureArtifactWriter? = nil,
         graphStore: GraphStore? = nil,
-        taskGraphStore: TaskGraphStore? = nil
+        taskGraphStore: TaskGraphStore? = nil,
+        stateMemoryIndex: StateMemoryIndex? = nil,
+        planningGraphStore: PlanningGraphStore? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -32,6 +36,8 @@ public final class VerifiedActionExecutor {
         self.artifactWriter = artifactWriter
         self.graphStore = graphStore
         self.taskGraphStore = taskGraphStore
+        self.stateMemoryIndex = stateMemoryIndex
+        self.planningGraphStore = planningGraphStore
     }
 
     public func run(
@@ -153,7 +159,8 @@ public final class VerifiedActionExecutor {
             approvalStatus: approvalOutcome,
             surface: surface.rawValue,
             appProtectionProfile: policyDecision?.appProtectionProfile.rawValue,
-            blockedByPolicy: policyDecision?.blockedByPolicy ?? false
+            blockedByPolicy: policyDecision?.blockedByPolicy ?? false,
+            executedThroughExecutor: true
         )
 
         // --- Critic evaluation ---
@@ -279,6 +286,34 @@ public final class VerifiedActionExecutor {
                     cost: 0
                 )
             }
+        }
+
+        // --- Critic-driven state memory update ---
+        // Record the action outcome in state memory so the planner can
+        // consult historical success rates for the current state.
+        if let stateMemoryIndex {
+            let actionName = schema?.name ?? intent.action
+            let succeeded = criticVerdict.outcome == .success
+            stateMemoryIndex.record(
+                state: preCompressed,
+                actionName: actionName,
+                success: succeeded
+            )
+        }
+
+        // --- Critic-driven planning graph update ---
+        // Feed verified outcomes back into the planning graph so candidate
+        // ranking reflects real execution results.
+        if let planningGraphStore, let schema {
+            let preID = prePlanningState.id.rawValue
+            let postID = postPlanningState.id.rawValue
+            planningGraphStore.recordOutcome(
+                fromState: preID,
+                toState: postID,
+                schema: schema,
+                success: criticVerdict.outcome == .success,
+                latencyMs: elapsedMs
+            )
         }
 
         var data = raw.data ?? [:]

@@ -394,7 +394,7 @@ final class ControllerRuntimeBridge {
     }
 
     private func screenshotFrame(appName: String?) -> ScreenshotFrame? {
-        let result = Perception.screenshot(appName: appName, fullResolution: false)
+        let result = PerceptionEngine.screenshot(appName: appName, fullResolution: false)
         guard result.success,
               let data = result.data,
               let base64 = data["image"] as? String,

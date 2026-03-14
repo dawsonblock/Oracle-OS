@@ -59,7 +59,7 @@ public final class FailureArtifactWriter {
         appName: String?
     ) -> String? {
         let fileURL = artifactURL(sessionID: sessionID, stepID: stepID, name: "screenshot", ext: "png")
-        let result = Perception.screenshot(appName: appName, fullResolution: false)
+        let result = PerceptionEngine.screenshot(appName: appName, fullResolution: false)
 
         guard result.success,
               let data = result.data,

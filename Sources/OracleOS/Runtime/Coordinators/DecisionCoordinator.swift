@@ -9,6 +9,8 @@ public final class DecisionCoordinator {
     private let memoryStore: AppMemoryStore
     private let strategySelector: StrategySelector
     private let strategyEvaluator: StrategyEvaluator
+    private let stateMemoryIndex: StateMemoryIndex?
+    private let planningGraphStore: PlanningGraphStore?
 
     /// The currently active strategy. Persists across steps to prevent thrashing.
     private var activeStrategy: SelectedStrategy?
@@ -18,13 +20,17 @@ public final class DecisionCoordinator {
         graphStore: GraphStore = GraphStore(),
         memoryStore: AppMemoryStore = AppMemoryStore(),
         strategySelector: StrategySelector = StrategySelector(),
-        strategyEvaluator: StrategyEvaluator = StrategyEvaluator()
+        strategyEvaluator: StrategyEvaluator = StrategyEvaluator(),
+        stateMemoryIndex: StateMemoryIndex? = nil,
+        planningGraphStore: PlanningGraphStore? = nil
     ) {
         self.planner = planner
         self.graphStore = graphStore
         self.memoryStore = memoryStore
         self.strategySelector = strategySelector
         self.strategyEvaluator = strategyEvaluator
+        self.stateMemoryIndex = stateMemoryIndex
+        self.planningGraphStore = planningGraphStore
     }
 
     public func setGoal(_ goal: Goal) {
