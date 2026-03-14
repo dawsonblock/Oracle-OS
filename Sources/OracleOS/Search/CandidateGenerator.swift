@@ -60,13 +60,26 @@ public final class CandidateGenerator {
 
     // MARK: - Private
 
+    /// Attempt to infer the original `ActionSchemaKind` from a stored action name.
+    /// This assumes that the prefix before the first underscore corresponds
+    /// to the `rawValue` of `ActionSchemaKind` (e.g., "click_Save" -> "click").
+    /// If inference fails, `.custom` is used as a safe fallback.
+    private func inferKind(for actionName: String) -> ActionSchemaKind {
+        // Extract prefix before first underscore, if any.
+        let components = actionName.split(separator: "_", maxSplits: 1)
+        guard let prefix = components.first else {
+            return .custom
+        }
+        return ActionSchemaKind(rawValue: String(prefix)) ?? .custom
+    }
+
     private func memoryCandidates(for state: CompressedUIState) -> [Candidate] {
         let stats = stateMemoryIndex.likelyActions(for: state)
         return stats.compactMap { stat in
             guard !stat.actionName.isEmpty else { return nil }
             return Candidate(
                 hypothesis: "Historically successful (\(Int(stat.successRate * 100))% rate over \(stat.attempts) attempts)",
-                schema: ActionSchema(name: stat.actionName, kind: .custom),
+                schema: ActionSchema(name: stat.actionName, kind: inferKind(for: stat.actionName)),
                 source: .memory
             )
         }
