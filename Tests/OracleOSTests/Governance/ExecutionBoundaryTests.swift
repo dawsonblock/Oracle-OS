@@ -46,6 +46,22 @@ struct ExecutionBoundaryTests {
                 !content.contains("FileManager.default.createFile"),
                 "Reasoning file \(filename) must not write files directly"
             )
+            #expect(
+                !content.contains("write(to:"),
+                "Reasoning file \(filename) must not write files directly"
+            )
+            #expect(
+                !content.contains("write(toFile:"),
+                "Reasoning file \(filename) must not write files directly"
+            )
+            #expect(
+                !content.contains("FileHandle("),
+                "Reasoning file \(filename) must not use FileHandle to write files directly"
+            )
+            #expect(
+                !content.contains("FileHandle."),
+                "Reasoning file \(filename) must not use FileHandle to write files directly"
+            )
         }
     }
 
