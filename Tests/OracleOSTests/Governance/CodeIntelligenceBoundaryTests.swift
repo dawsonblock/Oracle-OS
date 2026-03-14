@@ -116,22 +116,4 @@ struct CodeIntelligenceBoundaryTests {
         }
     }
 
-    private func repositoryRoot() -> URL {
-        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let fileManager = FileManager.default
-
-        while true {
-            let packageManifestURL = url.appendingPathComponent("Package.swift")
-            if fileManager.fileExists(atPath: packageManifestURL.path) {
-                return url
-            }
-
-            let parent = url.deletingLastPathComponent()
-            if parent.path == url.path {
-                return url
-            }
-
-            url = parent
-        }
-    }
 }
