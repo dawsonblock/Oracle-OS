@@ -22,10 +22,10 @@ struct MemoryBoundaryTests {
         }
     }
 
-    // MARK: - Runtime files use MemoryRouter, not raw memory stores
+    // MARK: - Runtime files do not directly instantiate raw memory stores
 
-    @Test("Runtime files do not directly instantiate PatternMemoryStore or ExecutionMemoryStore")
-    func runtimeUsesMemoryRouter() throws {
+    @Test("Runtime files do not directly instantiate raw memory stores")
+    func runtimeDoesNotInstantiateRawMemoryStores() throws {
         let runtimeDir = sourcesRoot().appendingPathComponent("Runtime")
         let files = try swiftFilesRecursive(in: runtimeDir)
 
