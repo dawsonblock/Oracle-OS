@@ -304,10 +304,10 @@ public final class VerifiedActionExecutor {
         // --- Critic-driven planning graph update ---
         // Feed verified outcomes back into the planning graph so candidate
         // ranking reflects real execution results.
-        if let planningGraphEngine, let schema {
+        if let schema {
             let preID = prePlanningState.id.rawValue
             let postID = postPlanningState.id.rawValue
-            planningGraphEngine.recordOutcome(
+            planningGraphEngine?.recordOutcome(
                 fromState: preID,
                 toState: postID,
                 schema: schema,
