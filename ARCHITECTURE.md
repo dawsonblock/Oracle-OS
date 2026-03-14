@@ -63,6 +63,39 @@ Responsibilities:
 - abstract raw state into reusable planning state
 - maintain world state model, state diffs, and state updates
 
+### Observation Change Detector
+
+Primary files:
+
+- `Sources/OracleOS/Core/Observation/ObservationChangeDetector.swift`
+- `Sources/OracleOS/Core/Observation/ObservationDelta.swift`
+
+Responsibilities:
+
+- detect fine-grained element-level changes between consecutive observations
+- produce ``ObservationDelta`` describing added, removed, and mutated elements
+- enable delta-driven world model updates instead of full rebuilds
+- reduce observation processing cost during long autonomous sessions
+
+Pipeline:
+
+```
+previous observation
+↓
+ObservationChangeDetector.detect(previous:incoming:)
+↓
+ObservationDelta
+↓
+StateDiffEngine (includes delta when previous observation available)
+↓
+WorldStateModel.apply(diff:)
+```
+
+By capturing only what changed at the element level, downstream consumers
+skip re-processing thousands of unchanged elements each loop iteration.
+During long runs with mostly stable UI this can reduce observation cost by
+an order of magnitude.
+
 ### State Abstraction Engine
 
 Primary files:
@@ -332,6 +365,38 @@ Responsibilities:
 - detect boundary drift and coverage gaps
 - stay advisory-first except where governance tests hard-fail
 
+### Program Knowledge Graph
+
+Primary files:
+
+- `Sources/OracleOS/CodeIntelligence/ProgramKnowledgeGraph.swift`
+
+Responsibilities:
+
+- provide a unified query interface over all code-intelligence graphs
+  (``SymbolGraph``, ``CallGraph``, ``TestGraph``, ``BuildGraph``, ``DependencyGraph``)
+- enable program-structure-aware reasoning for the planner
+- trace test failures through the call graph to locate root-cause source files
+- compute change impact (affected tests, dependent files, blast radius)
+- expose call-graph neighborhood expansion for fault localisation
+
+Pipeline position:
+
+```
+filesystem observation
+↓
+RepositoryIndexer
+↓
+ProgramKnowledgeGraph
+↓
+planner
+```
+
+The planner should reason about program structure (symbols, call edges,
+test coverage, dependencies) rather than treating a codebase as flat files.
+This layer sits between filesystem observation and planning to provide
+the structural understanding required for autonomous software engineering.
+
 ## Module Layout
 
 ```
@@ -351,7 +416,7 @@ OracleCore
 ├── HostAutomation          (macOS app control)
 ├── BrowserAutomation       (browser control, BrowserBridge)
 ├── CodeExecution            (safe command execution)
-├── CodeIntelligence         (repository indexing)
+├── CodeIntelligence         (repository indexing, ProgramKnowledgeGraph)
 ├── Graph                   (long-term knowledge)
 ├── TaskGraph               (runtime task tracking)
 ├── Memory                  (session memory)
@@ -382,6 +447,9 @@ The integrated control loop after the architecture upgrades:
 
 ```
 observe environment
+  → detect observation delta (ObservationChangeDetector)
+  → compute state diff with element-level delta (StateDiffEngine)
+  → apply incremental world model update (WorldStateModel.apply)
   → compress state (StateAbstractionEngine)
   → query state memory for known strategies (StateMemoryIndex.likelyActions)
   → generate candidates: memory → graph → LLM fallback (CandidateGenerator)
@@ -394,6 +462,12 @@ observe environment
   → record step for replay (TraceReplayEngine)
   → repeat
 ```
+
+When a previous observation is available, the pipeline uses
+`ObservationChangeDetector` to produce a fine-grained `ObservationDelta`
+that tracks added, removed, and mutated elements.  `StateDiffEngine` now
+includes this delta so `WorldStateModel` can patch only the pieces that
+changed rather than rebuilding the entire world model from scratch.
 
 ### Search-Centric Selection
 
