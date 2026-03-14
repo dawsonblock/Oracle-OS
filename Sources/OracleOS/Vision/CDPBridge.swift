@@ -450,7 +450,10 @@ public enum CDPBridge {
         let waitResult = semaphore.wait(timeout: .now() + wsTimeout)
         wsTask.cancel(with: .goingAway, reason: nil)
 
-        if waitResult == .timedOut { return nil }
+        if waitResult == .timedOut {
+            fputs("CDPBridge.evaluateJSRaw: WebSocket command timed out after \(wsTimeout)s\n", stderr)
+            return nil
+        }
         return box.result
     }
 
