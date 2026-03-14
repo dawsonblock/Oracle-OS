@@ -1,11 +1,11 @@
 // ResultSelector.swift — Chooses the best verified candidate result.
 //
 // After all candidates have been executed and verified, the selector
-// picks the winner. Selection criteria:
-//   1. Only successful results are considered.
-//   2. Among successes, highest score wins.
-//   3. Ties broken by lowest latency.
-//   4. If no successful result exists, the best partial result is returned.
+// picks the winner. Selection criteria (in priority order):
+//   1. Prefer fully successful results over all others.
+//   2. If no successful result exists, prefer partial successes over failures.
+//   3. If only failures exist, choose among those.
+//   4. Within the chosen group, highest score wins; ties are broken by lowest latency.
 
 import Foundation
 
