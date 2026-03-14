@@ -7,7 +7,7 @@
 // execution layers consume:
 //
 //   querySelector    — find element by CSS selector
-//   getBoundingRect  — element geometry in screen coordinates
+//   getBoundingRect  — element geometry in viewport coordinates
 //   getText          — read text content from the page
 //   click            — click an element by selector
 //   type             — type text into an element by selector
