@@ -1,5 +1,17 @@
 import Foundation
 
+/// A single trace event capturing one verified execution step.
+///
+/// Trace events store **verified deltas** — action proposals, authorized
+/// actions, executor results, verification outcomes, and committed state
+/// deltas.  Large raw observations (full AX trees, DOM snapshots, filesystem
+/// dumps) are excluded from normal traces and stored only in debug mode.
+///
+/// Fields retained in normal traces:
+/// - action proposal and authorization
+/// - executor result and verification status
+/// - committed state delta (observation hashes, planning state IDs)
+/// - timestamps and action-specific evidence
 public struct TraceEvent: Codable, Sendable {
     public let schemaVersion: Int
     public let sessionID: String

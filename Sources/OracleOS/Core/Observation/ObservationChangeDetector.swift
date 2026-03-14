@@ -99,6 +99,20 @@ public enum ObservationChangeDetector {
         )
     }
 
+    // MARK: - Volatile property filtering
+
+    /// Properties that change frequently but do not affect planning decisions.
+    /// These are excluded from change detection to reduce noise.
+    public static let volatileProperties: Set<ObservationDelta.ElementProperty> = [.frame, .confidence]
+
+    /// Compare two elements, ignoring volatile properties that don't affect planning.
+    public static func diffPlanningProperties(
+        old: UnifiedElement,
+        new: UnifiedElement
+    ) -> Set<ObservationDelta.ElementProperty> {
+        diffProperties(old: old, new: new).subtracting(volatileProperties)
+    }
+
     // MARK: - Internal helpers
 
     /// Compare two elements with the same ID and return which properties differ.

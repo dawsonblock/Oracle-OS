@@ -1,5 +1,14 @@
 import Foundation
 
+/// The sole planner façade for the runtime loop.
+///
+/// `DecisionCoordinator` is the **only** path from runtime into the planning
+/// subsystem.  It routes each decision through strategy selection
+/// (``StrategySelector``/``StrategyEvaluator``) and planner evaluation
+/// (``Planner``), then hardens the result before returning it to the loop.
+///
+/// - Important: This coordinator **plans** but never **executes**.  Action
+///   execution is the responsibility of `VerifiedActionExecutor`.
 @MainActor
 public final class DecisionCoordinator {
     private static let defaultExplorationFallbackReason = "planner returned bounded exploration after stronger workflow and graph options were unavailable"

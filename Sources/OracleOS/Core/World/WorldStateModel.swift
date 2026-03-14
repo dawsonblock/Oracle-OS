@@ -9,6 +9,17 @@ import Foundation
 ///
 /// By maintaining a stable representation the planner reasons over richer
 /// context and can simulate future states before committing to actions.
+///
+/// ## State Layers
+///
+/// The world model conceptually operates across three layers:
+///
+/// 1. **Observed state** — raw perception data produced by
+///    ``ObservationBuilder`` each loop tick.
+/// 2. **Predicted state** — a simulated projection computed by
+///    ``PlanSimulator`` *before* committing an action.
+/// 3. **Committed world state** — the model's ``snapshot``, the **ONLY**
+///    layer that planners should read from when making decisions.
 public final class WorldStateModel: @unchecked Sendable {
     private let lock = NSLock()
     private var current: WorldModelSnapshot
@@ -20,7 +31,9 @@ public final class WorldStateModel: @unchecked Sendable {
         self.maxHistory = maxHistory
     }
 
-    /// The most recent consolidated snapshot of the world.
+    /// The committed world state — the **authoritative** snapshot that planners read.
+    ///
+    /// This is the only layer that downstream decision-making should depend on.
     public var snapshot: WorldModelSnapshot {
         lock.lock()
         defer { lock.unlock() }
@@ -28,6 +41,10 @@ public final class WorldStateModel: @unchecked Sendable {
     }
 
     /// Apply a diff produced by ``StateDiffEngine`` to advance the model.
+    ///
+    /// This is the **only** sanctioned path for incremental state advancement.
+    /// All world-model mutations flow through delta-based diffs so that history
+    /// is preserved and change auditing remains possible.
     public func apply(diff: StateDiff) {
         lock.lock()
         defer { lock.unlock() }

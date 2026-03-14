@@ -1,5 +1,15 @@
 import Foundation
 
+/// Conservative promotion policy for workflows.
+///
+/// Requires **repeated critic-confirmed success** across distinct episodes
+/// before promoting a workflow.  This prevents weak or noisy evidence from
+/// destabilizing the planner.
+///
+/// Disabled by design:
+/// - Auto workflow rewrite from single episodes
+/// - Recipe mutation from sparse evidence
+/// - Planner policy mutation from unvalidated traces
 public struct WorkflowPromotionPolicy: Sendable {
     public let minimumTraceSegmentCount: Int
     public let minimumSuccessRate: Double

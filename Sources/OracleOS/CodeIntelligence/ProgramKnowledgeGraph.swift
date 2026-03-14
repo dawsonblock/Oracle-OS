@@ -18,6 +18,14 @@ import Foundation
 /// compose primitives from multiple graphs, giving the planner
 /// program-structure-aware reasoning without exposing raw graph details.
 ///
+/// ``ProgramKnowledgeGraph`` is the **canonical code model**.  All structural
+/// code-intelligence graphs (``SymbolGraph``, ``CallGraph``, ``TestGraph``,
+/// ``BuildGraph``, ``DependencyGraph``) are **views** over this single model.
+///
+/// Consumers should query code structure through this type rather than
+/// accessing individual graphs directly.  This ensures stable identity for
+/// files, modules, classes, functions, and tests across the codebase.
+///
 /// Pipeline position:
 ///
 ///     filesystem observation

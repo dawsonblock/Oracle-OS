@@ -116,6 +116,19 @@ struct KnowledgePromotionTests {
         #expect(!policy.shouldPromote(singleEpisodePlan))
     }
 
+    @Test("Sparse evidence does not promote workflows")
+    func sparseEvidenceDoesNotPromote() {
+        let policy = WorkflowPromotionPolicy()
+        // 2 attempts, both successful, but only 2 segments — below threshold
+        let plan = makeWorkflowPlan(
+            successRate: 1.0,
+            segmentCount: 2,
+            replayValidation: 1.0,
+            sourceTraceRefs: ["s1:t1:0", "s2:t2:0"]
+        )
+        #expect(!policy.shouldPromote(plan), "Sparse evidence (only 2 segments) should not promote")
+    }
+
     @Test("Workflows require distinct episodes for promotion")
     func workflowsRequireDistinctEpisodes() {
         let policy = WorkflowPromotionPolicy()

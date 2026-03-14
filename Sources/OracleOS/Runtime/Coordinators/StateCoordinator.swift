@@ -1,5 +1,13 @@
 import Foundation
 
+/// Builds loop state from observations and manages the world-model subsystem.
+///
+/// `StateCoordinator` owns the observation → state-abstraction → task-graph
+/// pipeline.  It pulls fresh observations, derives the current ``WorldState``,
+/// and assembles the ``LoopStateBundle`` that downstream coordinators consume.
+///
+/// - Note: This coordinator does **not** record outcomes into memory stores;
+///   that responsibility belongs to ``LearningCoordinator``.
 @MainActor
 public final class StateCoordinator {
     private let observationProvider: any ObservationProvider

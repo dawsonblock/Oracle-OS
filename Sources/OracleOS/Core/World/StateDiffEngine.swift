@@ -2,6 +2,16 @@ import Foundation
 
 /// Computes the difference between two world states so the ``WorldStateModel``
 /// can be updated incrementally instead of replaced wholesale.
+///
+/// `StateDiffEngine` is the **mandatory intermediary** for all world-state
+/// updates.  Every mutation to the committed world model must be expressed as
+/// a ``StateDiff`` produced by this engine, ensuring a consistent audit trail
+/// and enabling downstream consumers to react to fine-grained changes.
+///
+/// Delta-based updates are strongly preferred over whole-tree rebuilds.  When
+/// a previous ``Observation`` is available the engine delegates to
+/// ``ObservationChangeDetector`` for element-level diffing, which avoids
+/// the cost of reconstructing the entire world model from scratch.
 public enum StateDiffEngine {
 
     /// Compute a diff between the current model snapshot and a new observation.

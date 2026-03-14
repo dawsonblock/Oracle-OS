@@ -1,5 +1,9 @@
 import Foundation
 
+/// Persistent trace storage using JSONL format.
+///
+/// Traces store verified execution deltas, not bloated snapshots.
+/// Large raw observations are written only when debug mode is active.
 public final class TraceStore: @unchecked Sendable {
     public let directoryURL: URL
 

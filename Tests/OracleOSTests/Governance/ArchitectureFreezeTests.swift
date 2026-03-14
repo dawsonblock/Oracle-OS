@@ -116,6 +116,32 @@ struct ArchitectureFreezeTests {
         }
     }
 
+    // MARK: - R1: Planning files do not instantiate competing planners
+
+    @Test("Planning files do not instantiate PlanGenerator or PlanEvaluator directly")
+    func plannerFilesDoNotInstantiateCompetingPlanners() throws {
+        let planningDir = sourcesRoot()
+            .appendingPathComponent("Agent")
+            .appendingPathComponent("Planning")
+        let files = try swiftFilesRecursive(in: planningDir)
+
+        for file in files {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            // Planner.swift is the canonical planner orchestrator and is
+            // expected to compose PlanEvaluator and PlanGenerator internally.
+            guard filename != "Planner.swift" else { continue }
+            #expect(
+                !content.contains("PlanGenerator("),
+                "Planning file \(filename) must not instantiate PlanGenerator directly; use DecisionCoordinator → Planner"
+            )
+            #expect(
+                !content.contains("PlanEvaluator("),
+                "Planning file \(filename) must not instantiate PlanEvaluator directly"
+            )
+        }
+    }
+
     // MARK: - Protected backbone modules exist
 
     @Test("Protected backbone modules are present in the source tree")
@@ -149,6 +175,25 @@ struct ArchitectureFreezeTests {
             FileManager.default.fileExists(atPath: rulesURL.path),
             "ARCHITECTURE_RULES.md must exist at the repository root"
         )
+    }
+
+    // MARK: - World model updated only via diff
+
+    @Test("Runtime files do not bypass StateDiffEngine to set worldStateModel.current")
+    func worldModelOnlyUpdatedViaDiff() throws {
+        let runtimeDir = sourcesRoot().appendingPathComponent("Runtime")
+        let files = try swiftFilesRecursive(in: runtimeDir)
+
+        for file in files {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            // StateCoordinator is allowed to call reset(from:) as the state owner.
+            guard filename != "StateCoordinator.swift" else { continue }
+            #expect(
+                !content.contains(".reset(from:"),
+                "Runtime file \(filename) must not call worldStateModel.reset(from:); state changes should go through StateDiffEngine"
+            )
+        }
     }
 
     // MARK: - Helpers

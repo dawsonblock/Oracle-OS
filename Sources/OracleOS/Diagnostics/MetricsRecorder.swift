@@ -7,6 +7,20 @@
 
 import Foundation
 
+/// Records runtime performance metrics for benchmark gating.
+///
+/// Core metrics tracked:
+/// - **Task success rate**: actions succeeded / actions attempted
+/// - **Average steps**: mean actions per task
+/// - **Recovery count**: number of recovery interventions
+/// - **Wrong-target rate**: actions hitting unintended targets
+/// - **Patch success rate**: patches that pass validation
+/// - **Regression rate**: patches that introduce new failures
+///
+/// These metrics form the baseline for evidence-driven upgrades.
+/// Merges that degrade core metrics should be blocked until
+/// the regression is understood and addressed.
+
 /// Aggregated runtime performance metrics.
 ///
 /// Every search cycle produces an update to these counters so that

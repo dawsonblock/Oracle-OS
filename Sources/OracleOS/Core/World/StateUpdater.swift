@@ -1,6 +1,11 @@
 import Foundation
 
-/// Applies a ``StateDiff`` to a ``WorldModelSnapshot`` to produce an updated snapshot.
+/// A pure function that produces a new ``WorldModelSnapshot`` from an existing
+/// snapshot and a ``StateDiff``.
+///
+/// `StateUpdater` is intentionally stateless — it takes a snapshot and a diff
+/// and returns a brand-new snapshot.  This keeps world-model advancement
+/// deterministic and easy to test in isolation.
 public enum StateUpdater {
 
     public static func apply(

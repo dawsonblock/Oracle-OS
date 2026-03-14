@@ -1,5 +1,12 @@
 import Foundation
 
+/// Canonical runtime-facing planner API.
+///
+/// `PlanGenerator` is the single entry point that produces ranked plan
+/// candidates from three sources (workflow, graph, reasoning) and evaluates
+/// them through `PlanEvaluator`. External callers should reach this type
+/// only through `DecisionCoordinator → Planner`; direct instantiation from
+/// planning files is forbidden by governance tests.
 public final class PlanGenerator: @unchecked Sendable {
     private let reasoningEngine: ReasoningEngine
     private let planEvaluator: PlanEvaluator

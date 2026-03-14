@@ -40,6 +40,12 @@ public final class VerifiedActionExecutor {
         self.planningGraphStore = planningGraphStore
     }
 
+    /// Execute an action within the verified trust boundary.
+    ///
+    /// This method is the **sole authority** for environment mutations.
+    /// Every side-effect-producing closure must pass through `run()` so that
+    /// pre/post observations are captured, the critic can judge the outcome,
+    /// and the result is stamped with `executedThroughExecutor = true`.
     public func run(
         taskID: String? = nil,
         toolName: String? = nil,
