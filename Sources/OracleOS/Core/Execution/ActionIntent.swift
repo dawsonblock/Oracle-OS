@@ -173,7 +173,8 @@ public struct ActionIntent: Sendable, Codable {
             app: app,
             name: schema.name,
             action: schema.kind.rawValue,
-            query: nil
+            query: schema.name,
+            text: schema.name
         )
     }
 }
