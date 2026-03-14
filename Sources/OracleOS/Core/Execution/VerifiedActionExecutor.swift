@@ -4,6 +4,8 @@ import Foundation
 public final class VerifiedActionExecutor {
     private let verificationTimeout: TimeInterval
     private let stateAbstraction: StateAbstraction
+    private let stateAbstractionEngine: StateAbstractionEngine
+    private let critic: CriticLoop
     private let traceRecorder: TraceRecorder?
     private let traceStore: TraceStore?
     private let artifactWriter: FailureArtifactWriter?
@@ -13,6 +15,8 @@ public final class VerifiedActionExecutor {
     public init(
         verificationTimeout: TimeInterval = 1.5,
         stateAbstraction: StateAbstraction = StateAbstraction(),
+        stateAbstractionEngine: StateAbstractionEngine = StateAbstractionEngine(),
+        critic: CriticLoop = CriticLoop(),
         traceRecorder: TraceRecorder? = nil,
         traceStore: TraceStore? = nil,
         artifactWriter: FailureArtifactWriter? = nil,
@@ -21,6 +25,8 @@ public final class VerifiedActionExecutor {
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
+        self.stateAbstractionEngine = stateAbstractionEngine
+        self.critic = critic
         self.traceRecorder = traceRecorder
         self.traceStore = traceStore
         self.artifactWriter = artifactWriter
@@ -32,6 +38,7 @@ public final class VerifiedActionExecutor {
         taskID: String? = nil,
         toolName: String? = nil,
         intent: ActionIntent,
+        schema: ActionSchema? = nil,
         selectedElementID: String? = nil,
         selectedElementLabel: String? = nil,
         candidateScore: Double? = nil,
@@ -149,6 +156,17 @@ public final class VerifiedActionExecutor {
             blockedByPolicy: policyDecision?.blockedByPolicy ?? false
         )
 
+        // --- Critic evaluation ---
+        // Compress pre/post observations into semantic state for the critic.
+        let preCompressed = stateAbstractionEngine.compress(preObservation)
+        let postCompressed = stateAbstractionEngine.compress(postObservation)
+        let criticVerdict = critic.evaluate(
+            preState: preCompressed,
+            postState: postCompressed,
+            schema: schema,
+            actionResult: actionResult
+        )
+
         let event = TraceEvent(
             sessionID: sessionID,
             taskID: taskID,
@@ -221,6 +239,8 @@ public final class VerifiedActionExecutor {
         let traceURL = try? traceStore?.append(event)
 
         // Record edge transition in the task graph when an edge ID is provided.
+        // The critic verdict drives graph promotion/demotion: only critic-confirmed
+        // successes promote an edge; failures and unknowns record a failed execution.
         if let taskGraphStore, let currentEdgeID {
             let postWorldState = WorldState(
                 observationHash: postHash,
@@ -228,7 +248,8 @@ public final class VerifiedActionExecutor {
                 observation: postObservation,
                 repositorySnapshot: postRepositorySnapshot
             )
-            if verified {
+            switch criticVerdict.outcome {
+            case .success:
                 taskGraphStore.recordVerifiedExecution(
                     edgeID: currentEdgeID,
                     resultWorldState: postWorldState,
@@ -236,7 +257,22 @@ public final class VerifiedActionExecutor {
                     cost: 0,
                     createdByAction: intent.action
                 )
-            } else {
+            case .partialSuccess:
+                // Partial success still advances the graph but with a penalty
+                // recorded as a failure so the edge's success probability drops.
+                taskGraphStore.recordVerifiedExecution(
+                    edgeID: currentEdgeID,
+                    resultWorldState: postWorldState,
+                    latencyMs: Int(elapsedMs.rounded()),
+                    cost: 0,
+                    createdByAction: intent.action
+                )
+                taskGraphStore.recordFailedExecution(
+                    edgeID: currentEdgeID,
+                    latencyMs: 0,
+                    cost: 0
+                )
+            case .failure, .unknown:
                 taskGraphStore.recordFailedExecution(
                     edgeID: currentEdgeID,
                     latencyMs: Int(elapsedMs.rounded()),
@@ -247,6 +283,7 @@ public final class VerifiedActionExecutor {
 
         var data = raw.data ?? [:]
         data["action_result"] = actionResult.toDict()
+        data["critic_verdict"] = criticVerdict.toDict()
         data["verification"] = [
             "status": verification.status.rawValue,
             "checks": verification.checks.map {
@@ -287,6 +324,8 @@ public final class VerifiedActionExecutor {
             traceData["ambiguity_score"] = candidateAmbiguityScore
         }
         traceData["recovery_tagged"] = recoveryTagged
+        traceData["critic_outcome"] = criticVerdict.outcome.rawValue
+        traceData["critic_needs_recovery"] = criticVerdict.needsRecovery
         if let policyDecision {
             traceData["policy_mode"] = policyDecision.policyMode.rawValue
             traceData["app_profile"] = policyDecision.appProtectionProfile.rawValue
