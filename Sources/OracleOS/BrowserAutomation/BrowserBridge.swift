@@ -136,11 +136,6 @@ public struct BrowserBridge: Sendable {
     /// sets the value and dispatches an input event.
     @discardableResult
     public func type(_ selector: String, text: String, clear: Bool = true, tabIndex: Int = 0) -> Bool {
-        let escapedText = text
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-
         guard let result = CDPBridge.evaluateJS(
             """
             (function() {
@@ -148,7 +143,7 @@ public struct BrowserBridge: Sendable {
                 if (!el) return 'false';
                 el.focus();
                 \(clear ? "el.value = '';" : "")
-                el.value = '\(escapedText)';
+                el.value = \(escapeJSString(text));
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
                 return 'true';
