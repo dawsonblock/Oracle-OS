@@ -24,10 +24,6 @@ struct ArchitectureFreezeTests {
             "OracleRuntime should not instantiate GraphPlanner directly"
         )
         #expect(
-            !content.contains("LLMPlanGenerator("),
-            "OracleRuntime should not instantiate LLMPlanGenerator directly"
-        )
-        #expect(
             !content.contains("PlanGenerator("),
             "OracleRuntime should not instantiate PlanGenerator directly"
         )
