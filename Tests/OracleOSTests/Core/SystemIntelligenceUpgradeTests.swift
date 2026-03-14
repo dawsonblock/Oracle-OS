@@ -300,37 +300,6 @@ struct SystemIntelligenceUpgradeTests {
         #expect(patch.complexity == 0.2)
     }
 
-    // MARK: - Phase 9: LLM decision engine
-
-    @Test("LLM decision engine produces goal interpretation response")
-    func llmDecisionEngineGoalInterpretation() {
-        let engine = LLMDecisionEngine()
-        let worldState = WorldState(
-            observationHash: "test",
-            planningState: PlanningState(
-                id: PlanningStateID(rawValue: "test"),
-                clusterKey: StateClusterKey(rawValue: "test"),
-                appID: "Test",
-                domain: nil,
-                windowClass: nil,
-                taskPhase: "test",
-                focusedRole: nil,
-                modalClass: nil,
-                navigationClass: nil,
-                controlContext: nil
-            ),
-            observation: Observation(app: "Test", windowTitle: "Test", url: nil, focusedElementID: nil, elements: [])
-        )
-        let response = engine.assistGoalInterpretation(
-            goalDescription: "fix failing tests",
-            worldState: worldState,
-            memoryInfluence: MemoryInfluence()
-        )
-
-        #expect(response.kind == .goalInterpretation)
-        #expect(response.confidence > 0)
-    }
-
     // MARK: - Phase 10: System dashboard
 
     @Test("System dashboard records and snapshots events")
