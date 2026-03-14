@@ -153,6 +153,45 @@ public struct PlanningGraphEngine: Sendable {
         }
     }
 
+    /// Record a traversal outcome by source state, destination state, and schema.
+    ///
+    /// If an edge matching `fromState`/`toState`/`schema.name` exists it is
+    /// updated. Otherwise a new edge is added so the planning graph grows
+    /// organically from execution experience.
+    public mutating func recordOutcome(
+        fromState: String,
+        toState: String,
+        schema: ActionSchema,
+        success: Bool
+    ) {
+        guard let fromAbstract = AbstractTaskState(rawValue: fromState),
+              let toAbstract = AbstractTaskState(rawValue: toState)
+        else { return }
+
+        // Try to find an existing edge for this transition.
+        if let idx = edgesBySource[fromAbstract]?.firstIndex(where: {
+            $0.toState == toAbstract && $0.schema.name == schema.name
+        }) {
+            if success {
+                edgesBySource[fromAbstract]![idx].recordSuccess(latencyMs: 0)
+            } else {
+                edgesBySource[fromAbstract]![idx].recordFailure(latencyMs: 0)
+            }
+            return
+        }
+
+        // No existing edge — create one seeded with the outcome.
+        let edge = PlanningEdge(
+            fromState: fromAbstract,
+            toState: toAbstract,
+            schema: schema,
+            successRate: success ? 1.0 : 0.0,
+            attempts: 1,
+            successes: success ? 1 : 0
+        )
+        addEdge(edge)
+    }
+
     /// Remove edges whose success rate has dropped below a threshold
     /// and that have been attempted at least `minAttempts` times.
     public mutating func pruneWeakEdges(

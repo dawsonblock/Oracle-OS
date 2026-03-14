@@ -14,6 +14,11 @@ public struct ActionResult: Sendable, Codable {
     public let appProtectionProfile: String?
     public let blockedByPolicy: Bool
 
+    /// True when the action was executed through ``VerifiedActionExecutor``.
+    /// Every action in the runtime loop must pass through the executor;
+    /// consuming code can assert this flag to enforce the trust boundary.
+    public let executedThroughExecutor: Bool
+
     public init(
         success: Bool,
         verified: Bool? = nil,
@@ -28,7 +33,8 @@ public struct ActionResult: Sendable, Codable {
         approvalStatus: String? = nil,
         surface: String? = nil,
         appProtectionProfile: String? = nil,
-        blockedByPolicy: Bool = false
+        blockedByPolicy: Bool = false,
+        executedThroughExecutor: Bool = false
     ) {
         self.success = success
         self.verified = verified ?? success
@@ -44,6 +50,7 @@ public struct ActionResult: Sendable, Codable {
         self.surface = surface
         self.appProtectionProfile = appProtectionProfile
         self.blockedByPolicy = blockedByPolicy
+        self.executedThroughExecutor = executedThroughExecutor
     }
 
     public func toDict() -> [String: Any] {
@@ -84,6 +91,7 @@ public struct ActionResult: Sendable, Codable {
             result["app_protection_profile"] = appProtectionProfile
         }
         result["blocked_by_policy"] = blockedByPolicy
+        result["executed_through_executor"] = executedThroughExecutor
 
         return result
     }
@@ -114,7 +122,8 @@ public struct ActionResult: Sendable, Codable {
             approvalStatus: dict["approval_status"] as? String,
             surface: dict["surface"] as? String,
             appProtectionProfile: dict["app_protection_profile"] as? String,
-            blockedByPolicy: dict["blocked_by_policy"] as? Bool ?? false
+            blockedByPolicy: dict["blocked_by_policy"] as? Bool ?? false,
+            executedThroughExecutor: dict["executed_through_executor"] as? Bool ?? false
         )
     }
 }

@@ -17,7 +17,7 @@ public enum ObservationBuilder {
     ) -> Observation {
         let runningApp: NSRunningApplication?
         if let appName {
-            runningApp = Perception.findApp(named: appName)
+            runningApp = PerceptionEngine.findApp(named: appName)
         } else {
             runningApp = NSWorkspace.shared.frontmostApplication
         }
@@ -39,7 +39,7 @@ public enum ObservationBuilder {
 
         let window = appElement.focusedWindow()
         let windowTitle = window?.title()
-        let url = window.flatMap { Perception.findWebArea(in: $0) }.flatMap { Perception.readURL(from: $0) }
+        let url = window.flatMap { PerceptionEngine.findWebArea(in: $0) }.flatMap { PerceptionEngine.readURL(from: $0) }
 
         var axElements: [UnifiedElement] = []
         if let window {
@@ -148,7 +148,7 @@ public enum ObservationBuilder {
         confidence: Double
     ) -> UnifiedElement {
         let role = element.role()
-        let value = Perception.readValue(from: element)
+        let value = PerceptionEngine.readValue(from: element)
         let label = bestLabel(for: element, fallbackValue: value)
         let id = stableElementID(
             source: source,

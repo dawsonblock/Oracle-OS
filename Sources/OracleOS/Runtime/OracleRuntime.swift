@@ -272,6 +272,16 @@ public final class OracleRuntime {
             execute: execute
         )
 
+        // Enforcement: every action must pass through VerifiedActionExecutor.
+        // The executor stamps executedThroughExecutor = true; assert here to
+        // catch any bypass of the execution kernel trust boundary.
+        if let actionResult = result.data?["action_result"] as? [String: Any] {
+            precondition(
+                actionResult["executed_through_executor"] as? Bool == true,
+                "Action was not executed through VerifiedActionExecutor"
+            )
+        }
+
         if shouldRecordPostExecutionOutcome(from: result, policyDecision: policyDecision) {
             recordPostExecutionOutcome(from: result, policyDecision: policyDecision)
         }

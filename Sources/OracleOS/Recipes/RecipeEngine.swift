@@ -209,7 +209,7 @@ public enum RecipeEngine {
                 ]
 
                 if let app = recipe.app {
-                    let context = Perception.getContext(appName: app)
+                    let context = PerceptionEngine.getContext(appName: app)
                     if let contextData = context.data {
                         failureData["current_context"] = contextData
                     }
@@ -290,7 +290,7 @@ public enum RecipeEngine {
         // Check URL
         if let requiredURL = pre.urlContains {
             let appName = pre.appRunning ?? "Google Chrome"
-            let context = Perception.getContext(appName: appName)
+            let context = PerceptionEngine.getContext(appName: appName)
             let currentURL = context.context?.url ?? "(no URL)"
 
             if !currentURL.localizedCaseInsensitiveContains(requiredURL) {

@@ -182,7 +182,7 @@ public enum Actions {
                 // Get Chrome window origin for coordinate conversion
                 let windowOrigin: (x: Double, y: Double)
                 if let appName,
-                   let app = Perception.findApp(named: appName),
+                   let app = PerceptionEngine.findApp(named: appName),
                    let appElement = Element.application(for: app.processIdentifier),
                    let window = appElement.focusedWindow(),
                    let pos = window.position()
@@ -806,7 +806,7 @@ public enum Actions {
         // AXorcist's element.scroll() calculates coordinates from the element's
         // frame, which auto-handles multi-monitor setups.
         if let appName {
-            guard let appElement = Perception.appElement(for: appName) else {
+            guard let appElement = PerceptionEngine.appElement(for: appName) else {
                 return ToolResult(success: false, error: "Application '\(appName)' not found")
             }
             guard let window = appElement.focusedWindow() ?? appElement.mainWindow() else {
@@ -944,7 +944,7 @@ public enum Actions {
         x: Double?, y: Double?,
         width: Double?, height: Double?
     ) -> ToolResult {
-        guard let appElement = Perception.appElement(for: appName) else {
+        guard let appElement = PerceptionEngine.appElement(for: appName) else {
             return ToolResult(success: false, error: "Application '\(appName)' not found")
         }
 
@@ -1017,7 +1017,7 @@ public enum Actions {
 
         // Content-root-first: search AXWebArea, then full tree
         if let window = appElement.focusedWindow(),
-           let webArea = Perception.findWebArea(in: window)
+           let webArea = PerceptionEngine.findWebArea(in: window)
         {
             if let found = searchWithSemanticDepth(locator: locator, root: webArea) {
                 return found
@@ -1054,7 +1054,7 @@ public enum Actions {
     /// Resolve app name to Element.
     private static func resolveAppElement(appName: String?) -> Element? {
         if let appName {
-            return Perception.appElement(for: appName)
+            return PerceptionEngine.appElement(for: appName)
         }
         guard let frontApp = NSWorkspace.shared.frontmostApplication else { return nil }
         return Element.application(for: frontApp.processIdentifier)
@@ -1081,7 +1081,7 @@ public enum Actions {
         // Search from content root first (web area), then full tree
         let searchRoot: Element
         if let window = appElement.focusedWindow(),
-           let webArea = Perception.findWebArea(in: window)
+           let webArea = PerceptionEngine.findWebArea(in: window)
         {
             searchRoot = webArea
         } else if let window = appElement.focusedWindow() {
@@ -1193,7 +1193,7 @@ public enum Actions {
     /// Read the current value of an element for verification.
     private static func readbackFromElement(_ element: Element) -> String {
         // Try raw AXValue (Chrome compatible)
-        if let value = Perception.readValue(from: element), !value.isEmpty {
+        if let value = PerceptionEngine.readValue(from: element), !value.isEmpty {
             return value.count > 200 ? String(value.prefix(200)) + "..." : value
         }
         // Try title (some fields expose typed text as title)

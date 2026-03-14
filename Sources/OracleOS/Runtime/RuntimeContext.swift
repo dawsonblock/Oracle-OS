@@ -70,11 +70,13 @@ public final class RuntimeContext {
         let policyEngine = PolicyEngine(mode: config.policyMode)
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
         let graphStore = GraphStore()
+        let stateMemoryIndex = StateMemoryIndex()
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter,
-            graphStore: graphStore
+            graphStore: graphStore,
+            stateMemoryIndex: stateMemoryIndex
         )
 
         return RuntimeContext(

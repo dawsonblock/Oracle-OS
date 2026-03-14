@@ -214,7 +214,7 @@ public enum VisionPerception {
     // MARK: - Vision-Enhanced Find (fallback for oracle_find)
 
     /// Try to find an element using VLM grounding as a fallback when AX search fails.
-    /// Called by Perception.findElements when AX returns no results.
+    /// Called by PerceptionEngine.findElements when AX returns no results.
     ///
     /// Returns a synthetic element summary with VLM-grounded coordinates that can
     /// be used directly with oracle_click(x:, y:).
@@ -376,7 +376,7 @@ public enum VisionPerception {
     ) -> ScreenshotResult? {
         let targetApp: NSRunningApplication
         if let appName {
-            guard let app = Perception.findApp(named: appName) else {
+            guard let app = PerceptionEngine.findApp(named: appName) else {
                 return nil
             }
             targetApp = app

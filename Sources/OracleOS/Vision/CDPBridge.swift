@@ -271,6 +271,24 @@ public enum CDPBridge {
 
     // MARK: - JavaScript Evaluation
 
+    /// Evaluate a JavaScript expression in a Chrome tab and return the
+    /// string result.
+    ///
+    /// This is the public entry point used by ``BrowserBridge`` and other
+    /// callers that need arbitrary JS evaluation.  Returns `nil` when CDP
+    /// is unavailable or the expression errors.
+    public static func evaluateJS(
+        _ expression: String,
+        tabIndex: Int = 0
+    ) -> String? {
+        guard let targets = getDebugTargets() else { return nil }
+        let pages = targets.filter { ($0["type"] as? String) == "page" }
+        guard tabIndex < pages.count,
+              let wsURL = pages[tabIndex]["webSocketDebuggerUrl"] as? String
+        else { return nil }
+        return evaluateJSRaw(expression, wsURL: wsURL)
+    }
+
     /// Evaluate JavaScript in the Chrome tab and return the result.
     /// Uses a synchronous WebSocket connection to send a CDP Runtime.evaluate
     /// command and wait for the response.
@@ -348,6 +366,78 @@ public enum CDPBridge {
             return nil
         }
 
+        return box.result
+    }
+
+    /// Evaluate JavaScript and return the raw string value from the result.
+    /// Unlike ``evaluateJS(_:wsURL:)`` which parses arrays, this variant
+    /// returns the CDP result value as a plain ``String``.
+    private static func evaluateJSRaw(
+        _ expression: String,
+        wsURL: String
+    ) -> String? {
+        guard let url = URL(string: wsURL) else { return nil }
+
+        let session = URLSession(configuration: .default)
+        let wsTask = session.webSocketTask(with: url)
+        wsTask.resume()
+
+        let command: [String: Any] = [
+            "id": 1,
+            "method": "Runtime.evaluate",
+            "params": [
+                "expression": expression,
+                "returnByValue": true,
+            ],
+        ]
+
+        guard let commandData = try? JSONSerialization.data(withJSONObject: command),
+              let commandString = String(data: commandData, encoding: .utf8)
+        else {
+            wsTask.cancel(with: .goingAway, reason: nil)
+            return nil
+        }
+
+        nonisolated final class StringBox: @unchecked Sendable {
+            var result: String?
+            var error: (any Error)?
+        }
+        let box = StringBox()
+        let semaphore = DispatchSemaphore(value: 0)
+
+        wsTask.send(.string(commandString)) { error in
+            if let error {
+                box.error = error
+                semaphore.signal()
+                return
+            }
+            wsTask.receive { result in
+                switch result {
+                case .success(let message):
+                    switch message {
+                    case .string(let text):
+                        if let data = text.data(using: .utf8),
+                           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           let resultObj = json["result"] as? [String: Any],
+                           let resultValue = resultObj["result"] as? [String: Any],
+                           let value = resultValue["value"]
+                        {
+                            box.result = "\(value)"
+                        }
+                    default:
+                        break
+                    }
+                case .failure(let error):
+                    box.error = error
+                }
+                semaphore.signal()
+            }
+        }
+
+        let waitResult = semaphore.wait(timeout: .now() + wsTimeout)
+        wsTask.cancel(with: .goingAway, reason: nil)
+
+        if waitResult == .timedOut { return nil }
         return box.result
     }
 
