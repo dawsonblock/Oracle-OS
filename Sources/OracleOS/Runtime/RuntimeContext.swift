@@ -22,6 +22,8 @@ public final class RuntimeContext {
     public let browserPageStateBuilder: BrowserPageStateBuilder
     public let stateMemoryIndex: StateMemoryIndex
     public let planningGraphStore: PlanningGraphStore
+    public let searchController: SearchController
+    public let metricsRecorder: MetricsRecorder
 
     public init(
         config: RuntimeConfig = .live(),
@@ -43,7 +45,9 @@ public final class RuntimeContext {
         browserController: BrowserController = BrowserController(),
         browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
         stateMemoryIndex: StateMemoryIndex = StateMemoryIndex(),
-        planningGraphStore: PlanningGraphStore = PlanningGraphStore()
+        planningGraphStore: PlanningGraphStore = PlanningGraphStore(),
+        searchController: SearchController? = nil,
+        metricsRecorder: MetricsRecorder = MetricsRecorder()
     ) {
         self.config = config
         self.traceRecorder = traceRecorder
@@ -65,6 +69,13 @@ public final class RuntimeContext {
         self.browserPageStateBuilder = browserPageStateBuilder
         self.stateMemoryIndex = stateMemoryIndex
         self.planningGraphStore = planningGraphStore
+        self.searchController = searchController ?? SearchController(
+            generator: CandidateGenerator(
+                stateMemoryIndex: stateMemoryIndex,
+                planningGraphStore: planningGraphStore
+            )
+        )
+        self.metricsRecorder = metricsRecorder
     }
 
     public static func live(
@@ -105,7 +116,14 @@ public final class RuntimeContext {
             browserController: BrowserController(),
             browserPageStateBuilder: BrowserPageStateBuilder(),
             stateMemoryIndex: stateMemoryIndex,
-            planningGraphStore: planningGraphStore
+            planningGraphStore: planningGraphStore,
+            searchController: SearchController(
+                generator: CandidateGenerator(
+                    stateMemoryIndex: stateMemoryIndex,
+                    planningGraphStore: planningGraphStore
+                )
+            ),
+            metricsRecorder: MetricsRecorder()
         )
     }
 }

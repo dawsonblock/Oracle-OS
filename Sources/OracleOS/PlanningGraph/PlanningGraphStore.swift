@@ -27,6 +27,11 @@ public final class PlanningGraphStore {
         engine.bestEdge(from: state)
     }
 
+    /// Return valid action schemas reachable from the given state.
+    public func validActions(for state: AbstractTaskState) -> [ActionSchema] {
+        engine.validActions(for: state)
+    }
+
     /// Return all edges that lead to the given goal state.
     public func edgesLeadingTo(_ goal: AbstractTaskState) -> [PlanningEdge] {
         engine.edgesLeadingTo(goal)

@@ -98,6 +98,16 @@ public enum ActionSchemaKind: String, Sendable, Codable, CaseIterable, Hashable 
     case revertPatch
     case dismissModal
     case custom
+
+    /// Whether this action kind operates on code/repository state.
+    public var isCodeAction: Bool {
+        switch self {
+        case .runTests, .buildProject, .applyPatch, .commitPatch, .revertPatch:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - Schema library

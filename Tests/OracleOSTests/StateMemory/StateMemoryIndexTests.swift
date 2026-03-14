@@ -117,7 +117,7 @@ struct StateMemoryIndexTests {
 
     @Test("ActionStats computes correct success rate")
     func actionStatsSuccessRate() {
-        var stats = ActionStats(attempts: 4, successes: 3)
+        var stats = ActionStats(actionName: "test", attempts: 4, successes: 3)
         #expect(stats.successRate == 0.75)
         stats.attempts += 1
         #expect(stats.successRate == 0.6)
@@ -127,5 +127,54 @@ struct StateMemoryIndexTests {
     func actionStatsZeroAttempts() {
         let stats = ActionStats()
         #expect(stats.successRate == 0)
+    }
+
+    // MARK: - likelyActions
+
+    @Test("likelyActions returns empty for unknown state")
+    func likelyActionsEmptyForUnknown() {
+        let index = StateMemoryIndex()
+        let state = CompressedUIState(app: "Unknown", elements: [])
+        #expect(index.likelyActions(for: state).isEmpty)
+    }
+
+    @Test("likelyActions returns actions sorted by success rate")
+    func likelyActionsSortedByRate() {
+        let index = StateMemoryIndex()
+        let state = CompressedUIState(
+            app: "Mail",
+            elements: [
+                SemanticElement(id: "btn-send", kind: .button, label: "Send"),
+            ]
+        )
+        // click_Send: 2/2 = 100%
+        index.record(state: state, actionName: "click_Send", success: true)
+        index.record(state: state, actionName: "click_Send", success: true)
+        // click_Save: 1/3 ≈ 33%
+        index.record(state: state, actionName: "click_Save", success: true)
+        index.record(state: state, actionName: "click_Save", success: false)
+        index.record(state: state, actionName: "click_Save", success: false)
+        // click_Draft: 1/2 = 50%
+        index.record(state: state, actionName: "click_Draft", success: true)
+        index.record(state: state, actionName: "click_Draft", success: false)
+
+        let likely = index.likelyActions(for: state)
+        #expect(likely.count == 3)
+        #expect(likely[0].actionName == "click_Send")
+        #expect(likely[0].successRate == 1.0)
+        #expect(likely[1].actionName == "click_Draft")
+        #expect(likely[1].successRate == 0.5)
+        #expect(likely[2].actionName == "click_Save")
+    }
+
+    @Test("likelyActions includes actionName in stats")
+    func likelyActionsIncludesActionName() {
+        let index = StateMemoryIndex()
+        let state = CompressedUIState(app: "App", elements: [])
+        index.record(state: state, actionName: "my_action", success: true)
+
+        let likely = index.likelyActions(for: state)
+        #expect(likely.count == 1)
+        #expect(likely[0].actionName == "my_action")
     }
 }

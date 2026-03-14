@@ -131,4 +131,24 @@ struct ActionSchemaTests {
         #expect(dict["name"] as? String == "run_tests")
         #expect(dict["kind"] as? String == "runTests")
     }
+
+    // MARK: - isCodeAction
+
+    @Test("Code action kinds are classified correctly")
+    func codeActionKinds() {
+        #expect(ActionSchemaKind.runTests.isCodeAction == true)
+        #expect(ActionSchemaKind.buildProject.isCodeAction == true)
+        #expect(ActionSchemaKind.applyPatch.isCodeAction == true)
+        #expect(ActionSchemaKind.commitPatch.isCodeAction == true)
+        #expect(ActionSchemaKind.revertPatch.isCodeAction == true)
+    }
+
+    @Test("Non-code action kinds are classified correctly")
+    func nonCodeActionKinds() {
+        #expect(ActionSchemaKind.click.isCodeAction == false)
+        #expect(ActionSchemaKind.type.isCodeAction == false)
+        #expect(ActionSchemaKind.navigate.isCodeAction == false)
+        #expect(ActionSchemaKind.scroll.isCodeAction == false)
+        #expect(ActionSchemaKind.custom.isCodeAction == false)
+    }
 }
