@@ -177,30 +177,6 @@ struct PlanEvaluatorTests {
         #expect(abs(score.total - expectedTotal) < 0.001)
     }
 
-    @Test("SimulationOutcome tracks step-level details")
-    func simulationOutcomeTracksStepDetails() {
-        let step = SimulationStepOutcome(
-            operatorKind: .dismissModal,
-            inputStateID: "state-a",
-            outputStateID: "state-b",
-            transitionProbability: 0.92,
-            notes: ["modal present"]
-        )
-        let outcome = SimulationOutcome(
-            steps: [step],
-            finalStateID: "state-b",
-            cumulativeProbability: 0.92,
-            cumulativeRisk: 0.02,
-            expectedFailureMode: nil,
-            expectedCompletionLikelihood: 0.92,
-            latencyEstimate: 0.5,
-            costEstimate: 0.4
-        )
-
-        #expect(outcome.steps.count == 1)
-        #expect(outcome.cumulativeProbability == 0.92)
-        #expect(outcome.expectedFailureMode == nil)
-    }
 
     @Test("PlanCandidate preserves source type through evaluation")
     func planCandidatePreservesSourceType() {

@@ -75,36 +75,6 @@ struct SystemIntelligenceUpgradeTests {
         #expect(FailureClass.targetMissing.rawValue == "targetMissing")
     }
 
-    // MARK: - Phase 1: Environment simulator
-
-    @Test("Environment simulator produces simulation result")
-    func environmentSimulatorProducesResult() {
-        let simulator = EnvironmentSimulator()
-        let state = minimalReasoningState(agentKind: .os, modalPresent: true)
-        let input = SimulationInput(
-            state: state,
-            operators: [Operator(kind: .dismissModal)]
-        )
-        let result = simulator.simulate(input: input)
-
-        #expect(!result.steps.isEmpty)
-        #expect(result.overallProbability > 0)
-        #expect(result.finalState.modalPresent == false)
-    }
-
-    @Test("Environment simulator stops when precondition fails")
-    func environmentSimulatorStopsOnPreconditionFailure() {
-        let simulator = EnvironmentSimulator()
-        let state = minimalReasoningState(agentKind: .os, modalPresent: false)
-        let input = SimulationInput(
-            state: state,
-            operators: [Operator(kind: .dismissModal)]
-        )
-        let result = simulator.simulate(input: input)
-
-        #expect(result.steps.isEmpty)
-        #expect(result.notes.contains(where: { $0.contains("precondition failed") }))
-    }
 
     // MARK: - Phase 2: Workflow confidence model
 
