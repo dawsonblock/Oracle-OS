@@ -101,10 +101,13 @@ graph TD
     Runtime --> Loop["Bounded AgentLoop"]
     Loop --> Observation["Observation + Planning State"]
     Loop --> Planner["OS Planner / Code Planner / Mixed Planner"]
+    Planner --> PG["PlanningGraphEngine"]
     Planner --> Skills["OS Skills + Code Skills"]
     Skills --> Exec["VerifiedActionExecutor"]
-    Exec --> Trace["Trace + Artifacts"]
-    Exec --> Graph["SQLite GraphStore"]
+    Exec --> Critic["CriticLoop (verdict)"]
+    Critic --> Graph["SQLite GraphStore + TaskGraph"]
+    Critic --> SM["StateMemoryIndex"]
+    Exec --> Trace["Trace + TraceReplayEngine"]
     Exec --> Memory["App Memory + Code Memory"]
     Planner --> PM["Project Memory"]
     Planner --> Arch["Architecture Engine"]
@@ -243,13 +246,20 @@ Sources/OracleOS/
   Core/
     Observation/                canonical observations and fusion
     PlanningState/              reusable planning state abstraction
-    Execution/                  verified execution boundary
+    Execution/                  verified execution boundary + critic integration
     ExecutionSemantics/         action contracts and verified transitions
     Policy/                     gating and approvals
     Ranking/                    ranked target resolution
     Trace/                      structured traces and artifacts
     World/                      shared world view
+  StateAbstraction/             compressed semantic UI state
+  ActionSchema/                 typed action schemas with pre/postconditions
+  Critic/                       self-evaluation loop (SUCCESS/PARTIAL/FAILURE/UNKNOWN)
+  PlanningGraph/                deterministic planning graph for action selection
+  TraceReplay/                  execution replay and divergence detection
+  StateMemory/                  compressed state caching and reuse
   Graph/                        candidate/stable graph + SQLite persistence
+  TaskGraph/                    runtime task tracking
   CodeExecution/                workspace-scoped command runner
   CodeIntelligence/             repository indexing and structural queries
   Experiments/                  git worktree experiment fanout
@@ -264,7 +274,7 @@ Sources/OracleOS/
 Sources/OracleController/       native local controller UI
 Sources/OracleControllerHost/   local host process for controller
 Tests/OracleOSTests/            unit/runtime contract tests
-Tests/OracleOSEvals/            repeated task eval harness
+Tests/OracleOSEvals/            repeated task eval harness with baseline regression detection
 ```
 
 ## 🔧 Development
