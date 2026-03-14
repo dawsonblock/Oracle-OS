@@ -2,8 +2,8 @@
 //
 // Tracks measurable runtime performance data including action
 // attempts, successes, wrong-target rates, patch metrics, retries,
-// and recovery counts. Metrics are persisted to a JSON file after
-// each recording cycle.
+// and recovery counts. Metrics can be persisted to a JSON file for
+// later inspection and analysis.
 
 import Foundation
 
