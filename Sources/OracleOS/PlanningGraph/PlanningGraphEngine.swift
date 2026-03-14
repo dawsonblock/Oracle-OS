@@ -162,7 +162,8 @@ public struct PlanningGraphEngine: Sendable {
         fromState: String,
         toState: String,
         schema: ActionSchema,
-        success: Bool
+        success: Bool,
+        latencyMs: Double = 0
     ) {
         guard let fromAbstract = AbstractTaskState(rawValue: fromState),
               let toAbstract = AbstractTaskState(rawValue: toState)
@@ -173,22 +174,27 @@ public struct PlanningGraphEngine: Sendable {
             $0.toState == toAbstract && $0.schema.name == schema.name
         }) {
             if success {
-                edgesBySource[fromAbstract]![idx].recordSuccess(latencyMs: 0)
+                edgesBySource[fromAbstract]![idx].recordSuccess(latencyMs: latencyMs)
             } else {
-                edgesBySource[fromAbstract]![idx].recordFailure(latencyMs: 0)
+                edgesBySource[fromAbstract]![idx].recordFailure(latencyMs: latencyMs)
             }
             return
         }
 
-        // No existing edge — create one seeded with the outcome.
-        let edge = PlanningEdge(
+        // No existing edge — create one seeded with the outcome, then update with latency.
+        var edge = PlanningEdge(
             fromState: fromAbstract,
             toState: toAbstract,
             schema: schema,
-            successRate: success ? 1.0 : 0.0,
-            attempts: 1,
-            successes: success ? 1 : 0
+            successRate: 0.0,
+            attempts: 0,
+            successes: 0
         )
+        if success {
+            edge.recordSuccess(latencyMs: latencyMs)
+        } else {
+            edge.recordFailure(latencyMs: latencyMs)
+        }
         addEdge(edge)
     }
 
