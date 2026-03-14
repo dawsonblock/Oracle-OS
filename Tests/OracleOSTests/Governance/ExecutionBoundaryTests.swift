@@ -92,6 +92,44 @@ struct ExecutionBoundaryTests {
         )
     }
 
+    // MARK: - Vision not in planner critical path
+
+    @Test("Planning files do not reference vision perception")
+    func visionNotInPlannerCriticalPath() throws {
+        let planningDir = sourcesRoot()
+            .appendingPathComponent("Agent")
+            .appendingPathComponent("Planning")
+        let reasoningDir = sourcesRoot().appendingPathComponent("Reasoning")
+
+        let planningFiles = try swiftFilesRecursive(in: planningDir)
+        let reasoningFiles = try swiftFilesRecursive(in: reasoningDir)
+
+        let banned = ["VisionPerception", "VisionBridge", "oracle_parse_screen"]
+
+        for file in planningFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            for pattern in banned {
+                #expect(
+                    !content.contains(pattern),
+                    "Planning file \(filename) must not reference '\(pattern)'"
+                )
+            }
+        }
+
+        let reasoningBanned = ["VisionPerception", "VisionBridge"]
+        for file in reasoningFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            for pattern in reasoningBanned {
+                #expect(
+                    !content.contains(pattern),
+                    "Reasoning file \(filename) must not reference '\(pattern)'"
+                )
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func swiftFilesRecursive(in directory: URL) throws -> [URL] {

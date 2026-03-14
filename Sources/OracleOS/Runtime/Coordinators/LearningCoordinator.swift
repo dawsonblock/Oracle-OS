@@ -1,5 +1,11 @@
 import Foundation
 
+/// Records learning outcomes into the trace / memory subsystem.
+///
+/// `LearningCoordinator` is a thin orchestration layer that delegates all
+/// persistence work to ``LoopProjectMemoryCoordinator`` and ``MemoryUpdater``.
+/// It does **not** plan or evaluate strategies — that responsibility belongs
+/// exclusively to ``DecisionCoordinator``.
 @MainActor
 public final class LearningCoordinator {
     private let memoryStore: AppMemoryStore

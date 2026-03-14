@@ -174,6 +174,25 @@ struct ArchitectureFreezeTests {
         )
     }
 
+    // MARK: - World model updated only via diff
+
+    @Test("Runtime files do not bypass StateDiffEngine to set worldStateModel.current")
+    func worldModelOnlyUpdatedViaDiff() throws {
+        let runtimeDir = sourcesRoot().appendingPathComponent("Runtime")
+        let files = try swiftFilesRecursive(in: runtimeDir)
+
+        for file in files {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let filename = file.lastPathComponent
+            // StateCoordinator is allowed to call reset(from:) as the state owner.
+            guard filename != "StateCoordinator.swift" else { continue }
+            #expect(
+                !content.contains(".reset(from:"),
+                "Runtime file \(filename) must not call worldStateModel.reset(from:); state changes should go through StateDiffEngine"
+            )
+        }
+    }
+
     // MARK: - Helpers
 
     private func runtimeContents() throws -> String {

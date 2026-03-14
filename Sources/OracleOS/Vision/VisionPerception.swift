@@ -15,7 +15,19 @@
 import AppKit
 import Foundation
 
-/// Vision-based perception: when the AX tree isn't enough.
+/// ⚠️ EXPERIMENTAL — Vision-based perception tools.
+///
+/// These tools use the Python vision sidecar and are NOT part of the
+/// critical runtime path. Normal runtime operation succeeds without them.
+///
+/// Allowed usage:
+/// - Debugging and offline evaluation
+/// - Optional enrichment when sidecar is available
+/// - Fallback when AX tree is insufficient
+///
+/// Prohibited usage:
+/// - Planner MUST NOT depend on vision output for decision-making
+/// - Runtime loop MUST NOT block on sidecar availability
 @MainActor
 public enum VisionPerception {
 
