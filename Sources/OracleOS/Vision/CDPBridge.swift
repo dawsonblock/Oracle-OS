@@ -418,11 +418,24 @@ public enum CDPBridge {
                     case .string(let text):
                         if let data = text.data(using: .utf8),
                            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                           let resultObj = json["result"] as? [String: Any],
-                           let resultValue = resultObj["result"] as? [String: Any],
-                           let value = resultValue["value"]
-                        {
-                            box.result = "\(value)"
+                           let resultObj = json["result"] as? [String: Any] {
+
+                            // If CDP reports an exception, treat this as an error and do not set a result.
+                            if let exceptionDetails = resultObj["exceptionDetails"] as? [String: Any] {
+                                let error = NSError(
+                                    domain: "CDPBridge.RuntimeEvaluate",
+                                    code: 1,
+                                    userInfo: ["exceptionDetails": exceptionDetails]
+                                )
+                                box.error = error
+                            } else if let resultValue = resultObj["result"] as? [String: Any] {
+                                let value = resultValue["value"]
+
+                                // CDP represents JS `null` as NSNull; treat that as no result (`nil`), not the string "<null>".
+                                if let value, !(value is NSNull) {
+                                    box.result = "\(value)"
+                                }
+                            }
                         }
                     default:
                         break
