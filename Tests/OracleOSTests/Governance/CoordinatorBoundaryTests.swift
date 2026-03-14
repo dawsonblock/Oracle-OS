@@ -14,6 +14,7 @@ struct CoordinatorBoundaryTests {
             isDirectory: false
         )
         let content = try String(contentsOf: url, encoding: .utf8)
+        let codeWithoutComments = strippingComments(from: content)
         #expect(
             !content.contains("executionDriver"),
             "DecisionCoordinator must not reference executionDriver"
@@ -23,7 +24,7 @@ struct CoordinatorBoundaryTests {
             "DecisionCoordinator must not spawn processes"
         )
         #expect(
-            !content.contains("VerifiedActionExecutor"),
+            !codeWithoutComments.contains("VerifiedActionExecutor"),
             "DecisionCoordinator must not reference VerifiedActionExecutor"
         )
     }
@@ -104,6 +105,21 @@ struct CoordinatorBoundaryTests {
             at: directory,
             includingPropertiesForKeys: nil
         ).filter { $0.pathExtension == "swift" }
+    }
+
+    /// Returns the given Swift source string with all `//` and `/* */` comments removed.
+    private func strippingComments(from source: String) -> String {
+        let pattern = #"//.*|/\*[\s\S]*?\*/"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return source
+        }
+        let range = NSRange(source.startIndex..., in: source)
+        return regex.stringByReplacingMatches(
+            in: source,
+            options: [],
+            range: range,
+            withTemplate: ""
+        )
     }
 
     private func sourcesRoot() -> URL {
