@@ -116,7 +116,7 @@ struct ArchitectureFreezeTests {
         }
     }
 
-    // MARK: - R6: Planning files do not instantiate competing planners
+    // MARK: - R1: Planning files do not instantiate competing planners
 
     @Test("Planning files do not instantiate PlanGenerator or PlanEvaluator directly")
     func plannerFilesDoNotInstantiateCompetingPlanners() throws {
