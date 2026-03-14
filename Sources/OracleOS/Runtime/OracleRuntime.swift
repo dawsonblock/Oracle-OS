@@ -830,4 +830,101 @@ public final class OracleRuntime {
         guard !trimmed.isEmpty else { return "No output" }
         return trimmed.split(separator: "\n").prefix(3).joined(separator: " ")
     }
+
+    // MARK: - Search-centric action selection
+
+    /// Run a search-centric action selection cycle.
+    ///
+    /// Instead of executing a single planner-selected step, this method:
+    ///   1. Generates multiple candidates from memory, graph, and LLM
+    ///   2. Evaluates each candidate through the verified executor
+    ///   3. Selects the best verified result
+    ///   4. Records metrics for the cycle
+    ///
+    /// - Parameters:
+    ///   - compressedState: The current compressed UI state.
+    ///   - abstractState: The current abstract task state.
+    ///   - surface: The runtime surface for execution.
+    ///   - llmSchemas: Optional LLM fallback schemas.
+    ///   - execute: Closure that executes an ``ActionIntent`` and returns a ``ToolResult``.
+    /// - Returns: The best verified ``CandidateResult``, or `nil` if no candidates were viable.
+    public func searchBestAction(
+        compressedState: CompressedUIState,
+        abstractState: AbstractTaskState,
+        surface: RuntimeSurface = .mcp,
+        llmSchemas: [ActionSchema] = [],
+        execute: (ActionIntent) -> ToolResult
+    ) -> CandidateResult? {
+        let critic = CriticLoop()
+        let stateAbstractionEngine = StateAbstractionEngine()
+
+        var memoryCandidateCount = 0
+        var graphCandidateCount = 0
+        var llmCandidateCount = 0
+
+        let result = context.searchController.search(
+            compressedState: compressedState,
+            abstractState: abstractState,
+            llmSchemas: llmSchemas
+        ) { candidate in
+            // Track source distribution for metrics.
+            switch candidate.source {
+            case .memory: memoryCandidateCount += 1
+            case .graph: graphCandidateCount += 1
+            case .llmFallback: llmCandidateCount += 1
+            }
+
+            let intent = ActionIntent.fromSchema(candidate.schema)
+            let start = Date()
+            let toolResult = performAction(
+                surface: surface,
+                intent: intent,
+                execute: { execute(intent) }
+            )
+            let elapsedMs = Date().timeIntervalSince(start) * 1000.0
+
+            let postObservation = ObservationBuilder.capture(appName: intent.app)
+            let postCompressed = stateAbstractionEngine.compress(postObservation)
+            let actionResult = ActionResult(
+                success: toolResult.success,
+                executedThroughExecutor: true
+            )
+            let verdict = critic.evaluate(
+                preState: compressedState,
+                postState: postCompressed,
+                schema: candidate.schema,
+                actionResult: actionResult
+            )
+
+            let score = verdict.outcome == .success ? 1.0 :
+                         verdict.outcome == .partialSuccess ? 0.5 : 0.0
+
+            // Record action metrics.
+            context.metricsRecorder.recordAction(
+                success: verdict.outcome == .success,
+                elapsedMs: elapsedMs,
+                isPatch: candidate.schema.kind == .applyPatch
+            )
+
+            return CandidateResult(
+                candidate: candidate,
+                success: verdict.outcome == .success,
+                score: score,
+                criticOutcome: verdict.outcome,
+                elapsedMs: elapsedMs,
+                notes: verdict.notes
+            )
+        }
+
+        // Record search cycle metrics.
+        let totalCandidates = memoryCandidateCount + graphCandidateCount + llmCandidateCount
+        context.metricsRecorder.recordSearchCycle(
+            candidatesGenerated: totalCandidates,
+            memoryCandidates: memoryCandidateCount,
+            graphCandidates: graphCandidateCount,
+            llmFallbackCandidates: llmCandidateCount
+        )
+
+        return result
+    }
 }

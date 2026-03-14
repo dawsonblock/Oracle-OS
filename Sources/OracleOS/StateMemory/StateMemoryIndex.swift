@@ -63,6 +63,8 @@ public struct StateMemoryEntry: Sendable, Codable {
 
 /// Aggregated success/failure counts for one action in one state.
 public struct ActionStats: Sendable, Codable {
+    /// The action name this statistic tracks.
+    public let actionName: String
     public var attempts: Int
     public var successes: Int
 
@@ -71,7 +73,8 @@ public struct ActionStats: Sendable, Codable {
         return Double(successes) / Double(attempts)
     }
 
-    public init(attempts: Int = 0, successes: Int = 0) {
+    public init(actionName: String = "", attempts: Int = 0, successes: Int = 0) {
+        self.actionName = actionName
         self.attempts = attempts
         self.successes = successes
     }
@@ -107,6 +110,16 @@ public final class StateMemoryIndex: @unchecked Sendable {
         lookup(state)?.bestAction
     }
 
+    /// Return actions attempted from this state, sorted by historical
+    /// success rate (best first). This is the primary API for
+    /// memory-driven action selection.
+    public func likelyActions(for state: CompressedUIState) -> [ActionStats] {
+        guard let entry = lookup(state) else { return [] }
+        return entry.actionStats.values
+            .filter { $0.attempts > 0 }
+            .sorted { $0.successRate > $1.successRate }
+    }
+
     /// Number of stored state signatures.
     public var count: Int { entries.count }
 
@@ -120,7 +133,7 @@ public final class StateMemoryIndex: @unchecked Sendable {
     ) {
         let sig = StateSignature(from: state)
         var entry = entries[sig] ?? StateMemoryEntry(signature: sig)
-        var stats = entry.actionStats[actionName] ?? ActionStats()
+        var stats = entry.actionStats[actionName] ?? ActionStats(actionName: actionName)
         stats.attempts += 1
         if success { stats.successes += 1 }
         entry.actionStats[actionName] = stats

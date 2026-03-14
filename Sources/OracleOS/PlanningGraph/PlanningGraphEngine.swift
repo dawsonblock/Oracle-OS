@@ -107,6 +107,15 @@ public struct PlanningGraphEngine: Sendable {
         candidateEdges(from: state).first
     }
 
+    /// Return the valid action schemas reachable from the given state.
+    ///
+    /// This constrains the action space: only schemas that appear as
+    /// edges from this state are considered valid. Invalid actions
+    /// should not become candidates unless recovery mode is active.
+    public func validActions(for state: AbstractTaskState) -> [ActionSchema] {
+        candidateEdges(from: state).map(\.schema)
+    }
+
     /// Return all edges that lead to the given goal state.
     public func edgesLeadingTo(_ goal: AbstractTaskState) -> [PlanningEdge] {
         edgesBySource.values.flatMap { $0 }.filter { $0.toState == goal }

@@ -159,4 +159,18 @@ public struct ActionIntent: Sendable, Codable {
             postconditions: postconditions
         )
     }
+
+    /// Create an ``ActionIntent`` from an ``ActionSchema``.
+    ///
+    /// Used by the search-centric runtime loop to convert search
+    /// candidates back into executable intents.
+    public static func fromSchema(_ schema: ActionSchema) -> ActionIntent {
+        ActionIntent(
+            agentKind: schema.kind.isCodeAction ? .code : .os,
+            app: "unknown",
+            name: schema.name,
+            action: schema.kind.rawValue,
+            query: nil
+        )
+    }
 }
