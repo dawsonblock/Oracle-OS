@@ -71,12 +71,14 @@ public final class RuntimeContext {
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
         let graphStore = GraphStore()
         let stateMemoryIndex = StateMemoryIndex()
+        let planningGraphEngine = PlanningGraphEngine()
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter,
             graphStore: graphStore,
-            stateMemoryIndex: stateMemoryIndex
+            stateMemoryIndex: stateMemoryIndex,
+            planningGraphEngine: planningGraphEngine
         )
 
         return RuntimeContext(
