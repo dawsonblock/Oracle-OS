@@ -199,6 +199,81 @@ struct WorldModelTests {
         #expect(snapshot.modalPresent == true)
     }
 
+    // MARK: - StateDiffEngine with observation delta
+
+    @Test("StateDiffEngine includes observation delta when previous observation provided")
+    func stateDiffEngineIncludesObservationDelta() {
+        let prevObs = Observation(
+            app: "Safari",
+            elements: [
+                UnifiedElement(id: "btn-1", source: .ax, role: "AXButton", label: "Save", confidence: 0.9),
+            ]
+        )
+        let prevWS = makeWorldState(app: "Safari", elementCount: 1)
+        let current = WorldModelSnapshot(from: prevWS)
+
+        let nextWS = makeWorldState(app: "Safari", elementCount: 2)
+
+        let diff = StateDiffEngine.diff(
+            current: current,
+            incoming: nextWS,
+            previousObservation: prevObs
+        )
+
+        #expect(diff.observationDelta != nil)
+    }
+
+    @Test("StateDiffEngine observation delta detects added elements")
+    func stateDiffEngineDeltaDetectsAddedElements() {
+        let prevObs = Observation(
+            app: "App",
+            elements: [
+                UnifiedElement(id: "btn-1", source: .ax, role: "AXButton", label: "OK", confidence: 0.9),
+            ]
+        )
+        let current = WorldModelSnapshot(activeApplication: "App", visibleElementCount: 1)
+
+        let nextElements = [
+            UnifiedElement(id: "btn-1", source: .ax, role: "AXButton", label: "OK", confidence: 0.9),
+            UnifiedElement(id: "btn-2", source: .ax, role: "AXButton", label: "Cancel", confidence: 0.9),
+        ]
+        let nextWS = WorldState(
+            observationHash: "hash-new",
+            planningState: PlanningState(
+                id: PlanningStateID(rawValue: "App|state"),
+                clusterKey: StateClusterKey(rawValue: "App|state"),
+                appID: "App",
+                domain: nil,
+                windowClass: nil,
+                taskPhase: "test",
+                focusedRole: nil,
+                modalClass: nil,
+                navigationClass: nil,
+                controlContext: nil
+            ),
+            observation: Observation(app: "App", elements: nextElements)
+        )
+
+        let diff = StateDiffEngine.diff(
+            current: current,
+            incoming: nextWS,
+            previousObservation: prevObs
+        )
+
+        #expect(diff.observationDelta != nil)
+        #expect(diff.observationDelta?.addedElements.count == 1)
+        #expect(diff.observationDelta?.addedElements.first?.id == "btn-2")
+    }
+
+    @Test("StateDiffEngine without previous observation has nil delta")
+    func stateDiffEngineWithoutPrevObsHasNilDelta() {
+        let current = WorldModelSnapshot(activeApplication: "Safari")
+        let incoming = makeWorldState(app: "Finder")
+
+        let diff = StateDiffEngine.diff(current: current, incoming: incoming)
+        #expect(diff.observationDelta == nil)
+    }
+
     // MARK: - Helpers
 
     private func makeWorldState(
