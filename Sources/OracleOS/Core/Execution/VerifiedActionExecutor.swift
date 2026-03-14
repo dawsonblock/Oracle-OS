@@ -311,7 +311,8 @@ public final class VerifiedActionExecutor {
                 fromState: preID,
                 toState: postID,
                 schema: schema,
-                success: criticVerdict.outcome == .success
+                success: criticVerdict.outcome == .success,
+                latencyMs: Int(elapsedMs.rounded())
             )
         }
 
