@@ -6,7 +6,7 @@ public struct ElementRanker {
         elements: [UnifiedElement],
         query: ElementQuery,
         worldState: WorldState? = nil,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) -> [ElementCandidate] {
 
         var results: [ElementCandidate] = []

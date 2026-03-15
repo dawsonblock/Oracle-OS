@@ -9,7 +9,7 @@ public struct ClickSkill: Skill {
     public func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let best = try OSTargetResolver.resolve(
             query: query,

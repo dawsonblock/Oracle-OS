@@ -28,14 +28,16 @@ public final class OSPlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         if let workflowMatch = workflowRetriever.retrieve(
             goal: taskContext.goal,
             taskContext: taskContext,
             worldState: worldState,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         ) {
             let decision = workflowExecutor.nextDecision(
                 match: workflowMatch,

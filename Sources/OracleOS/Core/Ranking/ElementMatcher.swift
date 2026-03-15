@@ -6,7 +6,7 @@ public struct ElementMatcher {
         element: UnifiedElement,
         query: ElementQuery,
         worldState: WorldState? = nil,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) -> (Double, [String]) {
 
         var score: Double = 0

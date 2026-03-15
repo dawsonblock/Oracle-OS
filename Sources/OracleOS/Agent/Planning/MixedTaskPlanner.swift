@@ -16,7 +16,8 @@ public final class MixedTaskPlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         let description = taskContext.goal.description.lowercased()
         let needsFinder = description.contains("finder") || description.contains("open repo")
@@ -43,7 +44,8 @@ public final class MixedTaskPlanner: @unchecked Sendable {
                 taskContext: handoffContext,
                 worldState: worldState,
                 graphStore: graphStore,
-                memoryStore: memoryStore
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
             ) else {
                 return nil
             }
@@ -83,7 +85,8 @@ public final class MixedTaskPlanner: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         ) else {
             return nil
         }

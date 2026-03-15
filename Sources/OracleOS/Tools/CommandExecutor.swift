@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-public final class ToolCommandExecutor {
+final class ToolCommandExecutor {
     private let runtime: OracleRuntime
     private let automationHost: AutomationHost
 

@@ -20,10 +20,9 @@ let package = Package(
         .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
-        // Pin AXorcist to the last working Swift 5.9-compatible revision.
-        // Revision a10bbab introduced a broken formatDebugLogMessage reference;
-        // cf1d7e3 is the commit immediately before that and compiles cleanly.
-        .package(url: "https://github.com/steipete/AXorcist.git", revision: "cf1d7e372a625f4ffabdb938ca3028ae9b8ca7f7"),
+        // Use v0.1.0 of AXorcist, which includes the formatDebugLogMessage fix
+        // and Swift 6 portability improvements.
+        .package(url: "https://github.com/steipete/AXorcist.git", exact: "0.1.0"),
     ],
     targets: [
         .target(

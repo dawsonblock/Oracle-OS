@@ -56,15 +56,16 @@ public struct WorkflowMatcher: Sendable {
         .sorted { $0.confidence > $1.confidence }
     }
 
-    /// Propose candidate edges from the current node based on matched workflows.
     public func proposeEdges(
         currentNode: TaskNode,
         workflowIndex: WorkflowIndex,
-        taskGraphStore: TaskGraphStore
+        taskGraphStore: TaskGraphStore,
+        selectedStrategy: SelectedStrategy
     ) -> [TaskEdge] {
         let matches = match(
             currentState: currentNode.abstractState,
-            workflowIndex: workflowIndex
+            workflowIndex: workflowIndex,
+            selectedStrategy: selectedStrategy
         )
         var proposedEdges: [TaskEdge] = []
         for match in matches {

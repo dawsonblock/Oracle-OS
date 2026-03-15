@@ -8,7 +8,7 @@ public struct RerunFocusedTestsStrategy: RecoveryStrategy {
     public func prepare(
         failure _: FailureClass,
         state: WorldState,
-        memoryStore _: AppMemoryStore
+        memoryStore _: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation? {
         guard let snapshot = state.repositorySnapshot,
               !snapshot.testGraph.tests.isEmpty

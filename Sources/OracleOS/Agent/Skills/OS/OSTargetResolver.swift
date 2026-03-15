@@ -7,7 +7,7 @@ enum OSTargetResolver {
     static func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) throws -> ElementCandidate {
         do {
             return try state.resolve(

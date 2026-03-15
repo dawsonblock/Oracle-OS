@@ -5,7 +5,7 @@ public struct AlternateElementStrategy: RecoveryStrategy {
     public func prepare(
         failure: FailureClass,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation? {
         let fallbackLabel = state.observation.focusedElement?.label
         let query = ElementQuery(

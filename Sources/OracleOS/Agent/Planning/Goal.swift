@@ -26,4 +26,67 @@ public struct Goal: Codable, Sendable, Equatable {
         self.preferredAgentKind = preferredAgentKind
         self.experimentCandidates = experimentCandidates
     }
+
+    public static func interpret(_ description: String) -> Goal {
+        let lowercased = description.lowercased()
+        let targetApp: String?
+        if lowercased.contains("gmail") || lowercased.contains("browser") || lowercased.contains("chrome") {
+            targetApp = "Google Chrome"
+        } else if lowercased.contains("finder") {
+            targetApp = "Finder"
+        } else {
+            targetApp = nil
+        }
+
+        let targetDomain: String?
+        if lowercased.contains("gmail") {
+            targetDomain = "mail.google.com"
+        } else if lowercased.contains("slack") {
+            targetDomain = "slack.com"
+        } else {
+            targetDomain = nil
+        }
+
+        let targetTaskPhase: String?
+        if lowercased.contains("compose") {
+            targetTaskPhase = "compose"
+        } else if lowercased.contains("inbox") {
+            targetTaskPhase = "browse"
+        } else if lowercased.contains("save") {
+            targetTaskPhase = "save"
+        } else if lowercased.contains("rename") {
+            targetTaskPhase = "rename"
+        } else {
+            targetTaskPhase = nil
+        }
+
+        return Goal(
+            description: description,
+            targetApp: targetApp,
+            targetDomain: targetDomain,
+            targetTaskPhase: targetTaskPhase
+        )
+    }
+
+    public func matchScore(state: PlanningState) -> Double {
+        var matched = 0.0
+        var possible = 0.0
+
+        if let targetApp = targetApp {
+            possible += 1
+            if state.appID == targetApp { matched += 1 }
+        }
+        if let targetDomain = targetDomain {
+            possible += 1
+            if state.domain == targetDomain { matched += 1 }
+        }
+        if let targetTaskPhase = targetTaskPhase {
+            possible += 1
+            if state.taskPhase == targetTaskPhase { matched += 1 }
+        }
+
+        guard possible > 0 else { return 0 }
+        return matched / possible
+    }
 }
+

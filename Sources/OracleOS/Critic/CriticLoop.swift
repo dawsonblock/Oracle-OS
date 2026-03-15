@@ -97,6 +97,35 @@ public struct CriticVerdict: Sendable, Codable {
 ///     )
 ///     if verdict.needsRecovery { /* trigger recovery planner */ }
 ///
+// MARK: - Multi-signal extension
+
+/// Additional evidence signals the critic can consume beyond CompressedUIState diffs.
+///
+/// Providing more signals allows the critic to produce better-calibrated outcomes.
+/// All signals are optional; passing an empty array is identical to calling the
+/// single-argument `evaluate` variant.
+public enum CriticSignal: Sendable {
+    /// A semantic world-state diff produced by ``StateDiffEngine``.
+    case stateDiff(StateDiff)
+    /// True/false result of a semantic property validation check.
+    /// - Parameters:
+    ///   - description: Human-readable description of the check.
+    ///   - passed: Whether the semantic condition passed.
+    case semanticValidation(description: String, passed: Bool)
+    /// Result of a UI element presence / state check.
+    /// - Parameters:
+    ///   - identifier: Accessibility label or element ID.
+    ///   - passed: Whether the expected UI state was observed.
+    case uiElementCheck(identifier: String, passed: Bool)
+    /// Character-level diff summary for file-mutation actions.
+    /// - Parameters:
+    ///   - relativePath: Workspace-relative file path.
+    ///   - hasChanges: Whether the file content changed after the action.
+    case fileDiff(relativePath: String, hasChanges: Bool)
+}
+
+// MARK: - CriticLoop
+
 public struct CriticLoop: Sendable {
     public init() {}
 
@@ -179,6 +208,143 @@ public struct CriticLoop: Sendable {
             expectedConditionsMet: met,
             expectedConditionsTotal: total,
             notes: notes
+        )
+    }
+
+    /// Evaluate an action step using multi-signal evidence.
+    ///
+    /// The critic synthesizes state diffs, file diffs, UI signal checks, and
+    /// semantic validations into a unified verdict. This overload should be
+    /// preferred whenever the executor can provide extended evidence.
+    ///
+    /// - Parameters:
+    ///   - preState: Compressed UI state *before* the action.
+    ///   - postState: Compressed UI state *after* the action.
+    ///   - schema: The ``ActionSchema`` executed.
+    ///   - actionResult: The base success/failure report from the executor.
+    ///   - signals: Array of heterogeneous ``CriticSignal`` evidence blocks.
+    /// - Returns: A calibrated ``CriticVerdict``.
+    public func evaluate(
+        preState: CompressedUIState,
+        postState: CompressedUIState,
+        schema: ActionSchema?,
+        actionResult: ActionResult,
+        signals: [CriticSignal]
+    ) -> CriticVerdict {
+        // If no extended signals are provided, fall back to the base evaluation.
+        if signals.isEmpty {
+            return evaluate(
+                preState: preState,
+                postState: postState,
+                schema: schema,
+                actionResult: actionResult
+            )
+        }
+
+        let preHash = stateFingerprint(preState)
+        let postHash = stateFingerprint(postState)
+        
+        var stateChanged = preHash != postHash
+        var positiveEvidence = 0
+        var negativeEvidence = 0
+        var evidenceNotes: [String] = []
+
+        // Process all provided signals
+        for signal in signals {
+            switch signal {
+            case .stateDiff(let diff):
+                if diff.changeCount > 0 {
+                    stateChanged = true
+                    positiveEvidence += 1
+                    evidenceNotes.append("semantic state diff observed (\(diff.changeCount) changes)")
+                }
+            case .fileDiff(let path, let hasChanges):
+                if hasChanges {
+                    stateChanged = true
+                    positiveEvidence += 1
+                    evidenceNotes.append("file mutation verified at \(path)")
+                } else {
+                    evidenceNotes.append("no file mutation observed at \(path)")
+                }
+            case .semanticValidation(let desc, let passed):
+                if passed {
+                    positiveEvidence += 1
+                    evidenceNotes.append("semantic validation passed: \(desc)")
+                } else {
+                    negativeEvidence += 1
+                    evidenceNotes.append("semantic validation failed: \(desc)")
+                }
+            case .uiElementCheck(let id, let passed):
+                if passed {
+                    positiveEvidence += 1
+                    evidenceNotes.append("UI element \(id) verified")
+                } else {
+                    negativeEvidence += 1
+                    evidenceNotes.append("UI element \(id) missing or incorrect")
+                }
+            }
+        }
+
+        if actionResult.blockedByPolicy {
+            return CriticVerdict(
+                outcome: .failure,
+                preStateHash: preHash,
+                postStateHash: postHash,
+                actionName: schema?.name ?? "unknown",
+                stateChanged: stateChanged,
+                notes: ["action blocked by policy"] + evidenceNotes
+            )
+        }
+
+        guard let schema else {
+            // Un-schema'd actions rely purely on the signal consensus.
+            let outcome: CriticOutcome = (positiveEvidence > negativeEvidence || (stateChanged && negativeEvidence == 0)) ? .success : .unknown
+            return CriticVerdict(
+                outcome: outcome,
+                preStateHash: preHash,
+                postStateHash: postHash,
+                actionName: "unknown",
+                stateChanged: stateChanged,
+                notes: evidenceNotes + (stateChanged ? ["state changed"] : ["no schema; state unchanged"])
+            )
+        }
+
+        // Schema is present; check explicit postconditions as the baseline ...
+        let (met, total, baselineNotes) = checkPostconditions(
+            schema.expectedPostconditions,
+            in: postState
+        )
+
+        let baselineOutcome = classifyOutcome(
+            stateChanged: stateChanged,
+            conditionsMet: met,
+            conditionsTotal: total,
+            actionSuccess: actionResult.success,
+            verified: actionResult.verified
+        )
+
+        // ... then adjust based on strong signal evidence.
+        let finalOutcome: CriticOutcome
+        let strongNegativeSignal = negativeEvidence > 0
+        let strongPositiveSignal = positiveEvidence > 0 && negativeEvidence == 0
+
+        if strongNegativeSignal {
+            finalOutcome = .failure // Hard signals override weak UI inference.
+        } else if baselineOutcome == .unknown && strongPositiveSignal {
+            finalOutcome = .success
+        } else {
+            finalOutcome = baselineOutcome
+        }
+
+        return CriticVerdict(
+            outcome: finalOutcome,
+            preStateHash: preHash,
+            postStateHash: postHash,
+            actionName: schema.name,
+            stateChanged: stateChanged,
+            expectedConditionsMet: met,
+            expectedConditionsTotal: total,
+            notes: evidenceNotes + baselineNotes
         )
     }
 

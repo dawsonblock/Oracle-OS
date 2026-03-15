@@ -1,9 +1,9 @@
 import Foundation
 
 public struct PatternMemoryStore {
-    private let store: AppMemoryStore
+    private let store: UnifiedMemoryStore
 
-    public init(store: AppMemoryStore) {
+    public init(store: UnifiedMemoryStore) {
         self.store = store
     }
 

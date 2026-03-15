@@ -34,7 +34,7 @@ public final class GraphPlanner: @unchecked Sendable {
         from startState: PlanningState,
         goal: Goal,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore? = nil,
+        memoryStore: UnifiedMemoryStore? = nil,
         worldState: WorldState? = nil,
         riskPenalty: Double = 0
     ) -> GraphSearchResult? {
@@ -74,7 +74,7 @@ public final class GraphPlanner: @unchecked Sendable {
         from startState: PlanningState,
         goal: Goal,
         graphStore: GraphStore,
-        memoryStore: AppMemoryStore? = nil,
+        memoryStore: UnifiedMemoryStore? = nil,
         worldState: WorldState? = nil,
         riskPenalty: Double = 0
     ) -> GraphEdgeSelection? {

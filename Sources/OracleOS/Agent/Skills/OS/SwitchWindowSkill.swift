@@ -8,7 +8,7 @@ public final class SwitchWindowSkill: Skill {
     public func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore _: AppMemoryStore
+        memoryStore _: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let appName = query.app ?? state.observation.app ?? "unknown"
         let intent = ActionIntent.focus(

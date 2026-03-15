@@ -10,7 +10,7 @@ public final class RuntimeContext {
     public let policyEngine: PolicyEngine
     public let approvalStore: ApprovalStore
     public let graphStore: GraphStore
-    public let memoryStore: AppMemoryStore
+    public let memoryStore: UnifiedMemoryStore
     public let stateAbstraction: StateAbstraction
     public let recoveryEngine: RecoveryEngine
     public let workspaceRunner: WorkspaceRunner
@@ -34,7 +34,7 @@ public final class RuntimeContext {
         policyEngine: PolicyEngine,
         approvalStore: ApprovalStore,
         graphStore: GraphStore = GraphStore(),
-        memoryStore: AppMemoryStore = AppMemoryStore(),
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore(),
         stateAbstraction: StateAbstraction = StateAbstraction(),
         recoveryEngine: RecoveryEngine = RecoveryEngine(),
         workspaceRunner: WorkspaceRunner = WorkspaceRunner(),

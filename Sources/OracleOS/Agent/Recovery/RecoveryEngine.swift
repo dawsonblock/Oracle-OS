@@ -14,9 +14,9 @@ public final class RecoveryEngine {
     public func recover(
         failure: FailureClass,
         state: WorldState,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) async -> RecoveryAttempt {
-        let memoryStore = memoryStore ?? AppMemoryStore()
+        let memoryStore = memoryStore ?? UnifiedMemoryStore()
         let selection = selector.select(
             for: failure,
             state: state,

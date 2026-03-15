@@ -6,14 +6,21 @@ import Foundation
 // experiment comparison, or direct world mutation logic.
 @MainActor
 public final class AgentLoop {
-    private let planner: Planner
-    private let graphStore: GraphStore
-    private let experimentCoordinator: LoopExperimentCoordinator
-    private let learningCoordinator: LearningCoordinator
-    private let stateCoordinator: StateCoordinator
-    private let decisionCoordinator: DecisionCoordinator
-    private let executionCoordinator: ExecutionCoordinator
-    private let recoveryCoordinator: RecoveryCoordinator
+    let planner: Planner
+    let graphStore: GraphStore
+    let experimentCoordinator: LoopExperimentCoordinator
+    let learningCoordinator: LearningCoordinator
+    let stateCoordinator: StateCoordinator
+    let decisionCoordinator: DecisionCoordinator
+    let executionCoordinator: ExecutionCoordinator
+    let recoveryCoordinator: RecoveryCoordinator
+
+    /// Committed world model — the single authority the planner reads from.
+    ///
+    /// Updated incrementally via `StateDiffEngine` after every perception cycle
+    /// to prevent the planner from reasoning over raw, un-abstracted perception
+    /// data. See ``WorldStateModel`` for the three-layer state design.
+    public let worldModel: WorldStateModel
 
     public init(
         observationProvider: any ObservationProvider,
@@ -23,7 +30,7 @@ public final class AgentLoop {
         graphStore: GraphStore = GraphStore(),
         policyEngine: PolicyEngine = PolicyEngine(),
         recoveryEngine: RecoveryEngine = RecoveryEngine(),
-        memoryStore: AppMemoryStore = AppMemoryStore(),
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore(),
         skillRegistry: SkillRegistry = .live(),
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         experimentManager: ExperimentManager = ExperimentManager(),
@@ -34,6 +41,7 @@ public final class AgentLoop {
     ) {
         self.planner = planner
         self.graphStore = graphStore
+        self.worldModel = WorldStateModel()
 
         let projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
         let learningCoordinator = LearningCoordinator(

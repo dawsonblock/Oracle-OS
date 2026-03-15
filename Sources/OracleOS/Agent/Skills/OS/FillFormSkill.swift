@@ -8,7 +8,7 @@ public final class FillFormSkill: Skill {
     public func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let candidate = try OSTargetResolver.resolve(
             query: query,
