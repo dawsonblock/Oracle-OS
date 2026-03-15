@@ -89,15 +89,15 @@ public struct VisionPerceptionFrame: Codable, Sendable {
     }
 }
 
-// MARK: - Perception Provider Protocol
+// MARK: - Vision Perception Provider Protocol
 
-/// Protocol that any perception source (AX, vision sidecar, CDP) must conform
+/// Protocol that any vision perception source (e.g. vision sidecar) must conform
 /// to when feeding observations into the world model.
-public protocol PerceptionProvider: Sendable {
-    /// A short identifier for this provider (e.g. "ax", "vision", "cdp").
+public protocol VisionPerceptionProvider: Sendable {
+    /// A short identifier for this provider (e.g. "vision").
     var providerID: String { get }
 
-    /// Capture a perception frame for the given application, if possible.
+    /// Capture a vision perception frame for the given application, if possible.
     func capture(app: String) async throws -> VisionPerceptionFrame
 }
 
