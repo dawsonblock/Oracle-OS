@@ -6,6 +6,7 @@
 // fed to an evaluation engine.
 
 import Foundation
+import Dispatch
 
 // MARK: - Event Definitions
 
@@ -137,6 +138,7 @@ public final class RuntimeEventBus: @unchecked Sendable {
     private var registrations: [Registration] = []
     private var eventLog: [RuntimeEvent] = []
     private let maxLogSize: Int
+    private let deliveryQueue = DispatchQueue(label: "RuntimeEventBus.deliveryQueue")
 
     public init(maxLogSize: Int = 1000) {
         self.maxLogSize = maxLogSize
@@ -169,8 +171,10 @@ public final class RuntimeEventBus: @unchecked Sendable {
         let current = registrations
         lock.unlock()
 
-        for reg in current {
-            reg.handler(event)
+        deliveryQueue.sync {
+            for reg in current {
+                reg.handler(event)
+            }
         }
     }
 
