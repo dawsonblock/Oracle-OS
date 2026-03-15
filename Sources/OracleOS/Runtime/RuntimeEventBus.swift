@@ -141,7 +141,8 @@ public final class RuntimeEventBus: @unchecked Sendable {
     private let deliveryQueue = DispatchQueue(label: "RuntimeEventBus.deliveryQueue")
 
     public init(maxLogSize: Int = 1000) {
-        self.maxLogSize = maxLogSize
+        // Clamp to a non-negative value to avoid runtime traps when trimming the log.
+        self.maxLogSize = max(0, maxLogSize)
     }
 
     /// Subscribe to all events.  Returns an opaque ID used to unsubscribe.
