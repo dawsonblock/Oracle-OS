@@ -13,7 +13,7 @@ final class ControllerRuntimeBridge {
     let traceStore: ExperienceStore
     let artifactWriter: FailureArtifactWriter
     let runtimeContext: RuntimeContext
-    let oracleRuntime: RuntimeOrchestrator
+    let orchestrator: RuntimeOrchestrator
     let runtimeLifecycle: RuntimeLifecycle
     let diagnosticsBuilder: RuntimeDiagnosticsBuilder
 
