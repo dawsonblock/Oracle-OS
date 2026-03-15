@@ -6,8 +6,9 @@ public struct EnvironmentMonitor: Sendable {
     /// Detects discrepancies between the latest observed world state and the
     /// expected postconditions.
     ///
-    /// Returns a `StateDelta` describing what changed if a mismatch is found,
-    /// or `nil` when the environment matches expectations.
+    /// Returns a `StateDelta` describing expectation mismatches relative to
+    /// the latest observation if a mismatch is found, or `nil` when the
+    /// environment matches expectations.
     public func detectChanges(between latest: WorldState, and expected: ExpectationModel) -> StateDelta? {
         var mismatches: [String] = []
 
@@ -57,8 +58,11 @@ public struct EnvironmentMonitor: Sendable {
 
         guard !mismatches.isEmpty else { return nil }
 
+        // This delta represents expectation mismatches against the latest
+        // observation, not a diff from a concrete prior state. We therefore
+        // leave `previousStateHash` empty and only report the current hash.
         return StateDelta(
-            previousStateHash: latest.observationHash,
+            previousStateHash: "",
             currentStateHash: latest.observationHash,
             changedElements: mismatches
         )
