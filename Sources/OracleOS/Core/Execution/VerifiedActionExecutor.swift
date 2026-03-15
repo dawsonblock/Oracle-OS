@@ -91,6 +91,14 @@ public final class VerifiedActionExecutor {
         )
 
         let raw = execute()
+        // G-1.2: Enforcement precondition to prevent spoofing of verified status.
+        // If a ToolResult already claims it was executed through the executor,
+        // it means a tool is trying to bypass the boundary or double-wrap.
+        precondition(
+            raw.data?["executed_through_executor"] as? Bool != true,
+            "[VerifiedActionExecutor] Security violation: ToolResult attempted to spoof verified status."
+        )
+
         let (postObservation, verification, timedOut) = captureVerifiedPostObservation(
             appName: intent.app,
             conditions: intent.postconditions
@@ -177,8 +185,10 @@ public final class VerifiedActionExecutor {
             preState: preCompressed,
             postState: postCompressed,
             schema: schema,
-            actionResult: actionResult
+            actionResult: actionResult,
+            signals: raw.data?["critic_signals"] as? [CriticSignal] ?? []
         )
+
 
         let event = TraceEvent(
             sessionID: sessionID,

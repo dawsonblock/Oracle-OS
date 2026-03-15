@@ -36,7 +36,7 @@ public final class PlanSimulator: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) -> SimulatedOutcome? {
         guard let first = plan.operators.first else {
             return nil
@@ -162,7 +162,8 @@ public final class PlanSimulator: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: nil
         )
         if let workflowMatch,
            workflowMatch.stepIndex < workflowMatch.plan.steps.count,

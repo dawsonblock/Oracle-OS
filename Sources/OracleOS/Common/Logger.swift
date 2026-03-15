@@ -31,7 +31,7 @@ public enum Log {
     /// Minimum level to output. Set to .debug for verbose, .info for normal, .warn for quiet.
     /// Access is guarded by an NSLock for thread safety.
     private static let _levelLock = NSLock()
-    private static var _minimumLevel: LogLevel = .info
+    nonisolated(unsafe) private static var _minimumLevel: LogLevel = .info
 
     public static var minimumLevel: LogLevel {
         get {

@@ -56,9 +56,11 @@ public struct WorkflowParameterizer: Sendable {
         let extractedParameters = ParameterExtractor.extract(
             from: traces.map { events in
                 TraceSegment(
-                    events: events,
+                    id: UUID().uuidString,
+                    taskID: nil,
+                    sessionID: "parameterizer",
                     agentKind: AgentKind(rawValue: events.first?.agentKind ?? "os") ?? .os,
-                    evidenceTiers: []
+                    events: events
                 )
             }
         )
@@ -81,8 +83,8 @@ public struct WorkflowParameterizer: Sendable {
             )
         }
 
-        let allSlots = Array(Set(extractedParameters.map(\.name))).sorted()
-        let kinds = Dictionary(uniqueKeysWithValues: extractedParameters.map { ($0.name, $0.kind) })
+        let allSlots = Array(Set(extractedParameters.map { $0.name })).sorted()
+        let kinds = Dictionary(extractedParameters.map { ($0.name, $0.kind) }, uniquingKeysWith: { first, _ in first })
 
         return ParameterizedWorkflow(
             goalPattern: goalPattern,

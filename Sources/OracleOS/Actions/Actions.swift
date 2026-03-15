@@ -431,10 +431,8 @@ public enum Actions {
                     if readBackOk == .success, let ref = readBackRef {
                         if let str = ref as? String, !str.isEmpty {
                             readback = str
-                        } else if CFGetTypeID(ref) == CFStringGetTypeID(),
-                                  let cfStr = ref as? CFString
-                        {
-                            readback = cfStr as String
+                        } else if CFGetTypeID(ref) == CFStringGetTypeID() {
+                            readback = ref as! String
                         } else {
                             readback = nil
                         }
@@ -688,7 +686,10 @@ public enum Actions {
             }
         }
 
-        return performHotkey(keys: keys, appName: appName)
+        return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
+            performHotkey(keys: keys, appName: appName)
+        }
+
     }
 
     private static func performHotkey(
@@ -762,13 +763,16 @@ public enum Actions {
             }
         }
 
-        return performScroll(
-            direction: direction,
-            amount: amount,
-            appName: appName,
-            x: x,
-            y: y
-        )
+        return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
+            performScroll(
+                direction: direction,
+                amount: amount,
+                appName: appName,
+                x: x,
+                y: y
+            )
+        }
+
     }
 
     private static func performScroll(

@@ -40,7 +40,7 @@ public protocol Skill {
     func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution
 }
 
@@ -50,6 +50,6 @@ public protocol CodeSkill {
     func resolve(
         taskContext: TaskContext,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution
 }

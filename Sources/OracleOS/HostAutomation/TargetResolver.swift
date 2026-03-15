@@ -24,7 +24,7 @@ public enum HostTargetResolver {
         query: ElementQuery,
         elements: [UnifiedElement],
         worldState: WorldState? = nil,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) throws -> HostTargetSelection {
         let ranked = ElementRanker.rank(
             elements: elements,
@@ -64,7 +64,7 @@ public enum HostTargetResolver {
         query: ElementQuery,
         elements: [UnifiedElement],
         worldState: WorldState? = nil,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) -> [ElementCandidate] {
         ElementRanker.rank(
             elements: elements,

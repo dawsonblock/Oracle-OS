@@ -8,7 +8,7 @@ public final class GitBranchSkill: CodeSkill {
     public func resolve(
         taskContext: TaskContext,
         state: WorldState,
-        memoryStore _: AppMemoryStore
+        memoryStore _: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let workspaceRoot = try CodeSkillSupport.workspaceRoot(taskContext: taskContext, state: state)
         let snapshot = try CodeSkillSupport.repositorySnapshot(state: state, workspaceRoot: workspaceRoot)

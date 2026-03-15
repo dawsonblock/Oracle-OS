@@ -47,7 +47,7 @@ public enum BrowserTargetResolver {
     public static func resolve(
         query: ElementQuery,
         in snapshot: PageSnapshot,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) throws -> BrowserTargetSelection {
         let matches = BrowserPageQuery.query(snapshot: snapshot, text: query.text, role: query.role)
         guard let best = matches.first else {
@@ -72,7 +72,7 @@ public enum BrowserTargetResolver {
     public static func score(
         query: ElementQuery,
         in snapshot: PageSnapshot,
-        memoryStore: AppMemoryStore? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) -> [BrowserTargetScore] {
         let matches = BrowserPageQuery.query(snapshot: snapshot, text: query.text, role: query.role)
         let memoryBias: Double

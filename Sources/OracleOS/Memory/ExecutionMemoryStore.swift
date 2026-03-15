@@ -1,9 +1,9 @@
 import Foundation
 
 public struct ExecutionMemoryStore {
-    private let store: AppMemoryStore
+    private let store: UnifiedMemoryStore
 
-    public init(store: AppMemoryStore) {
+    public init(store: UnifiedMemoryStore) {
         self.store = store
     }
 

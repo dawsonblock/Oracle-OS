@@ -42,6 +42,6 @@ public protocol RecoveryStrategy {
     func prepare(
         failure: FailureClass,
         state: WorldState,
-        memoryStore: AppMemoryStore
+        memoryStore: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation?
 }
