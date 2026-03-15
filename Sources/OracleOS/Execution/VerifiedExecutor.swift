@@ -12,7 +12,6 @@ public final class VerifiedActionExecutor {
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskLedgerStore?
     private let stateMemoryIndex: StateMemoryIndex?
-    private let graphStore: GraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -24,8 +23,7 @@ public final class VerifiedActionExecutor {
         artifactWriter: FailureArtifactWriter? = nil,
         graphStore: GraphStore? = nil,
         taskGraphStore: TaskLedgerStore? = nil,
-        stateMemoryIndex: StateMemoryIndex? = nil,
-        graphStore: GraphStore? = nil
+        stateMemoryIndex: StateMemoryIndex? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -37,7 +35,6 @@ public final class VerifiedActionExecutor {
         self.graphStore = graphStore
         self.taskGraphStore = taskGraphStore
         self.stateMemoryIndex = stateMemoryIndex
-        self.graphStore = graphStore
     }
 
     /// Execute an action within the verified trust boundary.
