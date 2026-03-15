@@ -674,6 +674,7 @@ public final class RuntimeOrchestrator {
             compressedState: compressedState,
             abstractState: abstractState,
             planningStateID: PlanningStateID(rawValue: abstractState.rawValue),
+            planningStateID: abstractState.id,
             llmSchemas: llmSchemas
         ) { candidate in
             // Track source distribution for metrics.
