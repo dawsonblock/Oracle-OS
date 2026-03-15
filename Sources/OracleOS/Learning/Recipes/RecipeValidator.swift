@@ -1,29 +1,94 @@
 import Foundation
 
 public enum RecipeValidator {
-    public static func validate(
+
+    // MARK: - Validation Result
+
+    /// Structured result of recipe validation.
+    public struct ValidationResult: Sendable {
+        public let isValid: Bool
+        public let violations: [String]
+
+        public init(isValid: Bool, violations: [String] = []) {
+            self.isValid = isValid
+            self.violations = violations
+        }
+    }
+
+    // MARK: - Full Validation
+
+    /// Validates recipe structure including postconditions and constraints.
+    /// Returns a `ValidationResult` with detailed violation messages.
+    public static func validateFull(
         recipe: Recipe,
         state _: WorldState
-    ) -> Bool {
+    ) -> ValidationResult {
+        var violations: [String] = []
+
+        // Steps must exist.
         guard !recipe.steps.isEmpty else {
-            return false
+            return ValidationResult(isValid: false, violations: ["Recipe has no steps"])
         }
 
         let declaredParameters = Set(recipe.params?.map(\.key) ?? [])
+
         for step in recipe.steps {
-            guard !step.action.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return false
+            // Action must be non-empty.
+            if step.action.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                violations.append("Step \(step.id) has empty action")
             }
+            // Referenced parameters must be declared.
             let referencedParameters = Set(step.params?.map(\.key) ?? [])
-            guard referencedParameters.isSubset(of: declaredParameters) else {
-                return false
+            let undeclared = referencedParameters.subtracting(declaredParameters)
+            if !undeclared.isEmpty {
+                violations.append("Step \(step.id) references undeclared params: \(undeclared.sorted().joined(separator: ", "))")
             }
+            // Wait timeouts must be non-negative.
             if let timeout = step.waitAfter?.timeout, timeout < 0 {
-                return false
+                violations.append("Step \(step.id) has negative wait timeout: \(timeout)")
             }
         }
 
-        return true
+        // Postcondition validation.
+        let validPostconditionKinds: Set<String> = [
+            "element_exists", "element_focused", "element_value_equals",
+            "element_appeared", "element_disappeared",
+            "file_exists", "window_visible", "app_frontmost", "url_contains",
+        ]
+        if let postconditions = recipe.postconditions {
+            for pc in postconditions {
+                if pc.kind.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    violations.append("Postcondition has empty kind")
+                }
+                if pc.target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    violations.append("Postcondition '\(pc.kind)' has empty target")
+                }
+                if !validPostconditionKinds.contains(pc.kind) {
+                    violations.append("Postcondition '\(pc.kind)' is not a recognised kind")
+                }
+            }
+        }
+
+        // Constraint validation.
+        if let constraints = recipe.constraints {
+            if let maxDuration = constraints.maxDurationSeconds, maxDuration <= 0 {
+                violations.append("Constraint max_duration_seconds must be positive, got \(maxDuration)")
+            }
+            if let maxRetries = constraints.maxRetries, maxRetries < 0 {
+                violations.append("Constraint max_retries must be non-negative, got \(maxRetries)")
+            }
+        }
+
+        return ValidationResult(isValid: violations.isEmpty, violations: violations)
+    }
+
+    // MARK: - Legacy Bool API
+
+    public static func validate(
+        recipe: Recipe,
+        state: WorldState
+    ) -> Bool {
+        return validateFull(recipe: recipe, state: state).isValid
     }
 
     public static func validateWorkflow(

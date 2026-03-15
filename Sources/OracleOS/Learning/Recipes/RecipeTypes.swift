@@ -15,12 +15,54 @@ public struct Recipe: Codable, Sendable {
     public let params: [String: RecipeParam]?
     public let preconditions: RecipePreconditions?
     public let steps: [RecipeStep]
+    public let postconditions: [RecipePostcondition]?
+    public let constraints: RecipeConstraints?
     public let onFailure: String?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case name, description, app, params, preconditions, steps
+        case postconditions, constraints
         case onFailure = "on_failure"
+    }
+}
+
+/// A postcondition that must be true after a recipe completes successfully.
+public struct RecipePostcondition: Codable, Sendable {
+    /// The kind of postcondition check (e.g. "element_exists", "file_exists",
+    /// "window_visible", "app_frontmost", "url_contains").
+    public let kind: String
+    /// Target identifier (element label, file path, app name, etc.)
+    public let target: String
+    /// Optional expected value for equality checks.
+    public let expected: String?
+
+    public init(kind: String, target: String, expected: String? = nil) {
+        self.kind = kind
+        self.target = target
+        self.expected = expected
+    }
+}
+
+/// Constraints that bound recipe execution.
+public struct RecipeConstraints: Codable, Sendable {
+    /// Maximum total execution time in seconds.
+    public let maxDurationSeconds: Double?
+    /// Maximum number of retry attempts for failing steps.
+    public let maxRetries: Int?
+    /// If true, the recipe requires user approval before each destructive step.
+    public let requiresApproval: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case maxDurationSeconds = "max_duration_seconds"
+        case maxRetries = "max_retries"
+        case requiresApproval = "requires_approval"
+    }
+
+    public init(maxDurationSeconds: Double? = nil, maxRetries: Int? = nil, requiresApproval: Bool? = nil) {
+        self.maxDurationSeconds = maxDurationSeconds
+        self.maxRetries = maxRetries
+        self.requiresApproval = requiresApproval
     }
 }
 

@@ -20,9 +20,13 @@ let package = Package(
         .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
-        // Use v0.1.0 of AXorcist, which includes the formatDebugLogMessage fix
-        // and Swift 6 portability improvements.
-        .package(url: "https://github.com/steipete/AXorcist.git", exact: "0.1.0"),
+        // Pin AXorcist to the last Swift 5.9-compatible revision.
+        // The v0.1.0 tag bumped swift-tools-version to 6.2 which is
+        // incompatible with this package's 5.9 toolchain.
+        .package(
+            url: "https://github.com/steipete/AXorcist.git",
+            revision: "cf1d7e372a625f4ffabdb938ca3028ae9b8ca7f7"
+        ),
     ],
     targets: [
         .target(
