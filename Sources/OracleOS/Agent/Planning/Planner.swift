@@ -145,6 +145,30 @@ import Foundation
             return baseScore + 0.1
         }
 
+        var scoredDecisions: [(decision: PlannerDecision, score: Double)] = []
+
+        if let decision = taskGraphDecision, let score = taskGraphScore {
+            scoredDecisions.append((decision: decision, score: score))
+        }
+
+        if let decision = familyDecision {
+            let score = sourceConfidence(decision.source) + memoryBias
+            scoredDecisions.append((decision: decision, score: score))
+        }
+
+        if let decision = reasoningDecision {
+            let score = sourceConfidence(decision.source) + memoryBias
+            scoredDecisions.append((decision: decision, score: score))
+        }
+
+        guard !scoredDecisions.isEmpty else {
+            return nil
+        }
+
+        // Select the decision with the highest score.
+        return scoredDecisions.max(by: { $0.score < $1.score })?.decision
+    }
+
     private func plannerFamily(for agentKind: AgentKind) -> PlannerFamily {
         switch agentKind {
         case .os:
