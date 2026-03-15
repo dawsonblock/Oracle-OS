@@ -12,11 +12,15 @@ public struct EnvironmentMonitor: Sendable {
         var mismatches: [String] = []
 
         // App check: verify the expected application is frontmost.
-        if let expectedApp = expected.expectedApp,
-           let currentApp = latest.observation.app,
-           !currentApp.localizedCaseInsensitiveContains(expectedApp)
-        {
-            mismatches.append("expected_app:\(expectedApp)")
+        if let expectedApp = expected.expectedApp {
+            if let currentApp = latest.observation.app {
+                if !currentApp.localizedCaseInsensitiveContains(expectedApp) {
+                    mismatches.append("expected_app:\(expectedApp)")
+                }
+            } else {
+                // Missing observation for app when an expectation is set.
+                mismatches.append("expected_app:\(expectedApp)")
+            }
         }
 
         // Element check: verify expected elements are present in the observation.
@@ -28,19 +32,27 @@ public struct EnvironmentMonitor: Sendable {
         }
 
         // URL check.
-        if let expectedURL = expected.expectedURL,
-           let currentURL = latest.observation.url,
-           !currentURL.localizedCaseInsensitiveContains(expectedURL)
-        {
-            mismatches.append("expected_url:\(expectedURL)")
+        if let expectedURL = expected.expectedURL {
+            if let currentURL = latest.observation.url {
+                if !currentURL.localizedCaseInsensitiveContains(expectedURL) {
+                    mismatches.append("expected_url:\(expectedURL)")
+                }
+            } else {
+                // Missing observation for URL when an expectation is set.
+                mismatches.append("expected_url:\(expectedURL)")
+            }
         }
 
         // Window title check.
-        if let expectedWindow = expected.expectedWindowTitle,
-           let currentTitle = latest.observation.windowTitle,
-           !currentTitle.localizedCaseInsensitiveContains(expectedWindow)
-        {
-            mismatches.append("expected_window:\(expectedWindow)")
+        if let expectedWindow = expected.expectedWindowTitle {
+            if let currentTitle = latest.observation.windowTitle {
+                if !currentTitle.localizedCaseInsensitiveContains(expectedWindow) {
+                    mismatches.append("expected_window:\(expectedWindow)")
+                }
+            } else {
+                // Missing observation for window title when an expectation is set.
+                mismatches.append("expected_window:\(expectedWindow)")
+            }
         }
 
         guard !mismatches.isEmpty else { return nil }
