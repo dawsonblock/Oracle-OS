@@ -143,9 +143,13 @@ public enum VisionContractValidator {
         let isoFormatter = ISO8601DateFormatter()
         if let frameDate = isoFormatter.date(from: frame.timestamp) {
             let age = now.timeIntervalSince(frameDate)
-            if age > maxFrameAgeSec {
+            if age < 0 {
+                violations.append("Frame timestamp '\(frame.timestamp)' is in the future relative to validation time")
+            } else if age > maxFrameAgeSec {
                 violations.append("Frame is \(Int(age))s old, exceeds \(Int(maxFrameAgeSec))s limit")
             }
+        } else {
+            violations.append("Frame timestamp '\(frame.timestamp)' is not a valid ISO-8601 date")
         }
 
         return violations
