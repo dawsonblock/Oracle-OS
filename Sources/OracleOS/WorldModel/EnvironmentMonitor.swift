@@ -69,17 +69,17 @@ public struct EnvironmentMonitor: Sendable {
     }
 
     /// Reconciles the world state after an action by checking the result
-    /// postconditions.  Returns `true` if the environment is consistent.
+    /// postconditions against the provided `worldState`. Returns `true` if the
+    /// environment is consistent.
     public func reconcile(
         worldState: WorldState,
-        postconditions: [Postcondition],
-        observation: Observation
+        postconditions: [Postcondition]
     ) -> ReconciliationResult {
         var passed: [String] = []
         var failed: [String] = []
 
         for pc in postconditions {
-            let ok = ActionVerifier.verify(post: observation, condition: pc)
+            let ok = ActionVerifier.verify(post: worldState.observation, condition: pc)
             if ok {
                 passed.append(pc.kind.rawValue + ":" + pc.target)
             } else {
