@@ -6,7 +6,7 @@ This document describes the current runtime layers and how they satisfy the gove
 
 Oracle OS has one execution spine:
 
-`surface -> OracleRuntime -> Policy -> VerifiedActionExecutor -> Critic -> Trace -> runtime-managed graph/memory/recovery update`
+`surface -> RuntimeOrchestrator -> Policy -> VerifiedActionExecutor -> Critic -> Trace -> runtime-managed graph/memory/recovery update`
 
 Surfaces:
 
@@ -31,11 +31,11 @@ Everything else is supporting infrastructure.
 
 ## Layer Map
 
-### Runtime
+### RuntimeOrchestrator
 
 Primary files:
 
-- `Sources/OracleOS/Runtime/OracleRuntime.swift`
+- `Sources/OracleOS/Runtime/RuntimeOrchestrator.swift`
 - `Sources/OracleOS/Runtime/RuntimeContext.swift`
 - `Sources/OracleOS/Runtime/RuntimeExecutionDriver.swift`
 - `Sources/OracleOS/Runtime/TaskContext.swift`

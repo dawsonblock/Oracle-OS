@@ -663,8 +663,8 @@ public final class RuntimeOrchestrator {
         llmSchemas: [ActionSchema] = [],
         execute: (ActionIntent) -> ToolResult
     ) -> CandidateResult? {
-        let critic = CriticLoop()
-        let stateAbstractionEngine = StateAbstractionEngine()
+        let critic = context.criticLoop
+        let stateAbstractionEngine = context.stateAbstractionEngine
 
         var memoryCandidateCount = 0
         var graphCandidateCount = 0
@@ -673,7 +673,7 @@ public final class RuntimeOrchestrator {
         let result = context.searchController.search(
             compressedState: compressedState,
             abstractState: abstractState,
-            planningStateID: planningStateID,
+            planningStateID: abstractState.id.rawValue,
             llmSchemas: llmSchemas
         ) { candidate in
             // Track source distribution for metrics.

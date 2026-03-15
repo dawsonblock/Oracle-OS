@@ -154,9 +154,7 @@ struct GovernanceEnforcementTests {
             workspaceRoot: "/tmp/workspace",
             buildTool: .swiftPackage,
             files: [
-                RepositoryFile(path: "Sources/OracleOS/Runtime/OracleRuntime.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Graph/GraphStore.swift", isDirectory: false),
-                RepositoryFile(path: "Tests/OracleOSEvals/OperatorBenchmarks.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Runtime/RuntimeOrchestrator.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
             dependencyGraph: DependencyGraph(),
@@ -169,8 +167,8 @@ struct GovernanceEnforcementTests {
             goalDescription: "refactor runtime graph boundary",
             snapshot: snapshot,
             candidatePaths: [
-                "Sources/OracleOS/Runtime/OracleRuntime.swift",
-                "Sources/OracleOS/Graph/GraphStore.swift",
+                "Sources/OracleOS/Runtime/RuntimeOrchestrator.swift",
+                "Sources/OracleOS/WorldModel/Graph/GraphStore.swift",
             ]
         )
 

@@ -13,19 +13,25 @@ struct ArchitectureFreezeTests {
         // Runtime must not instantiate secondary planners directly.
         #expect(
             !content.contains("CodePlanner("),
-            "OracleRuntime should not instantiate CodePlanner directly"
+            "RuntimeOrchestrator should not instantiate CodePlanner directly"
         )
-        #expect(
-            !content.contains("OSPlanner("),
-            "OracleRuntime should not instantiate OSPlanner directly"
+        assertNoNewInstantiation(
+            of: "OSPlanner",
+            in: "Sources/OracleOS/Runtime/RuntimeOrchestrator.swift",
+            message:
+            "RuntimeOrchestrator should not instantiate OSPlanner directly"
         )
-        #expect(
-            !content.contains("GraphPlanner("),
-            "OracleRuntime should not instantiate GraphPlanner directly"
+        assertNoNewInstantiation(
+            of: "GraphPlanner",
+            in: "Sources/OracleOS/Runtime/RuntimeOrchestrator.swift",
+            message:
+            "RuntimeOrchestrator should not instantiate GraphPlanner directly"
         )
-        #expect(
-            !content.contains("PlanGenerator("),
-            "OracleRuntime should not instantiate PlanGenerator directly"
+        assertNoNewInstantiation(
+            of: "PlanGenerator",
+            in: "Sources/OracleOS/Runtime/RuntimeOrchestrator.swift",
+            message:
+            "RuntimeOrchestrator should not instantiate PlanGenerator directly"
         )
     }
 
@@ -200,7 +206,7 @@ struct ArchitectureFreezeTests {
 
     private func runtimeContents() throws -> String {
         let url = sourcesRoot().appendingPathComponent(
-            "Runtime/OracleRuntime.swift",
+            "Runtime/RuntimeOrchestrator.swift",
             isDirectory: false
         )
         return try String(contentsOf: url)

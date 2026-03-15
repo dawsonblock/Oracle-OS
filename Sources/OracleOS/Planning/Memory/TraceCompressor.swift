@@ -22,27 +22,45 @@ public struct CompressedTracePattern: Sendable, Equatable {
     }
 }
 
+public struct TraceAccumulator: Sendable {
+    public var count: Int = 0
+    public var totalElapsedMs: Double = 0
+    public var success: Bool = false
+
+    public init() {}
+
+    public mutating func add(event: TraceEvent) {
+        count += 1
+        totalElapsedMs += event.elapsedMs
+        if event.success {
+            success = true
+        }
+    }
+
+    public var averageElapsedMs: Double {
+        count > 0 ? totalElapsedMs / Double(count) : 0
+    }
+}
+
 public struct TraceCompressor: Sendable {
 
     public init() {}
 
     public func compress(events: [TraceEvent]) -> [CompressedTracePattern] {
-        var grouped: [String: [TraceEvent]] = [:]
+        var grouped: [String: TraceAccumulator] = [:]
         for event in events {
             let key = patternKey(for: event)
-            grouped[key, default: []].append(event)
+            grouped[key, default: TraceAccumulator()].add(event: event)
         }
 
-        return grouped.map { key, events in
-            let avgElapsed = events.map(\.elapsedMs).reduce(0, +) / Double(max(events.count, 1))
-            let anySuccess = events.contains(where: \.success)
-            let parts = key.split(separator: "|", maxSplits: 2)
+        return grouped.map { key, acc in
+            let parts = key.split(separator: "|", maxSplits: 1)
             return CompressedTracePattern(
                 stateFingerprint: parts.count > 0 ? String(parts[0]) : "unknown",
                 actionName: parts.count > 1 ? String(parts[1]) : "unknown",
-                resultSuccess: anySuccess,
-                occurrences: events.count,
-                averageElapsedMs: avgElapsed
+                resultSuccess: acc.success,
+                occurrences: acc.count,
+                averageElapsedMs: acc.averageElapsedMs
             )
         }
         .sorted { lhs, rhs in

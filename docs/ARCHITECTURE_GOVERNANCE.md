@@ -19,7 +19,7 @@ Anything that changes the world outside that path is a defect.
 
 ### Runtime Boundary
 
-`OracleRuntime` and the verified execution path own real-world change.
+`RuntimeOrchestrator` and the verified execution path own real-world change.
 
 Allowed:
 - build policy context

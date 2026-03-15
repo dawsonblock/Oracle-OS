@@ -96,7 +96,7 @@ Both agents share one runtime, one policy engine, one verified execution boundar
 
 ```mermaid
 graph TD
-    Surface["Controller / MCP / CLI / Recipes"] --> Runtime["OracleRuntime"]
+    Surface["Controller / MCP / CLI / Recipes"] --> Runtime["RuntimeOrchestrator"]
     Runtime --> Policy["Policy + Approval Gate"]
     Runtime --> Loop["Bounded AgentLoop"]
     Loop --> Observation["Observation + Planning State"]

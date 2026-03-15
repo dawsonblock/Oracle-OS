@@ -772,7 +772,7 @@ struct GraphAwareLoopTests {
             approvalStore: approvalStore,
             graphStore: graphStore
         )
-        let runtime = OracleRuntime(context: context)
+        let runtime = RuntimeOrchestrator(context: context)
 
         let result = runtime.performAction(
             surface: .mcp,

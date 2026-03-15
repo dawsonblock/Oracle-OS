@@ -145,11 +145,11 @@ struct SafeRuntimeTests {
         #expect(graphStore.allCandidateEdges().first?.failureHistogram[FailureClass.elementNotFound.rawValue] == 1)
     }
 
-    private func makeRuntime(controllerConnected: Bool = false) -> OracleRuntime {
+    private func makeRuntime(controllerConnected: Bool = false) -> RuntimeOrchestrator {
         makeRuntimeWithGraph(controllerConnected: controllerConnected).runtime
     }
 
-    private func makeRuntimeWithGraph(controllerConnected: Bool = false) -> (runtime: OracleRuntime, graphStore: GraphStore) {
+    private func makeRuntimeWithGraph(controllerConnected: Bool = false) -> (runtime: RuntimeOrchestrator, graphStore: GraphStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let traceRecorder = TraceRecorder()
         let traceStore = TraceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
@@ -177,6 +177,6 @@ struct SafeRuntimeTests {
             graphStore: graphStore
         )
 
-        return (OracleRuntime(context: context), graphStore)
+        return (RuntimeOrchestrator(context: context), graphStore)
     }
 }

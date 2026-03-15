@@ -24,6 +24,8 @@ public final class RuntimeContext {
     public let searchController: SearchController
     public let metricsRecorder: MetricsRecorder
     public let telemetry: RuntimeTelemetry
+    public let criticLoop: CriticLoop
+    public let stateAbstractionEngine: StateAbstractionEngine
 
     public init(
         config: RuntimeConfig = .live(),
@@ -75,6 +77,8 @@ public final class RuntimeContext {
         )
         self.metricsRecorder = metricsRecorder
         self.telemetry = RuntimeTelemetry(context: self)
+        self.criticLoop = CriticLoop()
+        self.stateAbstractionEngine = StateAbstractionEngine()
     }
 
     public static func live(
