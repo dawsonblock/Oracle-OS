@@ -5,8 +5,8 @@ public struct MemoryRouter {
     private let patternStore: StrategyMemory?
 
     public init(memoryStore: StrategyMemory? = nil) {
-        self.executionStore = memoryStore.map(StrategyMemory.init(store:))
-        self.patternStore = memoryStore.map(StrategyMemory.init(store:))
+        self.executionStore = memoryStore
+        self.patternStore = memoryStore
     }
 
     public func influence(for context: MemoryQueryContext) -> MemoryInfluence {
