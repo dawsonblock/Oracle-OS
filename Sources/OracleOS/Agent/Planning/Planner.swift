@@ -8,10 +8,13 @@ import Foundation
 // Each planning cycle:
 //   1. Updates the current task-graph node from world state
 //   2. Expands candidate edges from the current node
-//   3. Evaluates future paths via GraphNavigator
+  //   3. Evaluates future paths via GraphNavigator
 //   4. Selects the best edge
 // The task graph is the canonical representation of task position — not
 // a post-hoc log.
+
+public final class Planner {
+
     private let planGenerator: PlanGenerator
     public let taskGraphStore: TaskGraphStore
 
