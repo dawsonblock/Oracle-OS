@@ -27,7 +27,7 @@ final class ControllerRuntimeBridge {
             artifactWriter: artifactWriter
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
-        self.orchestrator = RuntimeOrchestrator(context: runtimeContext) // Initialized orchestrator
+        self.oracleRuntime = RuntimeOrchestrator(context: runtimeContext)
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()
