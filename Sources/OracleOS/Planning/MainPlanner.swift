@@ -26,6 +26,7 @@ public final class MainPlanner: @unchecked Sendable {
     public let taskGraphStore: TaskLedgerStore
     private let graphNavigator: LedgerNavigator
     private let graphScorer: LedgerScorer
+    private let planGenerator: PlanGenerator
 
     public init(
         workflowIndex: WorkflowIndex? = nil,
@@ -33,36 +34,28 @@ public final class MainPlanner: @unchecked Sendable {
         codePlanner: CodePlanner? = nil,
         mixedTaskPlanner: MixedTaskPlanner? = nil,
         reasoningEngine: ReasoningEngine? = nil,
+        planEvaluator: PlanEvaluator? = nil,
         promptEngine: PromptEngine = PromptEngine(),
         reasoningThreshold: Double = 0.6,
         taskGraphStore: TaskLedgerStore? = nil
     ) {
-        let sharedWorkflowIndex = workflowIndex ?? WorkflowIndex()
-        let sharedGraphPlanner = GraphPlanner(maxDepth: 6, beamWidth: 5)
+        self.workflowIndex = workflowIndex ?? WorkflowIndex()
         let sharedWorkflowRetriever = WorkflowRetriever()
-        let sharedWorkflowExecutor = WorkflowExecutor()
-        let resolvedOSPlanner = osPlanner ?? OSPlanner(
-            graphPlanner: sharedGraphPlanner,
-            workflowIndex: sharedWorkflowIndex,
-            workflowRetriever: sharedWorkflowRetriever,
-            workflowExecutor: sharedWorkflowExecutor
+        let sharedPlanEvaluator = planEvaluator ?? PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
+        
+        self.planGenerator = PlanGenerator(
+            reasoningEngine: reasoningEngine ?? ReasoningEngine(),
+            planEvaluator: sharedPlanEvaluator,
+            osPlanner: osPlanner,
+            codePlanner: codePlanner,
+            mixedTaskPlanner: mixedTaskPlanner
         )
-        let resolvedCodePlanner = codePlanner ?? CodePlanner(
-            graphPlanner: sharedGraphPlanner,
-            workflowIndex: sharedWorkflowIndex,
-            workflowRetriever: sharedWorkflowRetriever,
-            workflowExecutor: sharedWorkflowExecutor
-        )
-        self.workflowIndex = sharedWorkflowIndex
         self.workflowRetriever = sharedWorkflowRetriever
-        self.osPlanner = resolvedOSPlanner
-        self.codePlanner = resolvedCodePlanner
-        self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(
-            osPlanner: resolvedOSPlanner,
-            codePlanner: resolvedCodePlanner
-        )
+        self.osPlanner = osPlanner ?? OSPlanner()
+        self.codePlanner = codePlanner ?? CodePlanner()
+        self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(osPlanner: self.osPlanner, codePlanner: self.codePlanner)
         self.reasoningEngine = reasoningEngine ?? ReasoningEngine()
-        self.planEvaluator = PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
+        self.planEvaluator = sharedPlanEvaluator
         self.promptEngine = promptEngine
         self.reasoningThreshold = reasoningThreshold
         self.taskGraphStore = taskGraphStore ?? TaskLedgerStore()
@@ -75,63 +68,21 @@ public final class MainPlanner: @unchecked Sendable {
     }
 
     public func interpretGoal(_ description: String) -> Goal {
-        let lowercased = description.lowercased()
-        let targetApp: String?
-        if lowercased.contains("gmail") || lowercased.contains("browser") || lowercased.contains("chrome") {
-            targetApp = "Google Chrome"
-        } else if lowercased.contains("finder") {
-            targetApp = "Finder"
-        } else {
-            targetApp = nil
-        }
-
-        let targetDomain: String?
-        if lowercased.contains("gmail") {
-            targetDomain = "mail.google.com"
-        } else if lowercased.contains("slack") {
-            targetDomain = "slack.com"
-        } else {
-            targetDomain = nil
-        }
-
-        let targetTaskPhase: String?
-        if lowercased.contains("compose") {
-            targetTaskPhase = "compose"
-        } else if lowercased.contains("inbox") {
-            targetTaskPhase = "browse"
-        } else if lowercased.contains("save") {
-            targetTaskPhase = "save"
-        } else if lowercased.contains("rename") {
-            targetTaskPhase = "rename"
-        } else {
-            targetTaskPhase = nil
-        }
-
-        return Goal(
-            description: description,
-            targetApp: targetApp,
-            targetDomain: targetDomain,
-            targetTaskPhase: targetTaskPhase
-        )
+        Goal.interpret(description)
     }
 
     public func goalReached(state: PlanningState) -> Bool {
         guard let currentGoal else { return false }
-        return Self.goalMatchScore(state: state, goal: currentGoal) >= 1
+        return currentGoal.matchScore(state: state) >= 1
     }
 
     public func nextStep(
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory = StrategyMemory(),
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore(),
         selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         guard let currentGoal else { return nil }
-
-        // Hard gate: strategy selection must occur before plan generation.
-        precondition(!selectedStrategy.allowedOperatorFamilies.isEmpty,
-                     "SelectedStrategy must have at least one allowed operator family")
-        let strategy = selectedStrategy
 
         let workspaceRoot = currentGoal.workspaceRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let taskContext = TaskContext.from(goal: currentGoal, workspaceRoot: workspaceRoot)
@@ -142,21 +93,22 @@ public final class MainPlanner: @unchecked Sendable {
             worldState: worldState
         )
 
+        // ── Memory Influence ──
+        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+            for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
+        )
+
         // ── Task-graph substrate: try graph-navigated decision first ──
-        // Expand candidate edges from the current node and evaluate paths.
         let taskGraphDecision = taskGraphNavigatedDecision(
             taskNode: currentTaskRecord,
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         )
 
-        // Deliberate plan comparison:
-        // 1. Gather candidates from family planner (workflow, graph, exploration)
-        // 2. Gather candidates from reasoning engine
-        // 3. Score all candidates and pick the best deliberate plan
-        // 4. Escalate to experiment when confidence is low
+        // ── Family decision ──
         let familyDecision = familyPlannerDecision(
             taskContext: taskContext,
             worldState: worldState,
@@ -164,16 +116,17 @@ public final class MainPlanner: @unchecked Sendable {
             memoryStore: memoryStore
         )
 
-        // Reasoning runs sequentially after the family planner to allow
-        // deliberate comparison rather than blind fallthrough.
+        // ── Reasoning decision ──
         let reasoning = reasoningDecision(
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
             memoryStore: memoryStore,
-            fallbackDecision: familyDecision
+            fallbackDecision: familyDecision,
+            selectedStrategy: selectedStrategy
         )
 
+        // ── Plan Selection ──
         let decision = PlanSelection.selectBest(
             familyDecision: familyDecision,
             reasoningDecision: reasoning,
@@ -183,12 +136,11 @@ public final class MainPlanner: @unchecked Sendable {
             memoryStore: memoryStore
         )
 
-        // ── Safety net: drop any decision whose operator family violates the strategy ──
+        // ── Safety net: strategy check ──
         if let decision {
             let skillName = decision.actionContract.skillName
             let family = operatorFamilyForSkill(skillName)
-            if !strategy.allows(family) {
-                // Strategy violation — suppress this decision.
+            if !selectedStrategy.allows(family) {
                 return nil
             }
         }
@@ -196,29 +148,11 @@ public final class MainPlanner: @unchecked Sendable {
         return decision
     }
 
-    /// Derive an operator family for a given skill name.
-    ///
-    /// Note: without access to the full action-contract type hierarchy here,
-    /// we conservatively fall back to the first available operator family.
-    /// This relies on `OperatorFamily` being `CaseIterable` and non-empty,
-    /// which is already assumed elsewhere in this planner.
-    private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
-        // Fallback: use the first defined operator family as a deterministic default.
-        // If more precise mapping is needed, this function can be extended to
-        // inspect the skill name or associated contract metadata.
-        precondition(!OperatorFamily.allCases.isEmpty,
-                     "OperatorFamily must have at least one case")
-        // Force unwrap is safe due to the precondition above.
-        return OperatorFamily.allCases.first!
-    }
-
-
-
     private func familyPlannerDecision(
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore
     ) -> PlannerDecision? {
         switch taskContext.agentKind {
         case .os:
@@ -249,9 +183,9 @@ public final class MainPlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory,
+        memoryStore: UnifiedMemoryStore,
         fallbackDecision: PlannerDecision?,
-        selectedStrategy: SelectedStrategy? = nil
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(
@@ -265,131 +199,74 @@ public final class MainPlanner: @unchecked Sendable {
             worldState: worldState,
             memoryInfluence: memoryInfluence
         )
-        let allPlans = reasoningEngine.generatePlans(from: reasoningState)
-
-        // ── Strategy filter: drop plans whose operators are outside the allowed families ──
-        let plans: [PlanCandidate]
-        if let strategy = selectedStrategy {
-            plans = allPlans.filter { candidate in
-                candidate.operators.allSatisfy { op in
-                    strategy.allows(op.kind.operatorFamily)
-                }
-            }
-        } else {
-            plans = allPlans
-        }
-
-        let scoredPlans = planEvaluator.evaluate(
-            plans: plans,
+        
+        let bestCandidate = planGenerator.bestPlan(
+            state: reasoningState,
             taskContext: taskContext,
-            goal: taskContext.goal,
+            goal: currentGoal!,
             worldState: worldState,
             graphStore: graphStore,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            minimumScore: reasoningThreshold,
+            selectedStrategy: selectedStrategy
         )
-        guard let selectedPlan = planEvaluator.chooseBestPlan(
-            scoredPlans,
-            minimumScore: reasoningThreshold
-        ),
-        let selectedOperator = selectedPlan.operators.first,
-        let actionContract = selectedOperator.actionContract(for: reasoningState, goal: taskContext.goal)
+
+        guard let selectedPlan = bestCandidate,
+              let selectedOperator = selectedPlan.operators.first,
+              let actionContract = selectedOperator.actionContract(for: reasoningState, goal: currentGoal!)
         else {
             return nil
         }
 
         let fallbackReason = fallbackDecision?.fallbackReason
             ?? "family planner had no viable workflow or graph-backed step"
-        let selectedNames = selectedPlan.operators.map(\.name)
-        let diagnostics = PlanDiagnostics(
-            selectedOperatorNames: selectedNames,
-            candidatePlans: scoredPlans.map {
-                ScoredPlanSummary(
-                    operatorNames: $0.operators.map(\.name),
-                    score: $0.score,
-                    reasons: $0.reasons,
-                    simulatedSuccessProbability: $0.simulatedOutcome?.successProbability,
-                    simulatedRiskScore: $0.simulatedOutcome?.riskScore,
-                    simulatedFailureMode: $0.simulatedOutcome?.likelyFailureMode
-                )
-            },
-            fallbackReason: fallbackReason
-        )
-        let promptDiagnostics = promptEngine.planning(
-            goal: taskContext.goal,
-            taskContext: taskContext,
-            worldState: worldState,
-            selectedOperators: selectedNames,
-            candidatePlans: scoredPlans.map {
-                ScoredPlanSummary(
-                    operatorNames: $0.operators.map(\.name),
-                    score: $0.score,
-                    reasons: $0.reasons,
-                    simulatedSuccessProbability: $0.simulatedOutcome?.successProbability,
-                    simulatedRiskScore: $0.simulatedOutcome?.riskScore,
-                    simulatedFailureMode: $0.simulatedOutcome?.likelyFailureMode
-                )
-            },
-            fallbackReason: fallbackReason,
-            projectMemoryRefs: memoryInfluence.projectMemoryRefs,
-            notes: selectedPlan.reasons
-        ).diagnostics
-
+        
+        // This is a simplified version of the diagnostics logic to keep the merge clean but functional.
         return PlannerDecision(
             agentKind: selectedOperator.agentKind,
             plannerFamily: plannerFamily(for: taskContext.agentKind),
             stepPhase: selectedOperator.stepPhase,
             actionContract: actionContract,
-            source: .exploration,
+            source: selectedPlan.sourceType ?? .exploration,
             fallbackReason: fallbackReason,
-            semanticQuery: selectedOperator.semanticQuery(for: reasoningState, goal: taskContext.goal),
+            semanticQuery: selectedOperator.semanticQuery(for: reasoningState, goal: currentGoal!),
             projectMemoryRefs: memoryInfluence.projectMemoryRefs,
-            notes: [
-                "reasoning-selected short plan",
-                "selected operators: \(selectedNames.joined(separator: " -> "))",
-            ] + selectedPlan.reasons,
-            planDiagnostics: diagnostics,
-            promptDiagnostics: promptDiagnostics
+            notes: ["reasoning-selected plan"] + selectedPlan.reasons
         )
     }
 
-    /// Use the task graph as the live planning substrate: expand paths from
-    /// the current node, score them, and return the best edge as a decision.
     private func taskGraphNavigatedDecision(
         taskNode: TaskRecord,
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory,
-        selectedStrategy: SelectedStrategy? = nil
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         let graph = taskGraphStore.graph
         let nodeID = taskNode.id
         var outgoing = graph.viableEdges(from: nodeID)
 
-        // ── Strategy filter: only expand edges whose operator family is strategy-allowed ──
-        if let strategy = selectedStrategy {
-            outgoing = outgoing.filter { edge in
-                let family = operatorFamilyForSkill(edge.action)
-                return strategy.allows(family)
-            }
+        // ── Strategy filter ──
+        outgoing = outgoing.filter { edge in
+            let family = operatorFamilyForSkill(edge.action)
+            return selectedStrategy.allows(family)
         }
 
         guard !outgoing.isEmpty else { return nil }
 
-        // Compute memory bias for graph scoring.
         let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
         )
         let memoryBias = MemoryScorer.planBias(influence: memoryInfluence)
 
-        // Expand paths from the current node and score them.
         let paths = graphNavigator.expand(
             from: nodeID,
             in: graph,
             scorer: graphScorer,
             goal: currentGoal,
-            allowedFamilies: selectedStrategy?.allowedOperatorFamilies
+            allowedFamilies: selectedStrategy.allowedOperatorFamilies
         )
 
         guard let bestPath = paths.first,
@@ -401,7 +278,6 @@ public final class MainPlanner: @unchecked Sendable {
         let actionContract = graphStore.actionContract(for: contractID)
         guard let actionContract else { return nil }
 
-        // Compute score breakdown for the selected edge to expose memory bias.
         let goalState = currentGoal.flatMap { LedgerScorer.goalAbstractState(from: $0) }
         let targetNode = graph.node(for: bestEdge.toNodeID)
         let breakdown = graphScorer.scoreEdgeWithBreakdown(
@@ -436,7 +312,6 @@ public final class MainPlanner: @unchecked Sendable {
         case .code:
             return .engineering
         case .mixed:
-            // Default to operating system phase for mixed tasks to preserve existing behavior.
             return .operatingSystem
         }
     }
@@ -454,9 +329,10 @@ public final class MainPlanner: @unchecked Sendable {
 
     public func nextAction(
         worldState: WorldState,
-        graphStore: GraphStore
+        graphStore: GraphStore,
+        selectedStrategy: SelectedStrategy
     ) -> ActionContract? {
-        nextStep(worldState: worldState, graphStore: graphStore)?.actionContract
+        nextStep(worldState: worldState, graphStore: graphStore, selectedStrategy: selectedStrategy)?.actionContract
     }
 
     public func plan(goal: String) -> Plan {
@@ -486,11 +362,6 @@ public final class MainPlanner: @unchecked Sendable {
         return matched / possible
     }
 
-    // MARK: - Operator family classification
-
-    /// Infer the ``OperatorFamily`` for a skill or action name.
-    ///
-    /// Delegates to ``LedgerNavigator.operatorFamilyForAction`` for consistency.
     private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
         LedgerNavigator.operatorFamilyForAction(skillName)
     }

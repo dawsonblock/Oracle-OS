@@ -42,6 +42,11 @@ public struct TraceAccumulator: Sendable {
     }
 }
 
+public enum TraceVerbosity: Sendable {
+    case minimal
+    case full
+}
+
 public struct TraceCompressor: Sendable {
 
     public init() {}
@@ -85,5 +90,28 @@ public struct TraceCompressor: Sendable {
             event.domain ?? "no-domain",
         ].joined(separator: ":")
         return "\(stateFingerprint)|\(event.actionName)"
+    }
+
+    /// Strips bulky raw data from observations when minimal verbosity is requested.
+    ///
+    /// The full UI element tree (AX or DOM context) is often thousands of lines JSON
+    /// and dominates trace size. In `minimal` mode, we keep only the structurally
+    /// significant shell of the observation.
+    public func filter(observation: Observation, verbosity: TraceVerbosity) -> Observation {
+        switch verbosity {
+        case .full:
+            return observation
+        case .minimal:
+            // Strip the full element array but keep the focused element if any,
+            // as it often carries localized debug context.
+            let retainedElements = observation.focusedElement.map { [$0] } ?? []
+            return Observation(
+                app: observation.app,
+                windowTitle: observation.windowTitle,
+                url: observation.url,
+                focusedElementID: observation.focusedElementID,
+                elements: retainedElements
+            )
+        }
     }
 }

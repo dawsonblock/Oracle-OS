@@ -40,13 +40,13 @@ public final class ExecutionCoordinator {
     private let executionDriver: any AgentExecutionDriver
     private let skillRegistry: SkillRegistry
     private let policyEngine: PolicyEngine
-    private let memoryStore: StrategyMemory
+    private let memoryStore: UnifiedMemoryStore
 
     public init(
         executionDriver: any AgentExecutionDriver,
         skillRegistry: SkillRegistry = .live(),
         policyEngine: PolicyEngine = PolicyEngine(),
-        memoryStore: StrategyMemory = StrategyMemory()
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore()
     ) {
         self.executionDriver = executionDriver
         self.skillRegistry = skillRegistry

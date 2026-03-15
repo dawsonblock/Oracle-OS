@@ -8,7 +8,7 @@ public final class EditFileSkill: CodeSkill {
     public func resolve(
         taskContext: TaskContext,
         state: WorldState,
-        memoryStore: StrategyMemory
+memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let workspaceRoot = try CodeSkillSupport.workspaceRoot(taskContext: taskContext, state: state)
         let path = try CodeSkillSupport.preferredPath(taskContext: taskContext, state: state, memoryStore: memoryStore)

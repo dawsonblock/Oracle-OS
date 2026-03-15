@@ -39,7 +39,7 @@ enum CodeSkillSupport {
     static func preferredPath(
         taskContext: TaskContext,
         state: WorldState,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         failureOutput: String? = nil
     ) throws -> String {
         let workspaceRoot = try workspaceRoot(taskContext: taskContext, state: state)

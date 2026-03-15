@@ -32,6 +32,8 @@ cd oracle-os
 swift build
 ```
 
+**All major refactors must run `swift test --filter OracleOSEvals` and pass the baseline.**
+
 Requirements:
 - macOS 14+
 - Swift 6.2+ (install via [swiftly](https://github.com/swiftlang/swiftly))

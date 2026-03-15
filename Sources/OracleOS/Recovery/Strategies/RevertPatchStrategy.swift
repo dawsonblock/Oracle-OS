@@ -9,7 +9,7 @@ public struct RevertPatchStrategy: RecoveryStrategy {
     public func prepare(
         failure _: FailureClass,
         state: WorldState,
-        memoryStore _: StrategyMemory
+        memoryStore _: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation? {
         guard state.lastAction?.agentKind == .code else {
             return nil

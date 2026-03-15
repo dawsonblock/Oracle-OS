@@ -7,7 +7,7 @@ public final class LoopExperimentCoordinator {
     private let observationProvider: any ObservationProvider
     private let stateAbstraction: StateAbstraction
     private let recoveryEngine: RecoveryEngine
-    private let memoryStore: StrategyMemory
+private let memoryStore: UnifiedMemoryStore
     private let projectMemoryCoordinator: LoopProjectMemoryCoordinator
     private let repositoryIndexer: RepositoryIndexer
 
@@ -17,7 +17,7 @@ public final class LoopExperimentCoordinator {
         observationProvider: any ObservationProvider,
         stateAbstraction: StateAbstraction,
         recoveryEngine: RecoveryEngine,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         repositoryIndexer: RepositoryIndexer,
         projectMemoryCoordinator: LoopProjectMemoryCoordinator
     ) {

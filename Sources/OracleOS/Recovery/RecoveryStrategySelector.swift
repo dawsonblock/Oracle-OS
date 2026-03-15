@@ -29,7 +29,7 @@ public struct RecoveryStrategySelector {
     public func orderedStrategies(
         for failure: FailureClass,
         state: WorldState,
-        memoryStore: StrategyMemory?
+memoryStore: UnifiedMemoryStore?
     ) -> [any RecoveryStrategy] {
         select(
             for: failure,
@@ -41,7 +41,7 @@ public struct RecoveryStrategySelector {
     public func select(
         for failure: FailureClass,
         state: WorldState,
-        memoryStore: StrategyMemory?
+memoryStore: UnifiedMemoryStore?
     ) -> RecoverySelection {
         let memoryRouter = memoryStore.map { MemoryRouter(memoryStore: $0) }
         let preferredStrategy = memoryRouter?.preferredRecoveryStrategy(

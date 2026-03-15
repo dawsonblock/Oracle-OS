@@ -8,7 +8,7 @@ public final class NavigateURLSkill: Skill {
     public func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore _: StrategyMemory
+memoryStore _: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let intent = ActionIntent(
             agentKind: .os,

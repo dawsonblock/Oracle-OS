@@ -28,7 +28,7 @@ public struct WorkflowRetriever: Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         workflowIndex: WorkflowIndex,
-        memoryStore: StrategyMemory? = nil,
+memoryStore: UnifiedMemoryStore? = nil,
         selectedStrategy: SelectedStrategy
     ) -> WorkflowMatch? {
         let memoryRouter = MemoryRouter(memoryStore: memoryStore)

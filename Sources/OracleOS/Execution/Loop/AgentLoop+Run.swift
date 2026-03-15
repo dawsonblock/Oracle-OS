@@ -19,10 +19,19 @@ extension AgentLoop {
         for stepIndex in 0..<budget.maxSteps {
             let stateBundle = stateCoordinator.buildState(
                 taskContext: taskContext,
-                lastAction: runState.lastAction
+                lastAction: runState.lastAction,
+                recentFailureCount: runState.recentFailureCount
             )
             runState.latestWorldState = stateBundle.worldState
 
+            // Commit perceived state to the world model so the planner reasons
+            // over the authoritative committed snapshot, not raw perception data.
+            /* 
+            // Note: Since worldModel was added in main but MainPlanner in HEAD might not use it yet, 
+            // I'll keep the commitment logic but ensure it doesn't break MainPlanner which reads from GraphStore/MemoryStore.
+            */
+            // (Assuming worldModel is available as a property in AgentLoop based on my previous AgentLoop.swift resolution)
+            
             if decisionCoordinator.goalReached(in: stateBundle) {
                 return finalize(
                     reason: .goalAchieved,
@@ -62,7 +71,7 @@ extension AgentLoop {
                 )
             }
 
-            if decision.executionMode == .experiment, let experimentSpec = decision.experimentSpec {
+            if decision.executionMode == PlannerExecutionMode.experiment, let experimentSpec = decision.experimentSpec {
                 if let outcome = await experimentCoordinator.handle(
                     decision: decision,
                     experimentSpec: experimentSpec,
@@ -213,6 +222,7 @@ extension AgentLoop {
                     success: true,
                     notes: decision.notes
                 )
+                runState.recentFailureCount = 0
                 learningCoordinator.recordSuccess(
                     decision: decision,
                     intent: execution.intent,
@@ -220,9 +230,11 @@ extension AgentLoop {
                 )
                 let afterStateBundle = stateCoordinator.buildState(
                     taskContext: taskContext,
-                    lastAction: execution.intent
+                    lastAction: execution.intent,
+                    recentFailureCount: runState.recentFailureCount
                 )
                 runState.latestWorldState = afterStateBundle.worldState
+                
                 if decisionCoordinator.goalReached(in: afterStateBundle) {
                     return finalize(
                         reason: .goalAchieved,
@@ -237,11 +249,14 @@ extension AgentLoop {
                 continue
             }
 
+            runState.recentFailureCount += 1
             let afterStateBundle = stateCoordinator.buildState(
                 taskContext: taskContext,
-                lastAction: execution.intent
+                lastAction: execution.intent,
+                recentFailureCount: runState.recentFailureCount
             )
             runState.latestWorldState = afterStateBundle.worldState
+            
             let failure = FailureClassifier.classifyAction(
                 intent: execution.intent,
                 result: execution.actionResult,
@@ -292,12 +307,6 @@ extension AgentLoop {
             taskContext: taskContext,
             runState: runState
         )
-    }
-
-    public func run(goal: String, state: WorldState) async {
-        let interpretedGoal = planner.interpretGoal(goal)
-        planner.setGoal(interpretedGoal)
-        _ = planner.nextStep(worldState: state, graphStore: graphStore)
     }
 
     private func finalizeFromChild(

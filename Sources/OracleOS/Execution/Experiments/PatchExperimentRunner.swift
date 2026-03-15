@@ -91,7 +91,7 @@ public final class PatchExperimentRunner: @unchecked Sendable {
     public func rankResults(
         _ results: [ExperimentResult],
         faultLocationConfidence: Double,
-        memoryStore: StrategyMemory?
+memoryStore: UnifiedMemoryStore?
     ) -> [ExperimentResult] {
         let ranker = PatchRanker()
         let ranked = ranker.rank(results)

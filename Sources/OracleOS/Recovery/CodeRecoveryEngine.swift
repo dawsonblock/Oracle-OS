@@ -11,7 +11,7 @@ public final class CodeRecoveryEngine {
     public func recover(
         failure: FailureClass,
         state: WorldState,
-        memoryStore: StrategyMemory? = nil
+memoryStore: UnifiedMemoryStore? = nil
     ) async -> RecoveryAttempt {
         await engine.recover(failure: failure, state: state, memoryStore: memoryStore)
     }

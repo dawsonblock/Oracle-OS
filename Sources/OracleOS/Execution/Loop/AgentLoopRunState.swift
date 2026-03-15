@@ -5,4 +5,5 @@ struct AgentLoopRunState {
     var lastAction: ActionIntent?
     var diagnostics = LoopDiagnostics.empty
     var budgetState = LoopBudgetState()
+    var recentFailureCount: Int = 0
 }

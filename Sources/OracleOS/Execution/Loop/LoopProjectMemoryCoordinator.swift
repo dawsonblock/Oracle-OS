@@ -1,9 +1,9 @@
 import Foundation
 
 public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
-    private let memoryStore: StrategyMemory
+    private let memoryStore: UnifiedMemoryStore
 
-    public init(memoryStore: StrategyMemory) {
+    public init(memoryStore: UnifiedMemoryStore) {
         self.memoryStore = memoryStore
     }
 
@@ -18,9 +18,11 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
         guard outcome.reason != .goalAchieved else {
             return
         }
+        if let root = taskContext.workspaceRoot {
+            memoryStore.setWorkspaceRoot(root)
+        }
         do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeOpenProblemDraft(
+            try memoryStore.recordOpenProblem(
                 title: taskContext.goal.description,
                 summary: "Loop ended with \(outcome.reason.rawValue)",
                 knowledgeClass: .reusable,
@@ -53,9 +55,11 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
             return
         }
 
+        if let root = taskContext.workspaceRoot {
+            memoryStore.setWorkspaceRoot(root)
+        }
         do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeArchitectureDecisionDraft(
+            try memoryStore.recordArchitectureDecision(
                 title: "Architecture review for \(taskContext.goal.description)",
                 summary: "High-impact change surfaced \(majorFindings.count) major architecture finding(s).",
                 knowledgeClass: .reusable,
@@ -64,7 +68,7 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
                 sourceTraceIDs: [],
                 body: """
                 Refactor proposal id: \(refactorProposalID)
-
+ 
                 Findings:
                 \(majorFindings.map { "- \($0.title): \($0.summary)" }.joined(separator: "\n"))
                 """
@@ -82,14 +86,14 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
         guard intent.agentKind == .code,
               let workspaceRoot = taskContext.workspaceRoot,
               let commandCategory = intent.commandCategory,
-              memoryStore.commandBias(category: commandCategory, workspaceRoot: workspaceRoot) >= 0.1
+              memoryStore.appMemory.commandBias(category: commandCategory, workspaceRoot: workspaceRoot) >= 0.1
         else {
             return
         }
 
+        memoryStore.setWorkspaceRoot(workspaceRoot)
         do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeKnownGoodPatternDraft(
+            try memoryStore.recordKnownGoodPattern(
                 title: "Reliable \(commandCategory) pattern",
                 summary: "Command \(commandCategory) has repeated successful verified reuse in this workspace.",
                 knowledgeClass: .reusable,
@@ -112,12 +116,15 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
         decision: PlannerDecision,
         body: String
     ) {
-        guard taskContext.agentKind == .code || taskContext.agentKind == .mixed else {
+        let agentKind = taskContext.agentKind
+        guard agentKind == .code || agentKind == .mixed else {
             return
         }
+        if let root = taskContext.workspaceRoot {
+            memoryStore.setWorkspaceRoot(root)
+        }
         do {
-            let store = try projectMemoryStore(for: taskContext)
-            _ = try store.writeRejectedApproachDraft(
+            try memoryStore.recordRejectedApproach(
                 title: title,
                 summary: "Parallel experiment candidates did not produce a safe winner",
                 knowledgeClass: .reusable,
@@ -129,12 +136,5 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
         } catch {
             return
         }
-    }
-
-    private func projectMemoryStore(for taskContext: TaskContext) throws -> ProjectMemoryStore {
-        guard let workspaceRoot = taskContext.workspaceRoot else {
-            throw NSError(domain: "AgentLoop", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing workspace root"])
-        }
-        return try ProjectMemoryStore(projectRootURL: URL(fileURLWithPath: workspaceRoot, isDirectory: true))
     }
 }

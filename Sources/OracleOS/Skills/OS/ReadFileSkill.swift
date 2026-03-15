@@ -8,7 +8,7 @@ public final class ReadFileSkill: Skill {
     public func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution {
         let candidate = try OSTargetResolver.resolve(
             query: query,

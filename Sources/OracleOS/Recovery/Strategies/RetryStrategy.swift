@@ -6,7 +6,7 @@ public struct RetryStrategy: RecoveryStrategy {
     public func prepare(
         failure: FailureClass,
         state: WorldState,
-        memoryStore _: StrategyMemory
+        memoryStore _: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation? {
         guard let last = state.lastAction else {
             return nil

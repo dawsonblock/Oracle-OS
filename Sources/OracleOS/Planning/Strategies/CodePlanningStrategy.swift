@@ -49,7 +49,8 @@ public final class CodePlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         guard let workspaceRoot = taskContext.workspaceRoot else { return nil }
         let snapshot = worldState.repositorySnapshot
@@ -90,7 +91,8 @@ public final class CodePlanner: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             projectMemoryRefs: projectMemoryRefs,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         ) {
             return workflowDecision
         }
@@ -218,7 +220,7 @@ public final class CodePlanner: @unchecked Sendable {
         worldState: WorldState,
         snapshot: RepositorySnapshot,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory,
+        memoryStore: UnifiedMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
         projectMemorySignals: ProjectMemoryPlanningSignals,
         architectureReview: ArchitectureReview
@@ -293,7 +295,7 @@ public final class CodePlanner: @unchecked Sendable {
         worldState: WorldState,
         snapshot: RepositorySnapshot,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory,
+        memoryStore: UnifiedMemoryStore,
         projectMemoryRefs: [ProjectMemoryRef],
         projectMemorySignals: ProjectMemoryPlanningSignals,
         architectureReview: ArchitectureReview
@@ -358,14 +360,16 @@ public final class CodePlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         projectMemoryRefs: [ProjectMemoryRef],
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         guard let workflowMatch = workflowRetriever.retrieve(
             goal: taskContext.goal,
             taskContext: taskContext,
             worldState: worldState,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         ) else {
             return nil
         }
@@ -587,8 +591,6 @@ public final class CodePlanner: @unchecked Sendable {
                 return [best.path]
             }
         }
-        // Constrain patch surface to top 3 candidates to reduce blast radius
-        // and focus experiments on highest-probability locations.
         return Array(strongCandidates.prefix(3).map(\.path))
     }
 
