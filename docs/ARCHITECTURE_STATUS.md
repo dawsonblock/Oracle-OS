@@ -22,6 +22,11 @@ The descriptive architecture map is in [ARCHITECTURE.md](ARCHITECTURE.md). The n
 - `oracle_parse_screen` is sidecar-backed, but the runtime still treats it as experimental
 - Architecture review emits governance reports, but remains advisory-first
 - Eval coverage is present but still fixture-heavy
+- **Recipe typed schema**: Recipes support `postconditions` and `constraints` blocks; `RecipeValidator.validateFull()` checks them
+- **Experiment evaluator**: `ExperimentEvaluator` scores task outcomes across weighted dimensions (correctness, efficiency, verification, completion)
+- **Event bus**: `RuntimeEventBus` provides publish/subscribe for structured runtime events (task, action, artifact, state, evaluation, planner feedback)
+- **Vision contract**: `VisionPerceptionContract` defines typed detection frames and `VisionContractValidator` enforces freshness, confidence, and structure
+- **Environment reconciliation**: `EnvironmentMonitor` detects world-state mismatches and reconciles postconditions
 
 ## Scaffold Only
 

@@ -123,6 +123,11 @@ Normal runtime operation must succeed without them. Planners must not
 depend on vision output. Vision is allowed only for debugging, offline
 evaluation, and optional enrichment.
 
+Vision sidecar output must conform to `VisionPerceptionContract`:
+structured `VisionDetection` frames validated by `VisionContractValidator`
+before the world model accepts them. Raw untyped dictionaries are never
+consumed directly.
+
 ### R8 — Canonical program graph
 
 `ProgramKnowledgeGraph` is the canonical code model. All structural
