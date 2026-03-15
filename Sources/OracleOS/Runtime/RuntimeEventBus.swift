@@ -125,6 +125,9 @@ public final class RuntimeEventBus: @unchecked Sendable {
 
     public typealias Subscriber = @Sendable (RuntimeEvent) -> Void
 
+    // The handler is stored as @Sendable which the compiler enforces at the
+    // call-site.  @unchecked Sendable is safe here because Registration is only
+    // read under the bus's NSLock.
     private struct Registration: @unchecked Sendable {
         let id: String
         let handler: Subscriber

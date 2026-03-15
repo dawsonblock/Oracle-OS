@@ -11,7 +11,7 @@ struct RecipeSchemaTests {
     private func minimalRecipe(
         postconditions: [RecipePostcondition]? = nil,
         constraints: RecipeConstraints? = nil
-    ) -> Recipe {
+    ) throws -> Recipe {
         let json: String = """
         {
             "schema_version": 2,
@@ -25,7 +25,7 @@ struct RecipeSchemaTests {
             \(constraints != nil ? ",\"constraints\": \(constraintsJSON(constraints!))" : "")
         }
         """
-        return try! JSONDecoder().decode(Recipe.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(Recipe.self, from: Data(json.utf8))
     }
 
     private func postconditionsJSON(_ pcs: [RecipePostcondition]) -> String {
@@ -53,8 +53,8 @@ struct RecipeSchemaTests {
     // MARK: - Postcondition Tests
 
     @Test("Recipe with valid postconditions passes validation")
-    func validPostconditions() {
-        let recipe = minimalRecipe(postconditions: [
+    func validPostconditions() throws {
+        let recipe = try minimalRecipe(postconditions: [
             RecipePostcondition(kind: "element_exists", target: "Submit"),
             RecipePostcondition(kind: "app_frontmost", target: "Finder"),
         ])
@@ -64,8 +64,8 @@ struct RecipeSchemaTests {
     }
 
     @Test("Recipe with empty postcondition kind fails validation")
-    func emptyPostconditionKind() {
-        let recipe = minimalRecipe(postconditions: [
+    func emptyPostconditionKind() throws {
+        let recipe = try minimalRecipe(postconditions: [
             RecipePostcondition(kind: "", target: "something"),
         ])
         let result = RecipeValidator.validateFull(recipe: recipe, state: dummyState)
@@ -74,8 +74,8 @@ struct RecipeSchemaTests {
     }
 
     @Test("Recipe with unknown postcondition kind fails validation")
-    func unknownPostconditionKind() {
-        let recipe = minimalRecipe(postconditions: [
+    func unknownPostconditionKind() throws {
+        let recipe = try minimalRecipe(postconditions: [
             RecipePostcondition(kind: "magic_check", target: "x"),
         ])
         let result = RecipeValidator.validateFull(recipe: recipe, state: dummyState)
@@ -86,8 +86,8 @@ struct RecipeSchemaTests {
     // MARK: - Constraint Tests
 
     @Test("Recipe with valid constraints passes validation")
-    func validConstraints() {
-        let recipe = minimalRecipe(constraints: RecipeConstraints(
+    func validConstraints() throws {
+        let recipe = try minimalRecipe(constraints: RecipeConstraints(
             maxDurationSeconds: 60, maxRetries: 3, requiresApproval: true
         ))
         let result = RecipeValidator.validateFull(recipe: recipe, state: dummyState)
@@ -95,16 +95,16 @@ struct RecipeSchemaTests {
     }
 
     @Test("Recipe with negative duration fails validation")
-    func negativeDuration() {
-        let recipe = minimalRecipe(constraints: RecipeConstraints(maxDurationSeconds: -1))
+    func negativeDuration() throws {
+        let recipe = try minimalRecipe(constraints: RecipeConstraints(maxDurationSeconds: -1))
         let result = RecipeValidator.validateFull(recipe: recipe, state: dummyState)
         #expect(!result.isValid)
         #expect(result.violations.contains(where: { $0.contains("max_duration_seconds must be positive") }))
     }
 
     @Test("Recipe with negative retries fails validation")
-    func negativeRetries() {
-        let recipe = minimalRecipe(constraints: RecipeConstraints(maxRetries: -2))
+    func negativeRetries() throws {
+        let recipe = try minimalRecipe(constraints: RecipeConstraints(maxRetries: -2))
         let result = RecipeValidator.validateFull(recipe: recipe, state: dummyState)
         #expect(!result.isValid)
         #expect(result.violations.contains(where: { $0.contains("max_retries must be non-negative") }))
@@ -113,8 +113,8 @@ struct RecipeSchemaTests {
     // MARK: - Backward Compatibility
 
     @Test("Legacy validate() returns Bool for valid recipe")
-    func legacyValidateTrue() {
-        let recipe = minimalRecipe()
+    func legacyValidateTrue() throws {
+        let recipe = try minimalRecipe()
         #expect(RecipeValidator.validate(recipe: recipe, state: dummyState))
     }
 
