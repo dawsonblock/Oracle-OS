@@ -35,7 +35,8 @@ public final class StateCoordinator {
 
     public func buildState(
         taskContext: TaskContext,
-        lastAction: ActionIntent?
+        lastAction: ActionIntent?,
+        recentFailureCount: Int = 0
     ) -> LoopStateBundle {
         let observation = observationProvider.observe()
         let repositorySnapshot = repositorySnapshot(for: taskContext)
@@ -60,7 +61,8 @@ public final class StateCoordinator {
             repositorySnapshot: repositorySnapshot,
             hostSnapshot: automationHost.snapshots.captureSnapshot(appName: observation.app),
             browserSession: browserPageStateBuilder.build(from: observation),
-            memoryContext: memoryContext
+            memoryContext: memoryContext,
+            recentFailureCount: recentFailureCount
         )
     }
 

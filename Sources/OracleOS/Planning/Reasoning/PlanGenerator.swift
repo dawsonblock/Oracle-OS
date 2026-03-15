@@ -11,16 +11,46 @@ public final class PlanGenerator: @unchecked Sendable {
     private let reasoningEngine: ReasoningEngine
     private let planEvaluator: PlanEvaluator
     private let operatorRegistry: OperatorRegistry
+    private let osPlanner: OSPlanner
+    private let codePlanner: CodePlanner
+    private let mixedTaskPlanner: MixedTaskPlanner
+
 
     public init(
         reasoningEngine: ReasoningEngine = ReasoningEngine(),
         planEvaluator: PlanEvaluator,
-        operatorRegistry: OperatorRegistry = .shared
+        operatorRegistry: OperatorRegistry = .shared,
+        osPlanner: OSPlanner? = nil,
+        codePlanner: CodePlanner? = nil,
+        mixedTaskPlanner: MixedTaskPlanner? = nil
     ) {
         self.reasoningEngine = reasoningEngine
         self.planEvaluator = planEvaluator
         self.operatorRegistry = operatorRegistry
+        
+        let sharedWorkflowIndex = WorkflowIndex()
+        let sharedWorkflowRetriever = WorkflowRetriever()
+        let sharedWorkflowExecutor = WorkflowExecutor()
+        let sharedGraphPlanner = GraphPlanner()
+        
+        self.osPlanner = osPlanner ?? OSPlanner(
+            graphPlanner: sharedGraphPlanner,
+            workflowIndex: sharedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            workflowExecutor: sharedWorkflowExecutor
+        )
+        self.codePlanner = codePlanner ?? CodePlanner(
+            graphPlanner: sharedGraphPlanner,
+            workflowIndex: sharedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            workflowExecutor: sharedWorkflowExecutor
+        )
+        self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(
+            osPlanner: self.osPlanner,
+            codePlanner: self.codePlanner
+        )
     }
+
 
     public func generate(
         state: ReasoningPlanningState,
@@ -29,7 +59,7 @@ public final class PlanGenerator: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         selectedStrategy: SelectedStrategy
     ) -> [PlanCandidate] {
         var allPlans: [PlanCandidate] = []
@@ -54,6 +84,17 @@ public final class PlanGenerator: @unchecked Sendable {
         let reasoningPlans = reasoningEngine.generatePlans(from: state)
         allPlans.append(contentsOf: reasoningPlans)
 
+        // Source 4: Family-specific planning (OS, Code, Mixed)
+        let familyPlans = familyBacked(
+            taskContext: taskContext,
+            worldState: worldState,
+            graphStore: graphStore,
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
+        )
+        allPlans.append(contentsOf: familyPlans)
+
+
         // ── Strategy filter: drop plans whose operator families violate the strategy ──
         allPlans = allPlans.filter { $0.isAllowed(by: selectedStrategy) }
 
@@ -76,7 +117,7 @@ public final class PlanGenerator: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         minimumScore: Double = 0.6,
         selectedStrategy: SelectedStrategy
     ) -> PlanCandidate? {
@@ -100,7 +141,7 @@ public final class PlanGenerator: @unchecked Sendable {
         state: ReasoningPlanningState,
         workflowIndex: WorkflowIndex
     ) -> [PlanCandidate] {
-        let matches = workflowIndex.matching(goal: goal.description)
+        let matches = workflowIndex.matching(goal: goal)
         let available = operatorRegistry.available(for: state)
         let opsBySkill = Dictionary(
             grouping: available,
@@ -146,4 +187,56 @@ public final class PlanGenerator: @unchecked Sendable {
             )
         }
     }
+
+    private func familyBacked(
+        taskContext: TaskContext,
+        worldState: WorldState,
+        graphStore: GraphStore,
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
+    ) -> [PlanCandidate] {
+        let decision: PlannerDecision? = switch taskContext.agentKind {
+        case .os:
+            osPlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
+            )
+        case .code:
+            codePlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
+            )
+        case .mixed:
+            mixedTaskPlanner.nextStep(
+                taskContext: taskContext,
+                worldState: worldState,
+                graphStore: graphStore,
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
+            )
+        }
+
+        guard let decision else { return [] }
+        
+        // Convert PlannerDecision to PlanCandidate
+        let available = operatorRegistry.allOperators()
+        let matchingOp = available.first { $0.kind.rawValue == decision.actionContract.skillName }
+        guard let op = matchingOp else { return [] }
+        
+        return [
+            PlanCandidate(
+                operators: [op],
+                projectedState: nil, // Decision doesn't provide projected state
+                reasons: decision.notes + ["family-backed decision from \(decision.plannerFamily)"],
+                sourceType: decision.source
+            )
+        ]
+    }
 }
+

@@ -26,7 +26,7 @@ public extension WorldState {
 
     func rankedCandidates(
         query: ElementQuery,
-        memoryStore: StrategyMemory? = nil
+        memoryStore: UnifiedMemoryStore? = nil
     ) -> [ElementCandidate] {
         ElementRanker.rank(
             elements: observation.elements,
@@ -38,7 +38,7 @@ public extension WorldState {
 
     func resolve(
         query: ElementQuery,
-        memoryStore: StrategyMemory? = nil,
+        memoryStore: UnifiedMemoryStore? = nil,
         minimumScore: Double = 0.6,
         maximumAmbiguity: Double = 0.2
     ) throws -> ElementCandidate {

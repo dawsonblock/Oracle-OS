@@ -27,7 +27,7 @@ public struct MemoryDecisionBias: Sendable {
 public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
     private let memoryRouter: MemoryRouter
 
-    public init(memoryStore: StrategyMemory) {
+public init(memoryStore: UnifiedMemoryStore) {
         self.memoryRouter = MemoryRouter(memoryStore: memoryStore)
     }
 
@@ -61,7 +61,7 @@ public final class MemoryDecisionBiasCalculator: @unchecked Sendable {
             notes.append("successful pattern bias \(String(format: "%.2f", successBias))")
         }
 
-        var failurePenalty = memoryInfluence.riskPenalty
+        let failurePenalty = memoryInfluence.riskPenalty
         if failurePenalty > 0 {
             notes.append("failure pattern penalty \(String(format: "%.2f", failurePenalty))")
         }

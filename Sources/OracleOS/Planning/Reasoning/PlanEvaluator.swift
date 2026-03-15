@@ -16,7 +16,7 @@ public final class PlanEvaluator: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: StrategyMemory
+memoryStore: UnifiedMemoryStore
     ) -> [PlanCandidate] {
         let memoryRouter = MemoryRouter(memoryStore: memoryStore)
         let memoryInfluence = memoryRouter.influence(
@@ -31,7 +31,8 @@ public final class PlanEvaluator: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             workflowIndex: workflowIndex,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: nil
         )
 
         return plans.compactMap { plan in
@@ -116,7 +117,7 @@ public final class PlanEvaluator: @unchecked Sendable {
         worldState: WorldState,
         goal: Goal,
         graphStore: GraphStore,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         riskPenalty: Double,
         reasons: inout [String]
     ) -> Double {

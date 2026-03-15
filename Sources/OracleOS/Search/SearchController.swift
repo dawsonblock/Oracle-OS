@@ -56,6 +56,7 @@ public final class SearchController {
             compressedState: compressedState,
             abstractState: abstractState,
             planningStateID: planningStateID,
+            planningStateID: planningStateID,
             llmSchemas: llmSchemas
         )
 

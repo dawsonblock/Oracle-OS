@@ -6,7 +6,7 @@ public struct RefocusAppStrategy: RecoveryStrategy {
     public func prepare(
         failure: FailureClass,
         state: WorldState,
-        memoryStore _: StrategyMemory
+memoryStore _: UnifiedMemoryStore
     ) async throws -> RecoveryPreparation? {
         guard let app = state.observation.app, !app.isEmpty else {
             return nil

@@ -7,7 +7,7 @@ public struct PlanSelection {
         taskGraphDecision: PlannerDecision? = nil,
         taskContext: TaskContext,
         worldState: WorldState,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore
     ) -> PlannerDecision? {
         let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)

@@ -15,7 +15,7 @@ public final class DecisionCoordinator {
 
     private let planner: MainPlanner
     private let graphStore: GraphStore
-    private let memoryStore: StrategyMemory
+    private let memoryStore: UnifiedMemoryStore
     private let strategySelector: StrategySelector
     private let strategyEvaluator: StrategyEvaluator
     private let stateMemoryIndex: StateMemoryIndex?
@@ -26,7 +26,7 @@ public final class DecisionCoordinator {
     public init(
         planner: MainPlanner = MainPlanner(),
         graphStore: GraphStore = GraphStore(),
-        memoryStore: StrategyMemory = StrategyMemory(),
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore(),
         strategySelector: StrategySelector = StrategySelector(),
         strategyEvaluator: StrategyEvaluator = StrategyEvaluator(),
         stateMemoryIndex: StateMemoryIndex? = nil

@@ -12,6 +12,7 @@ public final class VerifiedActionExecutor {
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskLedgerStore?
     private let stateMemoryIndex: StateMemoryIndex?
+    private let graphStore: GraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -23,7 +24,8 @@ public final class VerifiedActionExecutor {
         artifactWriter: FailureArtifactWriter? = nil,
         graphStore: GraphStore? = nil,
         taskGraphStore: TaskLedgerStore? = nil,
-        stateMemoryIndex: StateMemoryIndex? = nil
+        stateMemoryIndex: StateMemoryIndex? = nil,
+        graphStore: GraphStore? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -35,6 +37,7 @@ public final class VerifiedActionExecutor {
         self.graphStore = graphStore
         self.taskGraphStore = taskGraphStore
         self.stateMemoryIndex = stateMemoryIndex
+        self.graphStore = graphStore
     }
 
     /// Execute an action within the verified trust boundary.
@@ -88,6 +91,14 @@ public final class VerifiedActionExecutor {
         )
 
         let raw = execute()
+        // G-1.2: Enforcement precondition to prevent spoofing of verified status.
+        // If a ToolResult already claims it was executed through the executor,
+        // it means a tool is trying to bypass the boundary or double-wrap.
+        precondition(
+            raw.data?["executed_through_executor"] as? Bool != true,
+            "[VerifiedActionExecutor] Security violation: ToolResult attempted to spoof verified status."
+        )
+
         let (postObservation, verification, timedOut) = captureVerifiedPostObservation(
             appName: intent.app,
             conditions: intent.postconditions
@@ -200,8 +211,10 @@ public final class VerifiedActionExecutor {
             preState: preCompressed,
             postState: postCompressed,
             schema: schema,
-            actionResult: actionResult
+            actionResult: actionResult,
+            signals: raw.data?["critic_signals"] as? [CriticSignal] ?? []
         )
+
 
         let event = TraceEvent(
             sessionID: sessionID,

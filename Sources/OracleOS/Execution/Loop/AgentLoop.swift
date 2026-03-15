@@ -24,7 +24,7 @@ public final class AgentLoop {
         graphStore: GraphStore = GraphStore(),
         policyEngine: PolicyEngine = PolicyEngine(),
         recoveryEngine: RecoveryEngine = RecoveryEngine(),
-        memoryStore: StrategyMemory = StrategyMemory(),
+        memoryStore: UnifiedMemoryStore = UnifiedMemoryStore(),
         skillRegistry: SkillRegistry = .live(),
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         experimentManager: ExperimentManager = ExperimentManager(),

@@ -282,14 +282,14 @@ public final class RuntimeOrchestrator {
         )
 
         // Enforcement: every action must pass through VerifiedActionExecutor.
-        // The executor stamps executedThroughExecutor = true; assert here to
-        // catch any bypass of the execution kernel trust boundary.
-        if let actionResult = result.data?["action_result"] as? [String: Any] {
-            precondition(
-                actionResult["executed_through_executor"] as? Bool == true,
-                "Action was not executed through VerifiedActionExecutor"
-            )
-        }
+        // The executor stamps executedThroughExecutor = true on every run().
+        // Assert unconditionally — a missing key is itself a bypass signal.
+        let _actionResultDict = result.data?["action_result"] as? [String: Any]
+        precondition(
+            _actionResultDict != nil && _actionResultDict?["executed_through_executor"] as? Bool == true,
+            "[OracleRuntime] Trust boundary violated: action was not executed through VerifiedActionExecutor. "
+                + "All environment-mutating actions must flow through VerifiedActionExecutor.run()."
+        )
 
         if shouldRecordPostExecutionOutcome(from: result, policyDecision: policyDecision) {
             recordPostExecutionOutcome(from: result, policyDecision: policyDecision)
@@ -673,7 +673,7 @@ public final class RuntimeOrchestrator {
         let result = context.searchController.search(
             compressedState: compressedState,
             abstractState: abstractState,
-            planningStateID: abstractState.id,
+            planningStateID: abstractState.id.rawValue,
             llmSchemas: llmSchemas
         ) { candidate in
             // Track source distribution for metrics.

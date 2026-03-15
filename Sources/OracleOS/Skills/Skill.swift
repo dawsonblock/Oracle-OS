@@ -41,7 +41,7 @@ public protocol Skill {
     func resolve(
         query: ElementQuery,
         state: WorldState,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution
 
     func buildProcedure(resolution: SkillResolution) -> [ActionIntent]
@@ -66,7 +66,7 @@ public protocol CodeSkill {
     func resolve(
         taskContext: TaskContext,
         state: WorldState,
-        memoryStore: StrategyMemory
+        memoryStore: UnifiedMemoryStore
     ) throws -> SkillResolution
     
     func buildProcedure(resolution: SkillResolution) -> [ActionIntent]

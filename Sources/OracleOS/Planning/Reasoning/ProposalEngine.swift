@@ -66,7 +66,7 @@ public final class ProposalEngine: @unchecked Sendable {
         worldState: WorldState,
         graphStore: GraphStore,
         workflowIndex: WorkflowIndex,
-        memoryStore: StrategyMemory,
+memoryStore: UnifiedMemoryStore,
         selectedStrategy: SelectedStrategy
     ) async -> Proposal {
         let deterministicPlans = reasoningEngine.generatePlans(from: state)
@@ -124,7 +124,7 @@ public final class ProposalEngine: @unchecked Sendable {
         goal: Goal,
         operators: [String],
         selectedStrategy: SelectedStrategy
-    ) async -> ([PlanCandidate], Int?) {
+    ) async -> ([PlanCandidate], Double?) {
         let prompt = buildPlanningPrompt(state: state, goal: goal, operators: operators, selectedStrategy: selectedStrategy)
         let request = LLMRequest(
             prompt: prompt,

@@ -994,10 +994,8 @@ public enum AXScanner {
         // Fall back to raw API for Chrome compatibility
         if let cfValue = element.rawAttributeValue(named: "AXValue") {
             if let str = cfValue as? String, !str.isEmpty { return str }
-            if CFGetTypeID(cfValue) == CFStringGetTypeID(),
-               let cfStr = cfValue as? CFString
-            {
-                let str = cfStr as String
+            if CFGetTypeID(cfValue) == CFStringGetTypeID() {
+                let str = cfValue as! String
                 if !str.isEmpty { return str }
             }
         }
@@ -1026,10 +1024,8 @@ public enum AXScanner {
         }
         if let cfValue = element.rawAttributeValue(named: "AXURL") {
             if let url = cfValue as? URL { return url.absoluteString }
-            if CFGetTypeID(cfValue) == CFURLGetTypeID(),
-               let cfURL = cfValue as? CFURL
-            {
-                return (cfURL as URL).absoluteString
+            if CFGetTypeID(cfValue) == CFURLGetTypeID() {
+                return (cfValue as! URL).absoluteString
             }
         }
         return nil
