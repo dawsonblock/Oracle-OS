@@ -16,6 +16,10 @@ public struct LoopOutcome: Sendable {
     public let finalWorldState: WorldState?
     public let steps: Int
     public let recoveries: Int
+    /// Number of recovery attempts that successfully resumed execution.
+    public let recoverySuccesses: Int
+    /// Number of recovery attempts that did not resume execution.
+    public let recoveryFailures: Int
     public let lastFailure: FailureClass?
     public let diagnostics: LoopDiagnostics
 
@@ -24,6 +28,8 @@ public struct LoopOutcome: Sendable {
         finalWorldState: WorldState?,
         steps: Int,
         recoveries: Int,
+        recoverySuccesses: Int = 0,
+        recoveryFailures: Int = 0,
         lastFailure: FailureClass? = nil,
         diagnostics: LoopDiagnostics = .empty
     ) {
@@ -31,6 +37,8 @@ public struct LoopOutcome: Sendable {
         self.finalWorldState = finalWorldState
         self.steps = steps
         self.recoveries = recoveries
+        self.recoverySuccesses = recoverySuccesses
+        self.recoveryFailures = recoveryFailures
         self.lastFailure = lastFailure
         self.diagnostics = diagnostics
     }

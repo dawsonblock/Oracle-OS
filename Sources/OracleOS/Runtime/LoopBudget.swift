@@ -27,6 +27,10 @@ public struct LoopBudget: Sendable {
 
 public struct LoopBudgetState: Sendable, Equatable {
     public private(set) var recoveries: Int
+    /// Number of recovery attempts that successfully resumed execution.
+    public private(set) var recoverySuccesses: Int
+    /// Number of recovery attempts that failed to resume execution.
+    public private(set) var recoveryFailures: Int
     public private(set) var consecutiveExplorationSteps: Int
     public private(set) var patchIterations: Int
     public private(set) var buildAttempts: Int
@@ -34,12 +38,16 @@ public struct LoopBudgetState: Sendable, Equatable {
 
     public init(
         recoveries: Int = 0,
+        recoverySuccesses: Int = 0,
+        recoveryFailures: Int = 0,
         consecutiveExplorationSteps: Int = 0,
         patchIterations: Int = 0,
         buildAttempts: Int = 0,
         testAttempts: Int = 0
     ) {
         self.recoveries = recoveries
+        self.recoverySuccesses = recoverySuccesses
+        self.recoveryFailures = recoveryFailures
         self.consecutiveExplorationSteps = consecutiveExplorationSteps
         self.patchIterations = patchIterations
         self.buildAttempts = buildAttempts
@@ -95,5 +103,17 @@ public struct LoopBudgetState: Sendable, Equatable {
 
     public mutating func registerRecoveryAttempt() {
         recoveries += 1
+    }
+
+    /// Records a successful recovery; call after `registerRecoveryAttempt()` when
+    /// the recovery action resumes normal execution.
+    public mutating func registerRecoverySuccess() {
+        recoverySuccesses += 1
+    }
+
+    /// Records a failed recovery; call after `registerRecoveryAttempt()` when the
+    /// recovery action does not resume normal execution.
+    public mutating func registerRecoveryFailure() {
+        recoveryFailures += 1
     }
 }
