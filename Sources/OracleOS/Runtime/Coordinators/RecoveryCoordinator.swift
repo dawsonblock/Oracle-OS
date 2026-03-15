@@ -199,7 +199,7 @@ public final class RecoveryCoordinator {
         }
 
         let afterStateBundle = refreshedStateBundle(from: stateBundle, lastAction: execution.intent)
-        let recoveryFailure = FailureAnalyzer.classify(
+        let recoveryFailure = FailureClassifier.classifyAction(
             intent: execution.intent,
             result: actionResult,
             before: stateBundle.observation,

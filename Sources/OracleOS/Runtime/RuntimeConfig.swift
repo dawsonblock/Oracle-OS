@@ -44,7 +44,7 @@ public struct RuntimeConfig: Sendable {
             approvalRequiredSurfaces: [.controller, .mcp, .cli, .recipe],
             blockedApplications: ["Terminal", "iTerm", "Hyper", "System Settings", "Keychain Access"],
             protectedOperations: Set(ProtectedOperation.allCases),
-            traceDirectory: TraceStore.traceRootDirectory(),
+            traceDirectory: ExperienceStore.traceRootDirectory(),
             recipesDirectory: OracleProductPaths.recipesDirectory,
             controllerApprovalRequiredForRiskyActions: true,
             approvalsDirectory: OracleProductPaths.approvalsDirectory,

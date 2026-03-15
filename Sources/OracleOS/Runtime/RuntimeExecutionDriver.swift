@@ -2,12 +2,12 @@ import Foundation
 
 @MainActor
 public final class RuntimeExecutionDriver: AgentExecutionDriver {
-    private let runtime: OracleRuntime
+    private let runtime: RuntimeOrchestrator
     private let surface: RuntimeSurface
     private let rawActionExecutor: @MainActor (ActionIntent) -> ToolResult
 
     public init(
-        runtime: OracleRuntime,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .recipe,
         rawActionExecutor: @escaping @MainActor (ActionIntent) -> ToolResult
     ) {
@@ -49,7 +49,7 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
             knowledgeTier: plannerDecision.knowledgeTier
         ) {
             if intent.agentKind == .code {
-                runtime.executeCodeIntent(intent)
+                CodeActionGateway(context: runtime.context).execute(intent)
             } else {
                 rawActionExecutor(intent)
             }

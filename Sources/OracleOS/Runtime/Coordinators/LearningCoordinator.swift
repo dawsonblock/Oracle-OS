@@ -8,13 +8,13 @@ import Foundation
 /// exclusively to ``DecisionCoordinator``.
 @MainActor
 public final class LearningCoordinator {
-    private let memoryStore: AppMemoryStore
+    private let memoryStore: StrategyMemory
     private let projectMemoryCoordinator: LoopProjectMemoryCoordinator
 
-    public var appMemoryStore: AppMemoryStore { memoryStore }
+    public var appMemoryStore: StrategyMemory { memoryStore }
 
     public init(
-        memoryStore: AppMemoryStore = AppMemoryStore(),
+        memoryStore: StrategyMemory = StrategyMemory(),
         projectMemoryCoordinator: LoopProjectMemoryCoordinator
     ) {
         self.memoryStore = memoryStore

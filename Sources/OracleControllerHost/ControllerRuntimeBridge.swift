@@ -10,16 +10,16 @@ final class ControllerRuntimeBridge {
     let sessionID: String
     let sessionStartedAt: Date
     let traceRecorder: TraceRecorder
-    let traceStore: TraceStore
+    let traceStore: ExperienceStore
     let artifactWriter: FailureArtifactWriter
     let runtimeContext: RuntimeContext
-    let oracleRuntime: OracleRuntime
+    let oracleRuntime: RuntimeOrchestrator
     let runtimeLifecycle: RuntimeLifecycle
     let diagnosticsBuilder: RuntimeDiagnosticsBuilder
 
     init() {
         self.traceRecorder = TraceRecorder()
-        self.traceStore = TraceStore()
+        self.traceStore = ExperienceStore()
         self.artifactWriter = FailureArtifactWriter()
         self.runtimeContext = RuntimeContext.live(
             traceRecorder: traceRecorder,
@@ -27,7 +27,7 @@ final class ControllerRuntimeBridge {
             artifactWriter: artifactWriter
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
-        self.oracleRuntime = OracleRuntime(context: runtimeContext)
+        self.oracleRuntime = RuntimeOrchestrator(context: runtimeContext)
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()
@@ -78,7 +78,7 @@ final class ControllerRuntimeBridge {
             visionModelPath: VisionBridge.findModelPath(),
             recipeDirectoryPath: OracleProductPaths.recipesDirectory.path,
             recipeCount: RecipeStore.listRecipes().count,
-            traceDirectoryPath: TraceStore.traceRootDirectory().path,
+            traceDirectoryPath: ExperienceStore.traceRootDirectory().path,
             applicationSupportPath: OracleProductPaths.dataRootDirectory.path,
             approvalsDirectoryPath: OracleProductPaths.approvalsDirectory.path,
             projectMemoryDirectoryPath: OracleProductPaths.projectMemoryDirectory.path,
@@ -282,7 +282,7 @@ final class ControllerRuntimeBridge {
     }
 
     func listTraceSessions() -> [TraceSessionSummary] {
-        let directory = TraceStore.resolveSessionsDirectory()
+        let directory = ExperienceStore.resolveSessionsDirectory()
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey],
@@ -303,7 +303,7 @@ final class ControllerRuntimeBridge {
     }
 
     func loadTraceSession(id: String) -> TraceSessionDetail? {
-        let fileURL = TraceStore.resolveSessionsDirectory().appendingPathComponent("\(id).jsonl")
+        let fileURL = ExperienceStore.resolveSessionsDirectory().appendingPathComponent("\(id).jsonl")
         guard let contents = try? String(contentsOf: fileURL, encoding: .utf8) else {
             return nil
         }
@@ -394,7 +394,7 @@ final class ControllerRuntimeBridge {
     }
 
     private func screenshotFrame(appName: String?) -> ScreenshotFrame? {
-        let result = PerceptionEngine.screenshot(appName: appName, fullResolution: false)
+        let result = AXScanner.screenshot(appName: appName, fullResolution: false)
         guard result.success,
               let data = result.data,
               let base64 = data["image"] as? String,

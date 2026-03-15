@@ -4,7 +4,7 @@
 // order enforces memory-driven behaviour:
 //
 //   1. StateMemory suggestions (historically successful actions)
-//   2. PlanningGraph valid actions (graph-constrained edges)
+//   2. GraphStore valid actions (graph-constrained edges)
 //   3. LLM fallback candidates (only when memory and graph are empty)
 //
 // The LLM should fill gaps, not lead action selection by default.
@@ -16,17 +16,17 @@ import Foundation
 @MainActor
 public final class CandidateGenerator {
     private let stateMemoryIndex: StateMemoryIndex
-    private let planningGraphStore: PlanningGraphStore
+    private let graphStore: GraphStore
     /// Maximum candidates returned per generation cycle.
     public let maxCandidates: Int
 
     public init(
         stateMemoryIndex: StateMemoryIndex,
-        planningGraphStore: PlanningGraphStore,
+        graphStore: GraphStore,
         maxCandidates: Int = 6
     ) {
         self.stateMemoryIndex = stateMemoryIndex
-        self.planningGraphStore = planningGraphStore
+        self.graphStore = graphStore
         self.maxCandidates = maxCandidates
     }
 
@@ -42,6 +42,7 @@ public final class CandidateGenerator {
     public func generate(
         compressedState: CompressedUIState,
         abstractState: AbstractTaskState,
+        planningStateID: PlanningStateID,
         llmSchemas: [ActionSchema] = []
     ) -> [Candidate] {
         var candidates: [Candidate] = []
@@ -50,7 +51,7 @@ public final class CandidateGenerator {
         candidates += memoryCandidates(for: compressedState)
 
         // 2. Graph suggestions — valid edges from the current state.
-        candidates += graphCandidates(for: abstractState, excluding: candidates)
+        candidates += graphCandidates(for: planningStateID, excluding: candidates)
 
         // 3. LLM fallback — only when gaps remain.
         candidates += llmCandidates(from: llmSchemas, excluding: candidates)
@@ -86,16 +87,24 @@ public final class CandidateGenerator {
     }
 
     private func graphCandidates(
-        for state: AbstractTaskState,
+        for planningStateID: PlanningStateID,
         excluding existing: [Candidate]
     ) -> [Candidate] {
         let existingNames = Set(existing.map(\.schema.name))
-        let schemas = planningGraphStore.validActions(for: state)
-        return schemas
-            .filter { !existingNames.contains($0.name) }
-            .map { schema in
-                Candidate(
-                    hypothesis: "Graph-valid action from state \(state.rawValue)",
+        
+        let edges = graphStore.outgoingStableEdges(from: planningStateID) +
+                    graphStore.outgoingCandidateEdges(from: planningStateID)
+        let contracts = edges.compactMap { graphStore.actionContract(for: $0.actionContractID) }
+
+        return contracts
+            .filter { !existingNames.contains($0.skillName) }
+            .map { contract in
+                let schema = ActionSchema(
+                    name: contract.skillName,
+                    kind: inferKind(for: contract.skillName)
+                )
+                return Candidate(
+                    hypothesis: "Graph-valid action from planning state \(planningStateID.rawValue)",
                     schema: schema,
                     source: .graph
                 )

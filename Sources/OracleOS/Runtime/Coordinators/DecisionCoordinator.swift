@@ -13,25 +13,23 @@ import Foundation
 public final class DecisionCoordinator {
     private static let defaultExplorationFallbackReason = "planner returned bounded exploration after stronger workflow and graph options were unavailable"
 
-    private let planner: Planner
+    private let planner: MainPlanner
     private let graphStore: GraphStore
-    private let memoryStore: AppMemoryStore
+    private let memoryStore: StrategyMemory
     private let strategySelector: StrategySelector
     private let strategyEvaluator: StrategyEvaluator
     private let stateMemoryIndex: StateMemoryIndex?
-    private let planningGraphStore: PlanningGraphStore?
 
     /// The currently active strategy. Persists across steps to prevent thrashing.
     private var activeStrategy: SelectedStrategy?
 
     public init(
-        planner: Planner = Planner(),
+        planner: MainPlanner = MainPlanner(),
         graphStore: GraphStore = GraphStore(),
-        memoryStore: AppMemoryStore = AppMemoryStore(),
+        memoryStore: StrategyMemory = StrategyMemory(),
         strategySelector: StrategySelector = StrategySelector(),
         strategyEvaluator: StrategyEvaluator = StrategyEvaluator(),
-        stateMemoryIndex: StateMemoryIndex? = nil,
-        planningGraphStore: PlanningGraphStore? = nil
+        stateMemoryIndex: StateMemoryIndex? = nil
     ) {
         self.planner = planner
         self.graphStore = graphStore
@@ -39,7 +37,6 @@ public final class DecisionCoordinator {
         self.strategySelector = strategySelector
         self.strategyEvaluator = strategyEvaluator
         self.stateMemoryIndex = stateMemoryIndex
-        self.planningGraphStore = planningGraphStore
     }
 
     public func setGoal(_ goal: Goal) {

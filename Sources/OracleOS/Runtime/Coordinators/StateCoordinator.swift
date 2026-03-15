@@ -15,7 +15,7 @@ public final class StateCoordinator {
     private let repositoryIndexer: RepositoryIndexer
     private let automationHost: AutomationHost
     private let browserPageStateBuilder: BrowserPageStateBuilder
-    private let taskGraphStore: TaskGraphStore?
+    private let taskGraphStore: TaskLedgerStore?
 
     public init(
         observationProvider: any ObservationProvider,
@@ -23,7 +23,7 @@ public final class StateCoordinator {
         repositoryIndexer: RepositoryIndexer = RepositoryIndexer(),
         automationHost: AutomationHost = .live(),
         browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
-        taskGraphStore: TaskGraphStore? = nil
+        taskGraphStore: TaskLedgerStore? = nil
     ) {
         self.observationProvider = observationProvider
         self.stateAbstraction = stateAbstraction

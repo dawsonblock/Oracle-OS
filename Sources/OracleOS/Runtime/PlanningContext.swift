@@ -8,7 +8,7 @@ import Foundation
 public struct PlanningContext: Sendable {
     public let worldState: WorldState
     public let abstractStateSignature: String
-    public let currentTaskNodeID: String?
+    public let currentTaskRecordID: String?
     public let taskContext: TaskContext
     public let workflowMatches: [WorkflowMatcher.Match]
     public let memoryInfluence: MemoryInfluence
@@ -23,7 +23,7 @@ public struct PlanningContext: Sendable {
     public init(
         worldState: WorldState,
         abstractStateSignature: String = "",
-        currentTaskNodeID: String? = nil,
+        currentTaskRecordID: String? = nil,
         taskContext: TaskContext,
         workflowMatches: [WorkflowMatcher.Match] = [],
         memoryInfluence: MemoryInfluence = MemoryInfluence(),
@@ -35,7 +35,7 @@ public struct PlanningContext: Sendable {
     ) {
         self.worldState = worldState
         self.abstractStateSignature = abstractStateSignature
-        self.currentTaskNodeID = currentTaskNodeID
+        self.currentTaskRecordID = currentTaskRecordID
         self.taskContext = taskContext
         self.workflowMatches = workflowMatches
         self.memoryInfluence = memoryInfluence

@@ -14,14 +14,14 @@ public enum MCPDispatch {
     /// longer than this, the MCP server was effectively stuck.
     private static let toolTimeoutSeconds: TimeInterval = 60
     private static let traceRecorder = TraceRecorder()
-    private static let traceStore = TraceStore()
+    private static let traceStore = ExperienceStore()
     private static let failureArtifactWriter = FailureArtifactWriter()
     private static let runtimeContext = RuntimeContext.live(
         traceRecorder: traceRecorder,
         traceStore: traceStore,
         artifactWriter: failureArtifactWriter
     )
-    private static let runtime = OracleRuntime(context: runtimeContext)
+    private static let runtime = RuntimeOrchestrator(context: runtimeContext)
 
     /// Handle a tools/call request. Returns MCP-formatted result.
     /// Wraps every tool call in a timeout so no single tool can block
@@ -57,7 +57,7 @@ public enum MCPDispatch {
 
     /// Screenshot handler returns MCP image content type for inline display.
     private static func handleScreenshot(_ args: [String: Any]) -> [String: Any] {
-        let result = PerceptionEngine.screenshot(
+        let result = AXScanner.screenshot(
             appName: str(args, "app"),
             fullResolution: bool(args, "full_resolution") ?? false
         )
@@ -100,13 +100,13 @@ public enum MCPDispatch {
 
         // Perception
         case "oracle_context":
-            return PerceptionEngine.getContext(appName: str(args, "app"))
+            return AXScanner.getContext(appName: str(args, "app"))
 
         case "oracle_state":
-            return PerceptionEngine.getState(appName: str(args, "app"))
+            return AXScanner.getState(appName: str(args, "app"))
 
         case "oracle_find":
-            return PerceptionEngine.findElements(
+            return AXScanner.findElements(
                 query: str(args, "query"),
                 role: str(args, "role"),
                 domId: str(args, "dom_id"),
@@ -117,7 +117,7 @@ public enum MCPDispatch {
             )
 
         case "oracle_read":
-            return PerceptionEngine.readContent(
+            return AXScanner.readContent(
                 appName: str(args, "app"),
                 query: str(args, "query"),
                 depth: int(args, "depth")
@@ -127,7 +127,7 @@ public enum MCPDispatch {
             guard let query = str(args, "query") else {
                 return ToolResult(success: false, error: "Missing required parameter: query")
             }
-            return PerceptionEngine.inspect(
+            return AXScanner.inspect(
                 query: query,
                 role: str(args, "role"),
                 domId: str(args, "dom_id"),
@@ -138,10 +138,10 @@ public enum MCPDispatch {
             guard let x = double(args, "x"), let y = double(args, "y") else {
                 return ToolResult(success: false, error: "Missing required parameters: x, y")
             }
-            return PerceptionEngine.elementAt(x: x, y: y)
+            return AXScanner.elementAt(x: x, y: y)
 
         case "oracle_screenshot":
-            return PerceptionEngine.screenshot(
+            return AXScanner.screenshot(
                 appName: str(args, "app"),
                 fullResolution: bool(args, "full_resolution") ?? false
             )
@@ -377,7 +377,7 @@ public enum MCPDispatch {
 
         // Vision
         case "oracle_parse_screen":
-            return VisionPerception.parseScreen(
+            return VisionScanner.parseScreen(
                 appName: str(args, "app"),
                 fullResolution: bool(args, "full_resolution") ?? false
             )
@@ -396,7 +396,7 @@ public enum MCPDispatch {
             } else {
                 cropBox = nil
             }
-            return VisionPerception.groundElement(
+            return VisionScanner.groundElement(
                 description: description,
                 appName: str(args, "app"),
                 cropBox: cropBox

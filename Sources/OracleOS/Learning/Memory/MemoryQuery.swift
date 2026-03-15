@@ -5,7 +5,7 @@ public struct MemoryQuery {
     public static func preferredControl(
         label: String,
         app: String,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) -> KnownControl? {
 
         let controls = store.controlsForApp(app)
@@ -19,21 +19,21 @@ public struct MemoryQuery {
     public static func rankingBias(
         label: String?,
         app: String?,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) -> Double {
         store.rankingBias(label: label, app: app)
     }
 
     public static func preferredRecoveryStrategy(
         app: String,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) -> String? {
         store.preferredRecoveryStrategy(app: app)
     }
 
     public static func preferredFixPath(
         errorSignature: String,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) -> String? {
         store.preferredFixPath(errorSignature: errorSignature)
     }
@@ -41,7 +41,7 @@ public struct MemoryQuery {
     public static func commandBias(
         category: String,
         workspaceRoot: String,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) -> Double {
         store.commandBias(category: category, workspaceRoot: workspaceRoot)
     }

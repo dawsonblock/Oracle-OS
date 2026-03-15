@@ -5,7 +5,7 @@ public struct MemoryUpdater {
     public static func recordSuccess(
         element: UnifiedElement,
         state: WorldState,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) {
         let key = "\(state.observation.app ?? "unknown")-\(element.label ?? "unknown")"
 
@@ -25,7 +25,7 @@ public struct MemoryUpdater {
     public static func recordFailure(
         failure: FailureClass,
         state: WorldState,
-        store: AppMemoryStore
+        store: StrategyMemory
     ) {
         let pattern =
             FailurePattern(

@@ -2,10 +2,10 @@ import Foundation
 
 @MainActor
 public final class ToolCommandExecutor {
-    private let runtime: OracleRuntime
+    private let runtime: RuntimeOrchestrator
     private let automationHost: AutomationHost
 
-    public init(runtime: OracleRuntime, automationHost: AutomationHost) {
+    public init(runtime: RuntimeOrchestrator, automationHost: AutomationHost) {
         self.runtime = runtime
         self.automationHost = automationHost
     }

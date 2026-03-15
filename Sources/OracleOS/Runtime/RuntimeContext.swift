@@ -4,13 +4,13 @@ import Foundation
 public final class RuntimeContext {
     public let config: RuntimeConfig
     public let traceRecorder: TraceRecorder
-    public let traceStore: TraceStore
+    public let traceStore: ExperienceStore
     public let artifactWriter: FailureArtifactWriter
     public let verifiedExecutor: VerifiedActionExecutor
     public let policyEngine: PolicyEngine
     public let approvalStore: ApprovalStore
     public let graphStore: GraphStore
-    public let memoryStore: AppMemoryStore
+    public let memoryStore: StrategyMemory
     public let stateAbstraction: StateAbstraction
     public let recoveryEngine: RecoveryEngine
     public let workspaceRunner: WorkspaceRunner
@@ -21,20 +21,20 @@ public final class RuntimeContext {
     public let browserController: BrowserController
     public let browserPageStateBuilder: BrowserPageStateBuilder
     public let stateMemoryIndex: StateMemoryIndex
-    public let planningGraphStore: PlanningGraphStore
     public let searchController: SearchController
     public let metricsRecorder: MetricsRecorder
+    public let telemetry: RuntimeTelemetry
 
     public init(
         config: RuntimeConfig = .live(),
         traceRecorder: TraceRecorder,
-        traceStore: TraceStore,
+        traceStore: ExperienceStore,
         artifactWriter: FailureArtifactWriter,
         verifiedExecutor: VerifiedActionExecutor,
         policyEngine: PolicyEngine,
         approvalStore: ApprovalStore,
         graphStore: GraphStore = GraphStore(),
-        memoryStore: AppMemoryStore = AppMemoryStore(),
+        memoryStore: StrategyMemory = StrategyMemory(),
         stateAbstraction: StateAbstraction = StateAbstraction(),
         recoveryEngine: RecoveryEngine = RecoveryEngine(),
         workspaceRunner: WorkspaceRunner = WorkspaceRunner(),
@@ -45,7 +45,6 @@ public final class RuntimeContext {
         browserController: BrowserController = BrowserController(),
         browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
         stateMemoryIndex: StateMemoryIndex = StateMemoryIndex(),
-        planningGraphStore: PlanningGraphStore = PlanningGraphStore(),
         searchController: SearchController? = nil,
         metricsRecorder: MetricsRecorder = MetricsRecorder()
     ) {
@@ -68,34 +67,32 @@ public final class RuntimeContext {
         self.browserController = browserController
         self.browserPageStateBuilder = browserPageStateBuilder
         self.stateMemoryIndex = stateMemoryIndex
-        self.planningGraphStore = planningGraphStore
         self.searchController = searchController ?? SearchController(
             generator: CandidateGenerator(
                 stateMemoryIndex: stateMemoryIndex,
-                planningGraphStore: planningGraphStore
+                graphStore: graphStore
             )
         )
         self.metricsRecorder = metricsRecorder
+        self.telemetry = RuntimeTelemetry(context: self)
     }
 
     public static func live(
         config: RuntimeConfig = .live(),
         traceRecorder: TraceRecorder,
-        traceStore: TraceStore,
+        traceStore: ExperienceStore,
         artifactWriter: FailureArtifactWriter
     ) -> RuntimeContext {
         let policyEngine = PolicyEngine(mode: config.policyMode)
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
         let graphStore = GraphStore()
         let stateMemoryIndex = StateMemoryIndex()
-        let planningGraphStore = PlanningGraphStore()
         let verifiedExecutor = VerifiedActionExecutor(
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter,
             graphStore: graphStore,
-            stateMemoryIndex: stateMemoryIndex,
-            planningGraphStore: planningGraphStore
+            stateMemoryIndex: stateMemoryIndex
         )
 
         return RuntimeContext(
@@ -107,6 +104,8 @@ public final class RuntimeContext {
             policyEngine: policyEngine,
             approvalStore: approvalStore,
             graphStore: graphStore,
+            memoryStore: StrategyMemory(),
+            stateAbstraction: StateAbstraction(),
             recoveryEngine: RecoveryEngine(),
             workspaceRunner: WorkspaceRunner(),
             repositoryIndexer: RepositoryIndexer(),
@@ -116,11 +115,10 @@ public final class RuntimeContext {
             browserController: BrowserController(),
             browserPageStateBuilder: BrowserPageStateBuilder(),
             stateMemoryIndex: stateMemoryIndex,
-            planningGraphStore: planningGraphStore,
             searchController: SearchController(
                 generator: CandidateGenerator(
                     stateMemoryIndex: stateMemoryIndex,
-                    planningGraphStore: planningGraphStore
+                    graphStore: graphStore
                 )
             ),
             metricsRecorder: MetricsRecorder()

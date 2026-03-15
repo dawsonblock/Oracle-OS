@@ -48,12 +48,15 @@ public final class SearchController {
     public func search(
         compressedState: CompressedUIState,
         abstractState: AbstractTaskState,
+        planningStateID: PlanningStateID,
         llmSchemas: [ActionSchema] = [],
         evaluate: (Candidate) -> CandidateResult?
     ) -> CandidateResult? {
         let candidates = generator.generate(
             compressedState: compressedState,
             abstractState: abstractState,
+            planningStateID: planningStateID,
+            planningStateID: planningStateID,
             llmSchemas: llmSchemas
         )
 

@@ -84,7 +84,7 @@ public struct ScreenshotResult: Sendable {
     public let mimeType: String
 
     /// Window frame in logical screen coordinates (points).
-    /// Used by VisionPerception to map VLM coordinates back to screen space.
+    /// Used by VisionScanner to map VLM coordinates back to screen space.
     public let windowX: Double
     public let windowY: Double
     public let windowWidth: Double
