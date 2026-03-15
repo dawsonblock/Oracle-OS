@@ -352,6 +352,8 @@ extension AgentLoop {
                 diagnostics: outcome.diagnostics,
                 budgetState: LoopBudgetState(
                     recoveries: outcome.recoveries,
+                    recoverySuccesses: outcome.recoverySuccesses,
+                    recoveryFailures: outcome.recoveryFailures,
                     consecutiveExplorationSteps: runState.budgetState.consecutiveExplorationSteps,
                     patchIterations: runState.budgetState.patchIterations,
                     buildAttempts: runState.budgetState.buildAttempts,
@@ -380,6 +382,8 @@ extension AgentLoop {
             finalWorldState: finalWorldState,
             steps: steps,
             recoveries: runState.budgetState.recoveries,
+            recoverySuccesses: runState.budgetState.recoverySuccesses,
+            recoveryFailures: runState.budgetState.recoveryFailures,
             lastFailure: lastFailure,
             diagnostics: diagnostics
         )

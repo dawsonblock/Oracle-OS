@@ -75,6 +75,7 @@ public final class RecoveryCoordinator {
                 strategy: recoveryAttempt.strategyName ?? "none",
                 success: false
             )
+            budgetState.registerRecoveryFailure()
             diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: recoveryAttempt.strategyName,
@@ -88,6 +89,8 @@ public final class RecoveryCoordinator {
                     finalWorldState: stateBundle.worldState,
                     steps: stepIndex + 1,
                     recoveries: budgetState.recoveries,
+                    recoverySuccesses: budgetState.recoverySuccesses,
+                    recoveryFailures: budgetState.recoveryFailures,
                     lastFailure: failure,
                     diagnostics: diagnostics
                 )
@@ -110,6 +113,7 @@ public final class RecoveryCoordinator {
                 strategy: preparation.strategyName,
                 success: false
             )
+            budgetState.registerRecoveryFailure()
             diagnostics.recordPolicy(
                 stepIndex: stepIndex,
                 outcome: .blocked,
@@ -128,6 +132,8 @@ public final class RecoveryCoordinator {
                     finalWorldState: stateBundle.worldState,
                     steps: stepIndex + 1,
                     recoveries: budgetState.recoveries,
+                    recoverySuccesses: budgetState.recoverySuccesses,
+                    recoveryFailures: budgetState.recoveryFailures,
                     lastFailure: failure,
                     diagnostics: diagnostics
                 )
@@ -149,6 +155,7 @@ public final class RecoveryCoordinator {
         )
 
         if let budgetReason = execution.budgetTerminationReason {
+            budgetState.registerRecoveryFailure()
             diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: preparation.strategyName,
@@ -162,6 +169,8 @@ public final class RecoveryCoordinator {
                     finalWorldState: stateBundle.worldState,
                     steps: stepIndex + 1,
                     recoveries: budgetState.recoveries,
+                    recoverySuccesses: budgetState.recoverySuccesses,
+                    recoveryFailures: budgetState.recoveryFailures,
                     lastFailure: failure,
                     diagnostics: diagnostics
                 )
@@ -169,6 +178,7 @@ public final class RecoveryCoordinator {
         }
 
         if execution.approvalPending {
+            budgetState.registerRecoveryFailure()
             diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: preparation.strategyName,
@@ -182,6 +192,8 @@ public final class RecoveryCoordinator {
                     finalWorldState: stateBundle.worldState,
                     steps: stepIndex + 1,
                     recoveries: budgetState.recoveries,
+                    recoverySuccesses: budgetState.recoverySuccesses,
+                    recoveryFailures: budgetState.recoveryFailures,
                     lastFailure: failure,
                     diagnostics: diagnostics
                 )
@@ -189,6 +201,7 @@ public final class RecoveryCoordinator {
         }
 
         if actionResult.success {
+            budgetState.registerRecoverySuccess()
             diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: preparation.strategyName,
@@ -212,6 +225,7 @@ public final class RecoveryCoordinator {
             failure: recoveryFailure,
             stateBundle: afterStateBundle
         )
+        budgetState.registerRecoveryFailure()
         diagnostics.recordRecovery(
             stepIndex: stepIndex,
             strategyName: preparation.strategyName,
@@ -225,6 +239,8 @@ public final class RecoveryCoordinator {
                 finalWorldState: afterStateBundle.worldState,
                 steps: stepIndex + 1,
                 recoveries: budgetState.recoveries,
+                recoverySuccesses: budgetState.recoverySuccesses,
+                recoveryFailures: budgetState.recoveryFailures,
                 lastFailure: recoveryFailure,
                 diagnostics: diagnostics
             )
