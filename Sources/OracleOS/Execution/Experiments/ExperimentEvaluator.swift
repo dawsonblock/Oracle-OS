@@ -128,7 +128,12 @@ public struct ExperimentEvaluator: Sendable {
         let avgLatency = totalActions > 0
             ? Double(outcome.actionResults.map(\.durationMs).reduce(0, +)) / Double(totalActions)
             : 0.0
-        let efficiency = max(0, min(1, 1.0 - (avgLatency / Double(latencyBudgetMs))))
+        let efficiency: Double
+        if latencyBudgetMs > 0 {
+            efficiency = max(0, min(1, 1.0 - (avgLatency / Double(latencyBudgetMs))))
+        } else {
+            efficiency = 0.0
+        }
 
         let dimensions: [String: Double] = [
             "correctness": correctness,
