@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# Local editor settings
+.vscode/
+
 # Swift
 .build/
 .swiftpm/
@@ -32,6 +35,8 @@ vision-sidecar/dist/
 # Artifacts
 build.log
 test.log
+build_output.txt
+test_output.txt
 ghost-os-*.tar.gz
 local/
 .oracle-graph/
