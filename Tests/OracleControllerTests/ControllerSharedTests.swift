@@ -21,10 +21,8 @@ struct ControllerSharedTests {
             monitoring: MonitoringConfiguration(enabled: true, appName: "Google Chrome", intervalMs: 1000)
         )
 
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let encoder = ControllerJSONCoding.makeEncoder()
+        let decoder = ControllerJSONCoding.makeDecoder()
 
         let encoded = try encoder.encode(request)
         let decoded = try decoder.decode(ControllerHostRequest.self, from: encoded)
@@ -62,10 +60,8 @@ struct ControllerSharedTests {
         let event = ControllerHostEvent(kind: .traceStepAppended, traceStep: step)
         let envelope = ControllerHostEnvelope(event: event)
 
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let encoder = ControllerJSONCoding.makeEncoder()
+        let decoder = ControllerJSONCoding.makeDecoder()
 
         let encoded = try encoder.encode(envelope)
         let decoded = try decoder.decode(ControllerHostEnvelope.self, from: encoded)

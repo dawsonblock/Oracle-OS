@@ -376,8 +376,7 @@ final class ProductEnvironmentManager {
     }
 
     private static func encodeDictionary<T: Encodable>(_ value: T) -> [String: Any] {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = ControllerJSONCoding.makeEncoder()
         guard
             let data = try? encoder.encode(value),
             let object = try? JSONSerialization.jsonObject(with: data),

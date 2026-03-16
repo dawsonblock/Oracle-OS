@@ -307,8 +307,7 @@ final class ControllerRuntimeBridge {
             return nil
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ControllerJSONCoding.makeDecoder()
 
         let steps = contents
             .split(separator: "\n")
@@ -458,8 +457,7 @@ final class ControllerRuntimeBridge {
     }
 
     private func map(_ recipe: Recipe) -> RecipeDocument {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let encoder = ControllerJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
         let rawJSON: String?
         if let encoded = try? encoder.encode(recipe) {
             rawJSON = String(data: encoded, encoding: .utf8)
@@ -515,7 +513,7 @@ final class ControllerRuntimeBridge {
             withJSONObject: recipeDictionary(from: document),
             options: [.prettyPrinted, .sortedKeys]
         )
-        return try JSONDecoder().decode(Recipe.self, from: data)
+        return try ControllerJSONCoding.makeDecoder().decode(Recipe.self, from: data)
     }
 
     private func map(_ locator: Locator) -> LocatorDocument {

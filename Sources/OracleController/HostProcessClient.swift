@@ -37,11 +37,8 @@ actor HostProcessClient {
 
     init(eventHandler: @escaping EventHandler) {
         self.eventHandler = eventHandler
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.sortedKeys]
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        self.encoder = ControllerJSONCoding.makeEncoder(outputFormatting: [.sortedKeys])
+        self.decoder = ControllerJSONCoding.makeDecoder()
     }
 
     deinit {

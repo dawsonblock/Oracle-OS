@@ -8,9 +8,7 @@ actor HostOutput {
 
     init(handle: FileHandle = .standardOutput) {
         self.handle = handle
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.sortedKeys]
+        self.encoder = ControllerJSONCoding.makeEncoder(outputFormatting: [.sortedKeys])
     }
 
     func send(response: ControllerHostResponse) {
@@ -543,7 +541,7 @@ actor ControllerHostServer {
                 finalText = "Copilot response failed: \(error.localizedDescription)"
             }
 
-            let completedConversation = await self.completeChatMessage(
+            let completedConversation = self.completeChatMessage(
                 messageID: assistantMessageID,
                 content: finalText,
                 citations: ClaudeLocalCopilot.citations(for: prompt, missionControl: missionControl),
@@ -666,9 +664,7 @@ actor ControllerHostServer {
                 at: chatPersistenceURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let encoder = ControllerJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
             let data = try encoder.encode(chatConversation)
             try data.write(to: chatPersistenceURL, options: .atomic)
         } catch {
@@ -684,8 +680,7 @@ actor ControllerHostServer {
 
     private static func loadConversation(from url: URL) -> ChatConversation? {
         guard let data = try? Data(contentsOf: url) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ControllerJSONCoding.makeDecoder()
         return try? decoder.decode(ChatConversation.self, from: data)
     }
 

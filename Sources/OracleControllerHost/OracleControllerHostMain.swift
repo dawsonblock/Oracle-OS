@@ -7,8 +7,7 @@ struct OracleControllerHostMain {
         let output = HostOutput()
         let bridge = await MainActor.run { ControllerRuntimeBridge() }
         let server = ControllerHostServer(output: output, bridge: bridge)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ControllerJSONCoding.makeDecoder()
 
         do {
             for try await line in FileHandle.standardInput.bytes.lines {
