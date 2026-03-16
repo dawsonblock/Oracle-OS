@@ -9,6 +9,31 @@ public protocol LLMProvider: Sendable {
     func complete(request: LLMRequest) async throws -> String
 }
 
+/// Centralized model definitions to replace hardcoded strings
+public enum LLMModel: String, Sendable {
+    case gpt4o = "gpt-4o"
+    case gpt4oMini = "gpt-4o-mini"
+    case gpt4Turbo = "gpt-4-turbo"
+    case gpt35Turbo = "gpt-3.5-turbo"
+    case claude3Opus = "claude-3-opus"
+    case claude3Sonnet = "claude-3-sonnet"
+    case claude3Haiku = "claude-3-haiku"
+    case o1 = "o1"
+    case o1Mini = "o1-mini"
+    case o3Mini = "o3-mini"
+
+    /// Default model for planning tier
+    public static let defaultPlanning = LLMModel.gpt4o
+    /// Default model for code repair tier
+    public static let defaultCodeRepair = LLMModel.gpt4o
+    /// Default model for browser reasoning
+    public static let defaultBrowser = LLMModel.gpt4o
+    /// Default model for recovery
+    public static let defaultRecovery = LLMModel.gpt4oMini
+    /// Default fallback model
+    public static let defaultFallback = LLMModel.gpt4o
+}
+
 public extension LLMProvider {
     func complete(request: LLMRequest) async throws -> String {
         try await complete(prompt: request.prompt)
@@ -70,6 +95,11 @@ public final class LLMClient: @unchecked Sendable {
     private var requestCount: Int = 0
     private var totalTokens: Int = 0
 
+    /// Minimum delay on rate limit (1 second)
+    private let rateLimitMinDelay: TimeInterval = 1.0
+    /// Maximum delay on rate limit (32 seconds)
+    private let rateLimitMaxDelay: TimeInterval = 32.0
+
     public init(
         providers: [LLMModelTier: any LLMProvider] = [:],
         defaultProvider: (any LLMProvider)? = nil,
@@ -94,12 +124,13 @@ public final class LLMClient: @unchecked Sendable {
         }
 
         var lastError: Error?
-        for _ in 0...maxRetries {
+        for attempt in 0...maxRetries {
             do {
                 let start = CFAbsoluteTimeGetCurrent()
                 let text = try await provider.complete(prompt: request.prompt)
                 let latencyMs = (CFAbsoluteTimeGetCurrent() - start) * 1000
-                let estimatedTokens = text.count / 4
+                // Use more accurate token estimation: ~3.5 chars per token for English
+                let estimatedTokens = max(1, text.count / 3)
 
                 lock.lock()
                 requestCount += 1
@@ -112,12 +143,30 @@ public final class LLMClient: @unchecked Sendable {
                     tokenCount: estimatedTokens,
                     latencyMs: latencyMs
                 )
+            } catch let error as LLMClientError {
+                lastError = error
+                // Exponential backoff with jitter on rate limit errors
+                if case .rateLimited = error, attempt < maxRetries {
+                    let delay = calculateBackoff(attempt: attempt)
+                    Log.warn("Rate limited, retrying after \(delay)s (attempt \(attempt + 1)/\(maxRetries + 1))")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
             } catch {
                 lastError = error
             }
         }
 
         throw lastError ?? LLMClientError.noProvider
+    }
+
+    /// Calculate exponential backoff with jitter for rate limiting
+    private func calculateBackoff(attempt: Int) -> TimeInterval {
+        // Exponential: 1s, 2s, 4s, 8s... up to max
+        let exponentialDelay = rateLimitMinDelay * pow(2.0, Double(attempt))
+        let cappedDelay = min(exponentialDelay, rateLimitMaxDelay)
+        // Add jitter (±25%)
+        let jitter = cappedDelay * 0.25 * (Double.random(in: -1...1))
+        return cappedDelay + jitter
     }
 
     public var diagnostics: LLMClientDiagnostics {

@@ -26,6 +26,21 @@ public enum RecipeEngine {
 
     private static var pausedRuns: [String: PausedRecipeRun] = [:]
 
+    /// Maximum paused runs to prevent unbounded memory growth
+    private static let maxPausedRuns = 100
+
+    /// Clean up old paused runs when limit is reached
+    private static func cleanupPausedRuns() {
+        if pausedRuns.count >= maxPausedRuns {
+            // Remove oldest entries (first 25%)
+            let keysToRemove = Array(pausedRuns.keys.sorted().prefix(maxPausedRuns / 4))
+            for key in keysToRemove {
+                pausedRuns.removeValue(forKey: key)
+            }
+            Log.warn("RecipeEngine: Cleaned up \(keysToRemove.count) old paused runs")
+        }
+    }
+
     /// Run a recipe with parameter substitution.
     public static func run(
         recipe: Recipe,
@@ -94,6 +109,17 @@ public enum RecipeEngine {
         resumeToken: String?,
         validateInputs: Bool
     ) -> ToolResult {
+        // Validate recipe schema on first run
+        if validateInputs {
+            if let validationError = validateRecipe(recipe) {
+                return ToolResult(
+                    success: false,
+                    error: validationError,
+                    suggestion: "Fix the recipe schema before running."
+                )
+            }
+        }
+
         if validateInputs {
             if let paramDefs = recipe.params {
                 for (name, def) in paramDefs {
@@ -150,6 +176,9 @@ public enum RecipeEngine {
             )
 
             if isPendingApproval(result) {
+                // Clean up old paused runs before adding new one
+                cleanupPausedRuns()
+
                 let token = resumeToken ?? UUID().uuidString
                 pausedRuns[token] = PausedRecipeRun(
                     recipe: recipe,
@@ -267,6 +296,78 @@ public enum RecipeEngine {
     }
 
     // MARK: - Precondition Checking
+
+    /// Validate recipe schema, type correctness, and detect circular dependencies
+    private static func validateRecipe(_ recipe: Recipe) -> String? {
+        // Check for required fields
+        if recipe.name.isEmpty {
+            return "Recipe name is required"
+        }
+        if recipe.steps.isEmpty {
+            return "Recipe must have at least one step"
+        }
+
+        // Validate step IDs are unique
+        var stepIds = Set<Int>()
+        for step in recipe.steps {
+            if step.id <= 0 {
+                return "Step ID must be positive"
+            }
+            if stepIds.contains(step.id) {
+                return "Duplicate step ID: \(step.id)"
+            }
+            stepIds.insert(step.id)
+        }
+
+        // Check for circular dependencies using DFS
+        if let cycle = detectCycle(in: recipe) {
+            return "Circular step dependency detected: \(cycle)"
+        }
+
+        return nil
+    }
+
+    /// Detect circular dependencies in recipe steps using DFS
+    private static func detectCycle(in recipe: Recipe) -> String? {
+        var visited = Set<Int>()
+        var recursionStack = Set<Int>()
+        
+        func dfs(stepId: Int, dependencies: [Int]) -> String? {
+            visited.insert(stepId)
+            recursionStack.insert(stepId)
+            
+            for dep in dependencies {
+                if !visited.contains(dep) {
+                    if let cycle = dfs(stepId: dep, dependencies: getStepDependencies(stepId: dep, in: recipe)) {
+                        return "\(stepId) -> \(cycle)"
+                    }
+                } else if recursionStack.contains(dep) {
+                    return "\(dep)"
+                }
+            }
+            
+            recursionStack.remove(stepId)
+            return nil
+        }
+        
+        for step in recipe.steps {
+            let deps = getStepDependencies(stepId: step.id, in: recipe)
+            if !visited.contains(step.id) {
+                if let cycle = dfs(stepId: step.id, dependencies: deps) {
+                    return cycle
+                }
+            }
+        }
+        
+        return nil
+    }
+
+    /// Get dependencies for a step (placeholder for wait_after dependencies)
+    private static func getStepDependencies(stepId: Int, in recipe: Recipe) -> [Int] {
+        // Currently recipes don't have explicit step dependencies
+        // This can be extended when wait_after with step references is added
+        return []
+    }
 
     /// Check preconditions with smart diagnostics.
     /// Instead of just "failed", tells the agent exactly what's wrong and how to fix it.

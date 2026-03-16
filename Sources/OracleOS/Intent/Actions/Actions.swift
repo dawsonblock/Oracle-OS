@@ -16,7 +16,48 @@ import AppKit
 import AXorcist
 import Foundation
 
+/// Errors that can occur during action execution
+public enum ActionError: Error, Sendable {
+    case invalidParameter(String)
+    case elementNotFound(String)
+    case actionFailed(String)
+}
+
+// MARK: - Safe Parameter Extraction
+
+/// Safely extract a String parameter, returning nil if not present or wrong type
+private func extractString(_ params: [String: Any], _ key: String) -> String? {
+    params[key] as? String
+}
+
+/// Safely extract an Int parameter, returning nil if not present or wrong type
+private func extractInt(_ params: [String: Any], _ key: String) -> Int? {
+    if let i = params[key] as? Int { return i }
+    if let d = params[key] as? Double { return Int(d) }
+    if let s = params[key] as? String, let i = Int(s) { return i }
+    return nil
+}
+
+/// Safely extract a Double parameter, returning nil if not present or wrong type
+private func extractDouble(_ params: [String: Any], _ key: String) -> Double? {
+    if let d = params[key] as? Double { return d }
+    if let i = params[key] as? Int { return Double(i) }
+    if let s = params[key] as? String, let d = Double(s) { return d }
+    return nil
+}
+
+/// Safely extract a Bool parameter, returning nil if not present or wrong type
+private func extractBool(_ params: [String: Any], _ key: String) -> Bool? {
+    params[key] as? Bool
+}
+
 /// Actions module: operating apps for the agent.
+/// 
+/// Note: This module uses `Thread.sleep(forTimeInterval:)` for timing-critical UI waits.
+/// These are intentionally kept short (50-300ms) to balance responsiveness with reliability.
+/// In a @MainActor context, these block the thread, but they are necessary for waiting
+/// for UI state changes to propagate. Future refactoring could explore async alternatives
+/// if the Swift concurrency story for UI automation matures.
 @MainActor
 public enum Actions {
 

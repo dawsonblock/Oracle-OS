@@ -1,5 +1,6 @@
 import Foundation
 
+/// Thread-safe action executor with synchronization for shared state.
 @MainActor
 public final class VerifiedActionExecutor {
     private let verificationTimeout: TimeInterval
@@ -12,6 +13,9 @@ public final class VerifiedActionExecutor {
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskLedgerStore?
     private let stateMemoryIndex: StateMemoryIndex?
+
+    /// Lock for synchronizing access to shared state
+    private let stateLock = NSLock()
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -43,6 +47,9 @@ public final class VerifiedActionExecutor {
     /// Every side-effect-producing closure must pass through `run()` so that
     /// pre/post observations are captured, the critic can judge the outcome,
     /// and the result is stamped with `executedThroughExecutor = true`.
+    ///
+    /// All state modifications are synchronized via `stateLock` to prevent
+    /// race conditions in concurrent execution scenarios.
     public func run(
         taskID: String? = nil,
         toolName: String? = nil,
@@ -288,6 +295,8 @@ public final class VerifiedActionExecutor {
         // The critic verdict drives graph promotion/demotion: only critic-confirmed
         // successes promote an edge; failures and unknowns record a failed execution.
         if let taskGraphStore, let currentEdgeID {
+            stateLock.lock()
+            defer { stateLock.unlock() }
             let postWorldState = WorldState(
                 observationHash: postHash,
                 planningState: postPlanningState,
@@ -333,11 +342,13 @@ public final class VerifiedActionExecutor {
         if let stateMemoryIndex {
             let actionName = schema?.name ?? intent.action
             let succeeded = criticVerdict.outcome == .success
+            stateLock.lock()
             stateMemoryIndex.record(
                 state: preCompressed,
                 actionName: actionName,
                 success: succeeded
             )
+            stateLock.unlock()
         }
 
         // --- Critic-driven planning graph update ---

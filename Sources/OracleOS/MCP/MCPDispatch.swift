@@ -56,6 +56,9 @@ public enum MCPDispatch {
         // NOTE: @MainActor methods called inside dispatch() will hop back
         // to the main actor automatically — we are only using the queue
         // as a timeout-enforcing wrapper, not to change isolation.
+        // This pattern is intentional: we need hard timeouts to prevent
+        // stuck tools from blocking the MCP server, which is the #1
+        // user-reported issue.
         let queue = DispatchQueue(label: "oracle.mcp.tool.\(toolName)")
         queue.async(execute: work)
 

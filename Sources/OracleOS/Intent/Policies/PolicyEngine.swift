@@ -5,8 +5,41 @@ public final class PolicyEngine: @unchecked Sendable {
 
     public var mode: PolicyMode
 
+    /// Cache for policy decisions to avoid repeated evaluation
+    private var decisionCache: [String: CachedDecision] = [:]
+    private let cacheLock = NSLock()
+
+    /// Cache TTL in seconds (default 5 minutes)
+    private let cacheTTL: TimeInterval = 300
+
+    /// Cached decision with timestamp for TTL tracking
+    private struct CachedDecision {
+        let decision: PolicyDecision
+        let timestamp: Date
+
+        var isExpired: Bool {
+            Date().timeIntervalSince(timestamp) > 300
+        }
+    }
+
     public init(mode: PolicyMode? = nil) {
         self.mode = mode ?? Self.defaultMode()
+    }
+
+    /// Clear the policy decision cache (call after hot-reload)
+    public func clearCache() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        decisionCache.removeAll()
+        Log.info("PolicyEngine: Decision cache cleared")
+    }
+
+    /// Reload policies with immediate cache invalidation
+    public func reloadPolicies(mode: PolicyMode? = nil) {
+        if let mode = mode {
+            self.mode = mode
+        }
+        clearCache()
     }
 
     public func evaluate(intent: ActionIntent) -> PolicyDecision {
