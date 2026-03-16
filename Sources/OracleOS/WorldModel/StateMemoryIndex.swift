@@ -85,7 +85,7 @@ public struct ActionStats: Sendable, Codable {
         self.successes = successes
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         // For backward compatibility, default `actionName` when missing.
         self.actionName = try container.decodeIfPresent(String.self, forKey: .actionName) ?? ""

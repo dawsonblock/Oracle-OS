@@ -246,11 +246,15 @@ private final class FailingLLMProvider: LLMProvider, @unchecked Sendable {
         self.failCount = failCount
     }
 
-    func complete(prompt: String) async throws -> String {
+    private func recordCall() -> Int {
         lock.lock()
+        defer { lock.unlock() }
         callCount += 1
-        let current = callCount
-        lock.unlock()
+        return callCount
+    }
+
+    func complete(prompt: String) async throws -> String {
+        let current = recordCall()
 
         if current <= failCount {
             throw LLMClientError.timeout
