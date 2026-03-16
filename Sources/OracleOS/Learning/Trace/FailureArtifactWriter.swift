@@ -39,9 +39,7 @@ public final class FailureArtifactWriter {
         observation: Observation
     ) -> String? {
         let fileURL = artifactURL(sessionID: sessionID, stepID: stepID, name: name, ext: "json")
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = OracleJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
 
         do {
             let data = try encoder.encode(observation)

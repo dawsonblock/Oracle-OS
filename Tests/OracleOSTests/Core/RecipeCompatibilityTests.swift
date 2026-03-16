@@ -19,7 +19,7 @@ struct RecipeCompatibilityTests {
 
         #expect(!recipeFiles.isEmpty)
 
-        let decoder = JSONDecoder()
+        let decoder = OracleJSONCoding.makeDecoder()
         for file in recipeFiles {
             let data = try Data(contentsOf: file)
             let recipe = try decoder.decode(Recipe.self, from: data)

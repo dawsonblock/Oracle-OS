@@ -126,7 +126,7 @@ struct RecipeSchemaTests {
             at: recipesDir, includingPropertiesForKeys: nil
         ).filter { $0.pathExtension == "json" }
         #expect(!files.isEmpty)
-        let decoder = JSONDecoder()
+        let decoder = OracleJSONCoding.makeDecoder()
         for file in files {
             let data = try Data(contentsOf: file)
             let recipe = try decoder.decode(Recipe.self, from: data)

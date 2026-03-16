@@ -235,12 +235,10 @@ struct CoreContractsTests {
             notes: nil
         )
 
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = OracleJSONCoding.makeEncoder()
         let encoded = try encoder.encode(event)
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = OracleJSONCoding.makeDecoder()
         let decoded = try decoder.decode(TraceEvent.self, from: encoded)
 
         #expect(decoded.sessionID == event.sessionID)
@@ -297,8 +295,7 @@ struct CoreContractsTests {
         }
         """.data(using: .utf8)!
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = OracleJSONCoding.makeDecoder()
         let decoded = try decoder.decode(TraceEvent.self, from: legacyJSON)
 
         #expect(decoded.schemaVersion == 1)

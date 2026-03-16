@@ -87,8 +87,7 @@ public final class RepositoryIndexer: @unchecked Sendable {
         guard let data = try? Data(contentsOf: indexURL) else {
             return nil
         }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = OracleJSONCoding.makeDecoder()
         return try? decoder.decode(RepositorySnapshot.self, from: data)
     }
 
@@ -628,9 +627,7 @@ public final class RepositoryIndexer: @unchecked Sendable {
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let encoder = OracleJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
             let data = try encoder.encode(snapshot)
             try data.write(to: url, options: .atomic)
         } catch {

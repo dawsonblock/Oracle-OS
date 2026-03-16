@@ -20,7 +20,7 @@ public enum RecipeStore {
         var recipes: [Recipe] = []
         guard let files = try? fm.contentsOfDirectory(atPath: recipesDir) else { return [] }
 
-        let decoder = JSONDecoder()
+        let decoder = OracleJSONCoding.makeDecoder()
         for file in files where file.hasSuffix(".json") {
             let path = (recipesDir as NSString).appendingPathComponent(file)
             guard let data = fm.contents(atPath: path) else { continue }
@@ -44,7 +44,7 @@ public enum RecipeStore {
             return nil
         }
         do {
-            return try JSONDecoder().decode(Recipe.self, from: data)
+            return try OracleJSONCoding.makeDecoder().decode(Recipe.self, from: data)
         } catch {
             Log.error("Failed to decode recipe '\(name)': \(error)")
             return nil
@@ -55,8 +55,7 @@ public enum RecipeStore {
     public static func saveRecipe(_ recipe: Recipe) throws {
         ensureDirectory()
         let path = (recipesDir as NSString).appendingPathComponent("\(recipe.name).json")
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let encoder = OracleJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
         let data = try encoder.encode(recipe)
         try data.write(to: URL(fileURLWithPath: path))
     }
@@ -79,7 +78,7 @@ public enum RecipeStore {
             throw OracleError.invalidParameter("Invalid JSON string")
         }
         do {
-            let recipe = try JSONDecoder().decode(Recipe.self, from: data)
+            let recipe = try OracleJSONCoding.makeDecoder().decode(Recipe.self, from: data)
             try saveRecipe(recipe)
             return recipe.name
         } catch let decodingError as DecodingError {

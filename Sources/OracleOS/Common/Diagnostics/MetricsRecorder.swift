@@ -164,8 +164,7 @@ public final class MetricsRecorder: @unchecked Sendable {
     /// - Throws: If the file cannot be written.
     public func persist() throws {
         guard let outputPath else { return }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let encoder = OracleJSONCoding.makeEncoder(outputFormatting: [.prettyPrinted, .sortedKeys])
         let data = try encoder.encode(metrics)
         let url = URL(fileURLWithPath: outputPath)
         try data.write(to: url, options: .atomic)
@@ -179,7 +178,7 @@ public final class MetricsRecorder: @unchecked Sendable {
         let url = URL(fileURLWithPath: outputPath)
         guard FileManager.default.fileExists(atPath: outputPath) else { return }
         let data = try Data(contentsOf: url)
-        metrics = try JSONDecoder().decode(RuntimeMetrics.self, from: data)
+        metrics = try OracleJSONCoding.makeDecoder().decode(RuntimeMetrics.self, from: data)
     }
 
     /// Reset all metrics to zero.
