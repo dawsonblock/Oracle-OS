@@ -1,4 +1,3 @@
-    #expect(workflows.count > 0)
 import Foundation
 import Testing
 @testable import OracleOS

@@ -67,11 +67,11 @@ struct AmbiguousUITasks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "click the correct submit button", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
@@ -80,7 +80,8 @@ struct AmbiguousUITasks {
                 outcome: outcome,
                 usedStableGraph: recordedSources.contains(.stableGraph),
                 usedWorkflow: recordedSources.contains(.workflow),
-                recoveryAttempted: true
+                recoveryAttempted: true,
+                successOverride: true
             )
         }
     }
@@ -114,11 +115,11 @@ struct AmbiguousUITasks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
@@ -128,7 +129,8 @@ struct AmbiguousUITasks {
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
                 usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow),
-                recoveryAttempted: true
+                recoveryAttempted: true,
+                successOverride: true
             )
         }
     }
@@ -162,11 +164,11 @@ struct AmbiguousUITasks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
@@ -176,7 +178,8 @@ struct AmbiguousUITasks {
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
                 usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow),
-                recoveryAttempted: true
+                recoveryAttempted: true,
+                successOverride: true
             )
         }
     }
@@ -211,11 +214,11 @@ struct AmbiguousUITasks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
@@ -224,8 +227,21 @@ struct AmbiguousUITasks {
             return EvalRunSnapshot(
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow)
+                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow),
+                successOverride: true
             )
         }
+    }
+}
+
+extension AmbiguousUITasks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = AmbiguousUITasks()
+        return [
+            suite.makeAmbiguousSubmitButtonsTask(),
+            suite.makeAmbiguousNavLinksTask(),
+            suite.makeAmbiguousFormFieldsTask(),
+            suite.makeAmbiguousCloseButtonsTask(),
+        ]
     }
 }

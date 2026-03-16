@@ -147,7 +147,7 @@ public final class ArchitectureEngine: @unchecked Sendable {
             )
         }
 
-        if path.contains("Agent/Planning"),
+          if path.contains("/Planning/") || path.contains("Sources/OracleOS/Planning/"),
            candidate.content.contains("execute(") || candidate.content.contains("WorkspaceRunner(")
         {
             findings.append(

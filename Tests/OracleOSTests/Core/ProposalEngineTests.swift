@@ -7,12 +7,20 @@ struct ProposalEngineTests {
 
     // MARK: - LLM Client
 
-    @Test("LLM client returns empty response when no provider configured")
+    @Test("LLM client throws when no provider configured")
     func llmClientReturnsEmptyWithoutProvider() async throws {
         let client = LLMClient()
-        let response = try await client.complete(LLMRequest(prompt: "test"))
-        #expect(response.text == "")
-        #expect(response.modelTier == .planning)
+        do {
+            _ = try await client.complete(LLMRequest(prompt: "test"))
+            Issue.record("Expected noProvider error")
+        } catch let error as LLMClientError {
+            switch error {
+            case .noProvider:
+                break
+            default:
+                Issue.record("Expected noProvider error, got \(error)")
+            }
+        }
     }
 
     @Test("LLM client tracks diagnostics")

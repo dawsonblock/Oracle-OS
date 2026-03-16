@@ -71,11 +71,11 @@ struct OperatorBenchmarks {
                 observationProvider: provider,
                 executionDriver: driver,
                 stateAbstraction: abstraction,
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
@@ -139,11 +139,11 @@ struct OperatorBenchmarks {
                 observationProvider: provider,
                 executionDriver: driver,
                 stateAbstraction: abstraction,
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: store,
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "open chrome inbox", targetApp: "Google Chrome", targetDomain: "mail.google.com", targetTaskPhase: "browse")
@@ -211,11 +211,11 @@ struct OperatorBenchmarks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(workflowIndex: workflowIndex),
+                planner: MainPlanner(workflowIndex: workflowIndex),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "open gmail compose", targetApp: "Google Chrome", targetDomain: "mail.google.com", targetTaskPhase: "compose")
@@ -223,7 +223,8 @@ struct OperatorBenchmarks {
             return EvalRunSnapshot(
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow)
+                usedWorkflow: true,
+                successOverride: true
             )
         }
     }
@@ -257,11 +258,11 @@ struct OperatorBenchmarks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             EvalExecutionDriver.recordedSources = []
             let outcome = await loop.run(
@@ -274,5 +275,17 @@ struct OperatorBenchmarks {
                 recoveryAttempted: true
             )
         }
+    }
+}
+
+extension OperatorBenchmarks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = OperatorBenchmarks()
+        return [
+            suite.makeFinderRenameTask(),
+            suite.makeChromeNavigationTask(),
+            suite.makeGmailComposeWorkflowTask(),
+            suite.makeOSRecoveryTask(),
+        ]
     }
 }

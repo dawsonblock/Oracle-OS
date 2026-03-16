@@ -45,10 +45,11 @@ private struct ControllerCommands: Commands {
 
             Divider()
 
-            sectionButton(.control, shortcut: "1")
-            sectionButton(.recipes, shortcut: "2")
-            sectionButton(.traces, shortcut: "3")
-            sectionButton(.health, shortcut: "4")
+            sectionButton(.missionControl, shortcut: "1")
+            sectionButton(.control, shortcut: "2")
+            sectionButton(.recipes, shortcut: "3")
+            sectionButton(.traces, shortcut: "4")
+            sectionButton(.health, shortcut: "5")
             sectionButton(.settings, shortcut: ",")
 
             Divider()

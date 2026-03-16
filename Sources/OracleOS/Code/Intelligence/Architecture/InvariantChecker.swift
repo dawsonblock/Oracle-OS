@@ -14,7 +14,19 @@ public struct InvariantChecker: Sendable {
         let loweredGoal = goalDescription.lowercased()
         let hasTests = candidatePaths.contains { $0.hasPrefix("Tests/") }
 
-        if moduleSet.contains("Agent/Planning"), moduleSet.contains("Core/Execution") {
+        let touchesPlanning = candidatePaths.contains { $0.contains("/Planning/") }
+        let touchesExecution = candidatePaths.contains { $0.contains("/Execution/") }
+        let touchesLoop = candidatePaths.contains { $0.contains("/Execution/Loop/AgentLoop.swift") }
+        let touchesExperiments = candidatePaths.contains { $0.contains("/Execution/Experiments/") }
+        let touchesArchitecture = candidatePaths.contains { $0.contains("/Code/Intelligence/Architecture/") }
+        let touchesRanking = candidatePaths.contains {
+            $0.contains("/Search/Ranking/") || $0.contains("/WorldModel/WorldQuery.swift")
+        }
+        let touchesRecovery = candidatePaths.contains { $0.contains("/Recovery/") }
+        let touchesGraph = candidatePaths.contains { $0.contains("/WorldModel/Graph/") }
+        let touchesSkillLayer = candidatePaths.contains { $0.contains("/Skills/") }
+
+        if touchesPlanning, touchesExecution {
             violations.append(
                 GovernanceViolation(
                     ruleID: .hierarchicalPlanning,
@@ -27,8 +39,7 @@ public struct InvariantChecker: Sendable {
             )
         }
 
-        if moduleSet.contains("Agent/Loop"),
-           moduleSet.intersection(["Experiments", "Architecture", "Core/Ranking", "Agent/Planning"]).isEmpty == false
+        if touchesLoop && (touchesExperiments || touchesArchitecture || touchesRanking || touchesPlanning)
         {
             violations.append(
                 GovernanceViolation(
@@ -42,8 +53,8 @@ public struct InvariantChecker: Sendable {
             )
         }
 
-        if moduleSet.contains("Core/Execution"),
-           moduleSet.contains("Core/Policy"),
+          if touchesExecution,
+              candidatePaths.contains(where: { $0.contains("/Intent/Policies/") }),
            !moduleSet.contains("Runtime")
         {
             violations.append(
@@ -72,13 +83,10 @@ public struct InvariantChecker: Sendable {
         }
 
         let touchesTargetBearingSkill = candidatePaths.contains { path in
-            path.contains("Agent/Skills/OS/ClickSkill.swift")
-                || path.contains("Agent/Skills/OS/TypeSkill.swift")
+            path.contains("Skills/OS/ClickSkill.swift")
+                || path.contains("Skills/OS/TypeSkill.swift")
         }
-        let touchesRankingPath = candidatePaths.contains { path in
-            path.contains("Core/Ranking/")
-                || path.contains("Core/World/WorldQuery.swift")
-        }
+        let touchesRankingPath = touchesRanking
         if touchesTargetBearingSkill, !touchesRankingPath {
             violations.append(
                 GovernanceViolation(
@@ -90,8 +98,8 @@ public struct InvariantChecker: Sendable {
                     evidence: candidatePaths
                 )
             )
-        } else if moduleSet.contains("Agent/Planning"),
-                  moduleSet.intersection(["Core/Ranking", "CodeExecution", "Core/World"]).isEmpty == false
+        } else if touchesPlanning,
+                  (touchesRanking || candidatePaths.contains(where: { $0.contains("/Code/Execution/") }))
         {
             violations.append(
                 GovernanceViolation(
@@ -103,7 +111,7 @@ public struct InvariantChecker: Sendable {
                     evidence: candidatePaths
                 )
             )
-        } else if moduleSet.contains("Agent/Skills"), moduleSet.contains("Core/Ranking"), loweredGoal.contains("click") {
+        } else if touchesSkillLayer, touchesRanking, loweredGoal.contains("click") {
             violations.append(
                 GovernanceViolation(
                     ruleID: .hierarchicalPlanning,
@@ -116,8 +124,8 @@ public struct InvariantChecker: Sendable {
             )
         }
 
-        if (moduleSet.contains("Graph"), moduleSet.contains("Experiments")) == (true, true)
-            || (moduleSet.contains("Graph"), moduleSet.contains("Agent/Recovery")) == (true, true)
+        if (touchesGraph && touchesExperiments)
+            || (touchesGraph && touchesRecovery)
         {
             violations.append(
                 GovernanceViolation(
@@ -131,9 +139,9 @@ public struct InvariantChecker: Sendable {
             )
         }
 
-        if moduleSet.contains("Agent/Recovery"),
+          if touchesRecovery,
            !moduleSet.contains("Runtime"),
-           !moduleSet.contains("Graph")
+              !touchesGraph
         {
             violations.append(
                 GovernanceViolation(
@@ -147,7 +155,7 @@ public struct InvariantChecker: Sendable {
             )
         }
 
-        if moduleSet.contains("Agent/Recovery"), moduleSet.contains("Graph") {
+        if touchesRecovery, touchesGraph {
             violations.append(
                 GovernanceViolation(
                     ruleID: .recoveryMode,

@@ -4,6 +4,7 @@ import Observation
 import OracleControllerShared
 
 enum WorkspaceSection: String, CaseIterable, Identifiable {
+    case missionControl
     case control
     case recipes
     case traces
@@ -15,6 +16,7 @@ enum WorkspaceSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .missionControl: return "Mission Control"
         case .control: return "Control"
         case .recipes: return "Recipes"
         case .traces: return "Traces"
@@ -26,6 +28,7 @@ enum WorkspaceSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .missionControl: return "sparkle.magnifyingglass"
         case .control: return "switch.2"
         case .recipes: return "text.badge.checkmark"
         case .traces: return "waveform.path.ecg.rectangle"
@@ -122,16 +125,19 @@ struct ActionComposer {
 @MainActor
 @Observable
 final class ControllerStore {
-    var selectedSection: WorkspaceSection = .control
+    var selectedSection: WorkspaceSection = .missionControl
     var session: ControllerSession?
     var snapshot: ControlSnapshot?
     var health: HealthStatus?
     var diagnostics: ControllerDiagnosticsSnapshot?
+    var missionControl: MissionControlSnapshot?
     var productStatus: ProductEnvironmentStatus?
     var recipes: [RecipeDocument] = []
     var traceSessions: [TraceSessionSummary] = []
     var traceDetail: TraceSessionDetail?
     var approvalQueue: [ApprovalRequestDocument] = []
+    var chatConversation: ChatConversation?
+    var chatProviderStatus: ChatProviderStatus?
     var currentActionResult: ActionRunResult?
     var recentActions: [ActionRunResult] = []
     var latestRecipeRun: RecipeRunResultDocument?
@@ -169,9 +175,12 @@ final class ControllerStore {
     var recipeSearchText = ""
     var traceSearchText = ""
     var elementSearchText = ""
+    var chatInput = ""
 
     private var hostClient: HostProcessClient?
     private let productEnvironmentManager = ProductEnvironmentManager()
+    var diagnosticsRefreshTask: Task<Void, Never>?
+    var missionControlRefreshTask: Task<Void, Never>?
 
     var filteredElements: [ElementSnapshot] {
         let elements = snapshot?.observation.elements ?? []
@@ -420,6 +429,7 @@ final class ControllerStore {
             if let snapshot = response.snapshot {
                 apply(snapshot: snapshot)
             }
+            await refreshMissionControl()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -716,14 +726,14 @@ final class ControllerStore {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
-    private func send(_ request: ControllerHostRequest) async throws -> ControllerHostResponse {
+    func send(_ request: ControllerHostRequest) async throws -> ControllerHostResponse {
         guard let hostClient else {
             throw HostClientError.hostExited
         }
         return try await hostClient.send(request)
     }
 
-    private func performAction(_ request: ActionRequest) async {
+    func performAction(_ request: ActionRequest) async {
         do {
             isBusy = true
             defer { isBusy = false }
@@ -743,6 +753,9 @@ final class ControllerStore {
                     : (result.success ? (result.message ?? "Action completed.") : (result.message ?? "Action failed."))
                 if let approvals = response.approvals {
                     approvalQueue = approvals
+                }
+                if let missionControl = response.missionControl {
+                    self.missionControl = missionControl
                 }
             } else {
                 errorMessage = response.errorMessage ?? "Action failed"
@@ -765,7 +778,8 @@ final class ControllerStore {
             if let action = event.action {
                 record(action)
             }
-            Task { await loadDiagnostics() }
+            scheduleDiagnosticsRefresh()
+            scheduleMissionControlRefresh()
 
         case .observationUpdated:
             session = event.session ?? session
@@ -777,14 +791,16 @@ final class ControllerStore {
             if let traceStep = event.traceStep {
                 append(traceStep)
             }
-            Task { await loadDiagnostics() }
+            scheduleDiagnosticsRefresh()
+            scheduleMissionControlRefresh()
 
         case .healthChanged:
             session = event.session ?? session
             if let health = event.health {
                 self.health = health
             }
-            Task { await loadDiagnostics() }
+            scheduleDiagnosticsRefresh()
+            scheduleMissionControlRefresh()
 
         case .recipesChanged:
             if let recipes = event.recipes {
@@ -795,6 +811,30 @@ final class ControllerStore {
         case .approvalsChanged:
             if let approvals = event.approvals {
                 approvalQueue = approvals
+            }
+
+        case .missionControlChanged:
+            if let missionControl = event.missionControl {
+                self.missionControl = missionControl
+            }
+            if let providerStatus = event.chatProviderStatus {
+                chatProviderStatus = providerStatus
+            }
+
+        case .chatStreamDelta:
+            if let conversation = event.chatConversation {
+                chatConversation = conversation
+            }
+            if let providerStatus = event.chatProviderStatus {
+                chatProviderStatus = providerStatus
+            }
+
+        case .chatMessageCompleted:
+            if let conversation = event.chatConversation {
+                chatConversation = conversation
+            }
+            if let providerStatus = event.chatProviderStatus {
+                chatProviderStatus = providerStatus
             }
         }
     }
@@ -807,6 +847,9 @@ final class ControllerStore {
         recipes = bootstrap.recipes
         traceSessions = bootstrap.traceSessions
         approvalQueue = bootstrap.approvals
+        missionControl = bootstrap.missionControl
+        chatConversation = bootstrap.chatConversation
+        chatProviderStatus = bootstrap.chatProviderStatus ?? bootstrap.missionControl?.providerStatus
         selectedElementID = bootstrap.snapshot?.observation.focusedElementID
         actionComposer.hydrate(from: bootstrap.snapshot)
         if monitorAppName.isEmpty {
@@ -908,7 +951,7 @@ final class ControllerStore {
         return nil
     }
 
-    private var currentMonitorApp: String? {
+    var currentMonitorApp: String? {
         monitorAppName.nilIfBlank
     }
 
@@ -960,7 +1003,7 @@ final class ControllerStore {
     }
 }
 
-private extension String {
+extension String {
     var nilIfBlank: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

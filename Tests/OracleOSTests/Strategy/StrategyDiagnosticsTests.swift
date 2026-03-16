@@ -99,9 +99,9 @@ struct StrategyDiagnosticsTests {
         #expect(result.failureClass == nil)
     }
 
-    @Test("TaskNode stateSignature combines abstract state and planning state")
+    @Test("TaskRecord stateSignature combines abstract state and planning state")
     func taskNodeStateSignature() {
-        let node = TaskNode(
+        let node = TaskRecord(
             abstractState: .repoLoaded,
             planningStateID: PlanningStateID(rawValue: "test-state")
         )

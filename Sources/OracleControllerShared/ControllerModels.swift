@@ -1192,6 +1192,9 @@ public struct DashboardBootstrap: Codable, Sendable, Equatable {
     public let recipes: [RecipeDocument]
     public let traceSessions: [TraceSessionSummary]
     public let approvals: [ApprovalRequestDocument]
+    public let missionControl: MissionControlSnapshot?
+    public let chatConversation: ChatConversation?
+    public let chatProviderStatus: ChatProviderStatus?
 
     public init(
         session: ControllerSession,
@@ -1199,7 +1202,10 @@ public struct DashboardBootstrap: Codable, Sendable, Equatable {
         health: HealthStatus,
         recipes: [RecipeDocument],
         traceSessions: [TraceSessionSummary],
-        approvals: [ApprovalRequestDocument]
+        approvals: [ApprovalRequestDocument],
+        missionControl: MissionControlSnapshot? = nil,
+        chatConversation: ChatConversation? = nil,
+        chatProviderStatus: ChatProviderStatus? = nil
     ) {
         self.session = session
         self.snapshot = snapshot
@@ -1207,5 +1213,8 @@ public struct DashboardBootstrap: Codable, Sendable, Equatable {
         self.recipes = recipes
         self.traceSessions = traceSessions
         self.approvals = approvals
+        self.missionControl = missionControl
+        self.chatConversation = chatConversation
+        self.chatProviderStatus = chatProviderStatus
     }
 }

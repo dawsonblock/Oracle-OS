@@ -19,7 +19,7 @@ struct RecoveryMemoryInfluenceTests {
 
     @Test("Recovery planner generates plans for modal blocking")
     func recoveryPlannerGeneratesPlansForModalBlocking() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeReasoningState(modalPresent: true)
         let plans = planner.plan(failure: .modalBlocking, state: state)
         #expect(!plans.isEmpty)
@@ -28,7 +28,7 @@ struct RecoveryMemoryInfluenceTests {
 
     @Test("Recovery planner generates plans for wrong focus")
     func recoveryPlannerGeneratesPlansForWrongFocus() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeReasoningState(targetApp: "Safari")
         let plans = planner.plan(failure: .wrongFocus, state: state)
         #expect(!plans.isEmpty)
@@ -36,7 +36,7 @@ struct RecoveryMemoryInfluenceTests {
 
     @Test("Recovery planner returns empty for unsupported failure classes")
     func recoveryPlannerReturnsEmptyForUnsupported() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeReasoningState()
         let plans = planner.plan(failure: .workspaceScopeViolation, state: state)
         #expect(plans.isEmpty)

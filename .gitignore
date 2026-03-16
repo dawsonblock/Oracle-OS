@@ -36,3 +36,5 @@ ghost-os-*.tar.gz
 local/
 .oracle-graph/
 dist/
+
+.fake

@@ -76,14 +76,21 @@ public final class LLMClient: @unchecked Sendable {
         maxRetries: Int = 2
     ) {
         self.providers = providers
-        self.defaultProvider = defaultProvider
+        // Fall back to OpenAIProvider when no explicit provider is given.
+        // OpenAIProvider reads API key and endpoint from environment variables
+        // and supports any OpenAI-compatible endpoint (Ollama, LM Studio, etc.).
+        let resolved = defaultProvider ?? {
+            let openAI = OpenAIProvider()
+            return openAI.isConfigured ? openAI : nil
+        }()
+        self.defaultProvider = resolved
         self.maxRetries = maxRetries
     }
 
     public func complete(_ request: LLMRequest) async throws -> LLMResponse {
         let provider = providers[request.modelTier] ?? defaultProvider
         guard let provider else {
-            return LLMResponse(text: "", modelTier: request.modelTier)
+            throw LLMClientError.noProvider
         }
 
         var lastError: Error?
@@ -132,4 +139,5 @@ public enum LLMClientError: Error, Sendable {
     case noProvider
     case rateLimited
     case timeout
+    case transportError(String)
 }

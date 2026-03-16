@@ -26,11 +26,7 @@ extension AgentLoop {
 
             // Commit perceived state to the world model so the planner reasons
             // over the authoritative committed snapshot, not raw perception data.
-            /* 
-            // Note: Since worldModel was added in main but MainPlanner in HEAD might not use it yet, 
-            // I'll keep the commitment logic but ensure it doesn't break MainPlanner which reads from GraphStore/MemoryStore.
-            */
-            // (Assuming worldModel is available as a property in AgentLoop based on my previous AgentLoop.swift resolution)
+            worldModel.reset(from: stateBundle.worldState)
             
             if decisionCoordinator.goalReached(in: stateBundle) {
                 return finalize(

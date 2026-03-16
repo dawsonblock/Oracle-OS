@@ -1,6 +1,7 @@
 import Foundation
 
 /// Handles telemetry, metrics, and trace recording for the runtime.
+@MainActor
 public struct RuntimeTelemetry {
     private let context: RuntimeContext
 
@@ -115,6 +116,6 @@ public struct RuntimeTelemetry {
         )
 
         context.traceRecorder.record(event)
-        return try? context.experienceStore.append(event)
+        return try? context.traceStore.append(event)
     }
 }

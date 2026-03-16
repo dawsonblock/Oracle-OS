@@ -18,6 +18,9 @@ public struct ArchitectureModuleGraph: Codable, Sendable, Equatable {
             if rest.count >= 2, ["Agent", "Core", "Learning"].contains(rest[0]) {
                 return "\(rest[0])/\(rest[1])"
             }
+            if rest.count >= 3 {
+                return "\(rest[0])/\(rest[1])"
+            }
             return rest.first ?? "OracleOS"
         }
 

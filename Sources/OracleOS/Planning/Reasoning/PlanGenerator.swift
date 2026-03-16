@@ -86,6 +86,7 @@ memoryStore: UnifiedMemoryStore,
 
         // Source 4: Family-specific planning (OS, Code, Mixed)
         let familyPlans = familyBacked(
+            state: state,
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
@@ -189,6 +190,7 @@ memoryStore: UnifiedMemoryStore,
     }
 
     private func familyBacked(
+        state: ReasoningPlanningState,
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
@@ -223,20 +225,41 @@ memoryStore: UnifiedMemoryStore,
         }
 
         guard let decision else { return [] }
-        
-        // Convert PlannerDecision to PlanCandidate
-        let available = operatorRegistry.allOperators()
+
+        let available = operatorRegistry.available(for: state)
         let matchingOp = available.first { $0.kind.rawValue == decision.actionContract.skillName }
         guard let op = matchingOp else { return [] }
-        
+
         return [
             PlanCandidate(
                 operators: [op],
-                projectedState: nil, // Decision doesn't provide projected state
+                projectedState: op.effect(state),
                 reasons: decision.notes + ["family-backed decision from \(decision.plannerFamily)"],
-                sourceType: decision.source
+                sourceType: decision.source.planSourceType
             )
         ]
     }
 }
 
+private extension PlannerSource {
+    var planSourceType: PlanSourceType {
+        switch self {
+        case .workflow:
+            return .workflow
+        case .stableGraph:
+            return .stableGraph
+        case .candidateGraph:
+            return .candidateGraph
+        case .exploration:
+            return .exploration
+        case .reasoning:
+            return .reasoning
+        case .llm:
+            return .llm
+        case .recovery:
+            return .recovery
+        case .strategy:
+            return .strategy
+        }
+    }
+}

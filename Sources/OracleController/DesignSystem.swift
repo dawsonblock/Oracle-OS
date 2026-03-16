@@ -124,6 +124,8 @@ struct EmptyStateView: View {
 struct ScreenshotPreview: View {
     let screenshot: ScreenshotFrame?
 
+    private static let imageCache = NSCache<NSString, NSImage>()
+
     var body: some View {
         Group {
             if let image = screenshotImage {
@@ -146,11 +148,23 @@ struct ScreenshotPreview: View {
     }
 
     private var screenshotImage: NSImage? {
-        guard let screenshot,
-              let data = Data(base64Encoded: screenshot.base64PNG)
+        guard let screenshot
         else {
             return nil
         }
-        return NSImage(data: data)
+
+        let cacheKey = NSString(string: "\(screenshot.width)x\(screenshot.height)-\(screenshot.base64PNG.prefix(64))")
+        if let cached = Self.imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
+        guard let data = Data(base64Encoded: screenshot.base64PNG),
+              let image = NSImage(data: data)
+        else {
+            return nil
+        }
+
+        Self.imageCache.setObject(image, forKey: cacheKey)
+        return image
     }
 }

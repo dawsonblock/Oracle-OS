@@ -135,37 +135,7 @@ public enum Actions {
         // Build locator for AXorcist
         let locator = LocatorBuilder.build(query: query, role: role, domId: domId)
 
-        // Strategy 1: AX-native via AXorcist's PerformAction command
-        // This handles element finding, action validation, and execution internally
-        if mouseButton == .left && clickCount == 1 {
-            let actionCmd = PerformActionCommand(
-                appIdentifier: appName,
-                locator: locator,
-                action: "AXPress",
-                maxDepthForSearch: OracleConstants.semanticDepthBudget
-            )
-            let response = AXorcist.shared.runCommand(
-                AXCommandEnvelope(commandID: "click", command: .performAction(actionCmd))
-            )
-
-            switch response {
-            case .success:
-                usleep(300_000) // 300ms for background app to react (v1's timing)
-                Log.info("AX-native press succeeded for '\(query ?? domId ?? "")'")
-                return ToolResult(
-                    success: true,
-                    data: [
-                        "method": "ax-native",
-                        "element": query ?? domId ?? "",
-                    ]
-                )
-            case let .error(message, code, _):
-                // Log the actual error so we know WHY AX-native failed
-                Log.info("AX-native press failed for '\(query ?? domId ?? "")': [\(code)] \(message) - trying synthetic")
-            }
-        }
-
-        // Strategy 2: Find element position, synthetic click
+        // Find element position, synthetic/native click fallback.
         // Need to find the element ourselves to get its position
         let element = findElement(locator: locator, appName: appName)
 
@@ -432,7 +402,7 @@ public enum Actions {
                         if let str = ref as? String, !str.isEmpty {
                             readback = str
                         } else if CFGetTypeID(ref) == CFStringGetTypeID() {
-                            readback = ref as! String
+                            readback = (ref as! String)
                         } else {
                             readback = nil
                         }

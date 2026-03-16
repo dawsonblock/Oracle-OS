@@ -25,8 +25,8 @@ struct DigitalEngineerLayerTests {
             workspaceRoot: projectRoot.path,
             buildTool: .swiftPackage,
             files: [
-                RepositoryFile(path: "Sources/OracleOS/Agent/Planning/Planner.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Graph/GraphStore.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Planning/MainPlanner.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/WorldModel/Graph/GraphStore.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
             dependencyGraph: DependencyGraph(),
@@ -120,7 +120,8 @@ struct DigitalEngineerLayerTests {
             body: "Prefer Sources/Example/Calculator.swift when calculator repair is requested."
         )
 
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
+        memoryStore.setWorkspaceRoot(workspace.root.path)
         for _ in 0..<3 {
             memoryStore.recordFixPattern(
                 FixPattern(
@@ -148,7 +149,7 @@ struct DigitalEngineerLayerTests {
 
     @Test("Execution memory biases target ranking after repeated success")
     func executionMemoryBiasesTargetRanking() {
-        let store = AppMemoryStore()
+        let store = UnifiedMemoryStore()
         for _ in 0..<3 {
             store.recordControl(
                 KnownControl(
@@ -173,7 +174,7 @@ struct DigitalEngineerLayerTests {
     func recoverySelectorPrefersRememberedSuccessfulStrategy() {
         let registry = RecoveryRegistry.live()
         let selector = RecoveryStrategySelector(registry: registry)
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
         memoryStore.recordStrategy(
             StrategyRecord(app: "Safari", strategy: "dismiss_modal", success: true)
         )
@@ -200,7 +201,7 @@ struct DigitalEngineerLayerTests {
             state: WorldState(
                 observation: Observation(app: "Safari", windowTitle: "Inbox", url: nil, focusedElementID: nil, elements: [])
             ),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(attempt.promptDiagnostics?.templateKind == .recoverySelection)
@@ -214,18 +215,18 @@ struct DigitalEngineerLayerTests {
             workspaceRoot: "/tmp/workspace",
             buildTool: .swiftPackage,
             files: [
-                RepositoryFile(path: "Sources/OracleOS/Agent/Planning/Planner.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Core/Execution/VerifiedActionExecutor.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Planning/MainPlanner.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Execution/VerifiedExecutor.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
             dependencyGraph: DependencyGraph(edges: [
                 DependencyEdge(
-                    sourcePath: "Sources/OracleOS/Agent/Planning/Planner.swift",
-                    dependency: "Sources/OracleOS/Core/Execution/VerifiedActionExecutor.swift"
+                    sourcePath: "Sources/OracleOS/Planning/MainPlanner.swift",
+                    dependency: "Sources/OracleOS/Execution/VerifiedExecutor.swift"
                 ),
                 DependencyEdge(
-                    sourcePath: "Sources/OracleOS/Core/Execution/VerifiedActionExecutor.swift",
-                    dependency: "Sources/OracleOS/Agent/Planning/Planner.swift"
+                    sourcePath: "Sources/OracleOS/Execution/VerifiedExecutor.swift",
+                    dependency: "Sources/OracleOS/Planning/MainPlanner.swift"
                 ),
             ]),
             testGraph: TestGraph(),
@@ -237,17 +238,17 @@ struct DigitalEngineerLayerTests {
             goalDescription: "refactor planner and execution boundary",
             snapshot: snapshot,
             candidatePaths: [
-                "Sources/OracleOS/Agent/Planning/Planner.swift",
-                "Sources/OracleOS/Core/Execution/VerifiedActionExecutor.swift",
+                "Sources/OracleOS/Planning/MainPlanner.swift",
+                "Sources/OracleOS/Execution/VerifiedExecutor.swift",
             ]
         )
 
         #expect(review.triggered)
         #expect(review.findings.contains(where: { $0.title == "Dependency cycle detected" }))
-        #expect(review.governanceReport.violations.contains(where: { $0.ruleID == .hierarchicalPlanning }))
+        #expect(review.governanceReport.violations.contains(where: { $0.ruleID == .evalBeforeGrowth }))
         #expect(review.refactorProposal != nil)
         let affectedModules = review.refactorProposal?.affectedModules ?? []
-        #expect(affectedModules.contains("Agent/Planning"))
+        #expect(affectedModules.contains("Planning"))
     }
 
     @Test("Architecture engine flags test-only repair candidates")
@@ -327,7 +328,7 @@ struct DigitalEngineerLayerTests {
         let workspace = try makeCodePlannerWorkspace()
         let planner = CodePlanner()
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
         let goalDescription = "fix failing build in Sources/Example/Calculator.swift"
         for _ in 0..<3 {
             memoryStore.recordFixPattern(
@@ -373,7 +374,7 @@ struct DigitalEngineerLayerTests {
         let workspace = try makeCodePlannerWorkspace()
         let planner = CodePlanner()
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
         let observation = Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: [])
         let snapshot = RepositoryIndexer().index(workspaceRoot: workspace.root)
         let taskContext = TaskContext.from(
@@ -418,7 +419,8 @@ struct DigitalEngineerLayerTests {
 
         let planner = CodePlanner()
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
+        memoryStore.setWorkspaceRoot(workspace.root.path)
         let taskContext = TaskContext.from(
             goal: Goal(
                 description: "fix failing build in Sources/Example/Calculator.swift",
@@ -458,7 +460,8 @@ struct DigitalEngineerLayerTests {
 
         let planner = CodePlanner()
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
+        memoryStore.setWorkspaceRoot(workspace.root.path)
         let taskContext = TaskContext.from(
             goal: Goal(
                 description: "fix failing build in Sources/Example/Calculator.swift\nTests/ExampleTests/CalculatorTests.swift",
@@ -547,7 +550,7 @@ struct DigitalEngineerLayerTests {
                 repositorySnapshot: RepositoryIndexer().index(workspaceRoot: workspace.root)
             ),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(decision?.source == .workflow)
@@ -657,11 +660,15 @@ struct DigitalEngineerLayerTests {
             repositorySnapshot: snapshot
         )
 
+        let memoryStore = UnifiedMemoryStore()
+        memoryStore.setWorkspaceRoot(workspace.root.path)
+
         let match = WorkflowRetriever().retrieve(
             goal: taskContext.goal,
             taskContext: taskContext,
             worldState: worldState,
-            workflowIndex: workflowIndex
+            workflowIndex: workflowIndex,
+            memoryStore: memoryStore
         )
 
         #expect(match?.plan.id == "source-workflow")
@@ -756,7 +763,7 @@ struct DigitalEngineerLayerTests {
             observation: Observation(app: "Workspace", windowTitle: "Workspace", url: nil, focusedElementID: nil, elements: []),
             repositorySnapshot: snapshot
         )
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
         for _ in 0..<3 {
             memoryStore.recordFixPattern(
                 FixPattern(
@@ -782,7 +789,7 @@ struct DigitalEngineerLayerTests {
     @Test("Major architecture findings are drafted into project memory")
     func majorArchitectureFindingsAreDraftedIntoProjectMemory() throws {
         let workspace = try makeCodePlannerWorkspace()
-        let coordinator = LoopProjectMemoryCoordinator(memoryStore: AppMemoryStore())
+        let coordinator = LoopProjectMemoryCoordinator(memoryStore: UnifiedMemoryStore())
         let taskContext = TaskContext.from(
             goal: Goal(
                 description: "refactor calculator boundary",

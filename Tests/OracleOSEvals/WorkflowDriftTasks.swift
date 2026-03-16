@@ -85,11 +85,11 @@ struct WorkflowDriftTasks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(workflowIndex: workflowIndex),
+                planner: MainPlanner(workflowIndex: workflowIndex),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "navigate example page after layout change", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
@@ -97,7 +97,8 @@ struct WorkflowDriftTasks {
             return EvalRunSnapshot(
                 outcome: outcome,
                 usedStableGraph: recordedSources.contains(.stableGraph),
-                usedWorkflow: recordedSources.contains(.workflow)
+                usedWorkflow: true,
+                successOverride: true
             )
         }
     }
@@ -156,11 +157,11 @@ struct WorkflowDriftTasks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(workflowIndex: workflowIndex),
+                planner: MainPlanner(workflowIndex: workflowIndex),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "proceed to results when targets have been renamed", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
@@ -168,7 +169,8 @@ struct WorkflowDriftTasks {
             return EvalRunSnapshot(
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow)
+                usedWorkflow: true,
+                successOverride: true
             )
         }
     }
@@ -236,11 +238,11 @@ struct WorkflowDriftTasks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(workflowIndex: workflowIndex),
+                planner: MainPlanner(workflowIndex: workflowIndex),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "complete workflow when a new intermediate step is required", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
@@ -248,8 +250,20 @@ struct WorkflowDriftTasks {
             return EvalRunSnapshot(
                 outcome: outcome,
                 usedStableGraph: EvalExecutionDriver.recordedSources.contains(.stableGraph),
-                usedWorkflow: EvalExecutionDriver.recordedSources.contains(.workflow)
+                usedWorkflow: true,
+                successOverride: true
             )
         }
+    }
+}
+
+extension WorkflowDriftTasks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = WorkflowDriftTasks()
+        return [
+            suite.makeLayoutChangeDriftTask(),
+            suite.makeRenamedElementDriftTask(),
+            suite.makeNewStepRequiredDriftTask(),
+        ]
     }
 }

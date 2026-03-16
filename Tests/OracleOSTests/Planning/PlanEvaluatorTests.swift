@@ -58,7 +58,7 @@ struct PlanEvaluatorTests {
             worldState: worldState,
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             workflowIndex: WorkflowIndex(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(scored.count == 2)
@@ -116,7 +116,7 @@ struct PlanEvaluatorTests {
             worldState: worldState,
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             workflowIndex: WorkflowIndex(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         for i in 0..<max(scored.count - 1, 0) {
@@ -195,12 +195,12 @@ struct PlanEvaluatorTests {
         )
 
         let workflowPlan = PlanCandidate(
-            operators: [Operator(kind: .clickTarget)],
+            operators: [Operator(kind: .openApplication)],
             projectedState: state,
             sourceType: .workflow
         )
         let graphPlan = PlanCandidate(
-            operators: [Operator(kind: .clickTarget)],
+            operators: [Operator(kind: .openApplication)],
             projectedState: state,
             sourceType: .stableGraph
         )
@@ -212,7 +212,7 @@ struct PlanEvaluatorTests {
             worldState: worldState,
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             workflowIndex: WorkflowIndex(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let scoredSources = scored.map(\.sourceType)

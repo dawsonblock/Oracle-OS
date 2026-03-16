@@ -6,15 +6,16 @@ import Foundation
 // experiment comparison, or direct world mutation logic.
 @MainActor
 public final class AgentLoop {
-    private let planner: MainPlanner
-    private let graphStore: GraphStore
-    private let experimentCoordinator: LoopExperimentCoordinator
-    private let learningCoordinator: LearningCoordinator
-    private let stateCoordinator: StateCoordinator
-    private let decisionCoordinator: DecisionCoordinator
-    private let executionCoordinator: ExecutionCoordinator
-    private let recoveryCoordinator: RecoveryCoordinator
+    let planner: MainPlanner
+    let graphStore: GraphStore
+    let experimentCoordinator: LoopExperimentCoordinator
+    let learningCoordinator: LearningCoordinator
+    let stateCoordinator: StateCoordinator
+    let decisionCoordinator: DecisionCoordinator
+    let executionCoordinator: ExecutionCoordinator
+    let recoveryCoordinator: RecoveryCoordinator
     private let stateMemoryIndex: StateMemoryIndex?
+    let worldModel: WorldStateModel
 
     public init(
         observationProvider: any ObservationProvider,
@@ -30,11 +31,13 @@ public final class AgentLoop {
         experimentManager: ExperimentManager = ExperimentManager(),
         automationHost: AutomationHost = .live(),
         browserPageStateBuilder: BrowserPageStateBuilder = BrowserPageStateBuilder(),
-        stateMemoryIndex: StateMemoryIndex? = nil
+        stateMemoryIndex: StateMemoryIndex? = nil,
+        worldModel: WorldStateModel = WorldStateModel()
     ) {
         self.planner = planner
         self.graphStore = graphStore
         self.stateMemoryIndex = stateMemoryIndex
+        self.worldModel = worldModel
 
         let projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
         let learningCoordinator = LearningCoordinator(

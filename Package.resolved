@@ -1,14 +1,6 @@
 {
   "pins" : [
     {
-      "identity" : "axorcist",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/steipete/AXorcist.git",
-      "state" : {
-        "revision" : "cf1d7e372a625f4ffabdb938ca3028ae9b8ca7f7"
-      }
-    },
-    {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",

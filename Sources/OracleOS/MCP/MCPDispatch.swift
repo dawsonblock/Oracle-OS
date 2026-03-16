@@ -35,24 +35,49 @@ public enum MCPDispatch {
         let startTime = DispatchTime.now()
         Log.info("Tool call: \(toolName)")
 
-        // Screenshot returns MCP image content directly (not text-wrapped JSON)
-        let response: [String: Any]
-        if toolName == "oracle_screenshot" {
-            response = handleScreenshot(args)
-        } else {
-            let result = dispatch(tool: toolName, args: args)
-            response = formatResult(result, toolName: toolName)
+        // Run the actual tool dispatch with a hard timeout.
+        // We use a DispatchWorkItem on a serial queue so the main
+        // run-loop stays responsive to cancellation signals.
+        let semaphore = DispatchSemaphore(value: 0)
+        var response: [String: Any]?
+        let work = DispatchWorkItem { [args] in
+            let result: [String: Any]
+            if toolName == "oracle_screenshot" {
+                result = handleScreenshot(args)
+            } else {
+                let toolResult = dispatch(tool: toolName, args: args)
+                result = formatResult(toolResult, toolName: toolName)
+            }
+            response = result
+            semaphore.signal()
         }
+
+        // Dispatch onto a dedicated queue so we can enforce the timeout.
+        // NOTE: @MainActor methods called inside dispatch() will hop back
+        // to the main actor automatically — we are only using the queue
+        // as a timeout-enforcing wrapper, not to change isolation.
+        let queue = DispatchQueue(label: "oracle.mcp.tool.\(toolName)")
+        queue.async(execute: work)
+
+        let deadline = DispatchTime.now() + toolTimeoutSeconds
+        let waitResult = semaphore.wait(timeout: deadline)
 
         // Log timing for every tool call (helps diagnose slow tools)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000
+
+        if waitResult == .timedOut {
+            work.cancel()
+            Log.error("Tool \(toolName) TIMED OUT after \(Int(toolTimeoutSeconds))s")
+            return errorContent("Tool \(toolName) timed out after \(Int(toolTimeoutSeconds))s")
+        }
+
         if elapsed > 5000 {
             Log.warn("Tool \(toolName) took \(Int(elapsed))ms (slow)")
         } else {
             Log.info("Tool \(toolName) completed in \(Int(elapsed))ms")
         }
 
-        return response
+        return response ?? errorContent("Tool \(toolName) returned nil response")
     }
 
     /// Screenshot handler returns MCP image content type for inline display.

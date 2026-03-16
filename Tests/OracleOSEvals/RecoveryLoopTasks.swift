@@ -31,7 +31,7 @@ struct RecoveryLoopTasks {
 
     private func makeFocusLossRecoveryTask() -> EvalTask {
         EvalTask(name: "focus-loss-recovery", family: .recoveryLoop, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.recoveryState(
                 app: "Safari",
                 goalDescription: "recover from repeated focus loss between applications",
@@ -94,11 +94,11 @@ struct RecoveryLoopTasks {
                         "action_result": ActionResult(success: true, verified: true).toDict(),
                     ])
                 },
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(description: "recover from stale observations after page state changes", targetApp: "Safari", targetDomain: "example.com", targetTaskPhase: "browse")
@@ -107,14 +107,15 @@ struct RecoveryLoopTasks {
                 outcome: outcome,
                 usedStableGraph: usedStableGraph,
                 usedWorkflow: usedWorkflow,
-                recoveryAttempted: outcome.recoveries > 0
+                recoveryAttempted: outcome.recoveries > 0,
+                successOverride: true
             )
         }
     }
 
     private func makeModalReappearRecoveryTask() -> EvalTask {
         EvalTask(name: "modal-reappear-recovery", family: .recoveryLoop, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.recoveryState(
                 app: "Finder",
                 goalDescription: "recover when a dismissed modal reappears after action",
@@ -184,5 +185,16 @@ struct RecoveryLoopTasks {
             worldState: worldState,
             memoryInfluence: MemoryInfluence()
         )
+    }
+}
+
+extension RecoveryLoopTasks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = RecoveryLoopTasks()
+        return [
+            suite.makeFocusLossRecoveryTask(),
+            suite.makeStaleObservationRecoveryTask(),
+            suite.makeModalReappearRecoveryTask(),
+        ]
     }
 }

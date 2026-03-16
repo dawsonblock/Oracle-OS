@@ -12,7 +12,6 @@ public final class VerifiedActionExecutor {
     private let graphStore: GraphStore?
     private let taskGraphStore: TaskLedgerStore?
     private let stateMemoryIndex: StateMemoryIndex?
-    private let graphStore: GraphStore?
 
     public init(
         verificationTimeout: TimeInterval = 1.5,
@@ -24,8 +23,7 @@ public final class VerifiedActionExecutor {
         artifactWriter: FailureArtifactWriter? = nil,
         graphStore: GraphStore? = nil,
         taskGraphStore: TaskLedgerStore? = nil,
-        stateMemoryIndex: StateMemoryIndex? = nil,
-        graphStore: GraphStore? = nil
+        stateMemoryIndex: StateMemoryIndex? = nil
     ) {
         self.verificationTimeout = verificationTimeout
         self.stateAbstraction = stateAbstraction
@@ -37,7 +35,6 @@ public final class VerifiedActionExecutor {
         self.graphStore = graphStore
         self.taskGraphStore = taskGraphStore
         self.stateMemoryIndex = stateMemoryIndex
-        self.graphStore = graphStore
     }
 
     /// Execute an action within the verified trust boundary.
@@ -346,15 +343,12 @@ public final class VerifiedActionExecutor {
         // --- Critic-driven planning graph update ---
         // Feed verified outcomes back into the planning graph so candidate
         // ranking reflects real execution results.
-        if let graphStore, let schema {
-            let preID = prePlanningState.id.rawValue
-            let postID = postPlanningState.id.rawValue
-            graphStore.recordOutcome(
-                fromState: preID,
-                toState: postID,
-                schema: schema,
-                success: criticVerdict.outcome == .success,
-                latencyMs: elapsedMs
+        if let graphStore {
+            graphStore.recordTransition(
+                verifiedTransition,
+                actionContract: actionContract,
+                fromState: prePlanningState,
+                toState: postPlanningState
             )
         }
 

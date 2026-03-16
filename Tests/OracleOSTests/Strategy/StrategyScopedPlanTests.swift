@@ -61,13 +61,13 @@ struct StrategyScopedPlanTests {
 
     @Test("Graph navigator classifies actions into operator families")
     func graphNavigatorClassifiesActions() {
-        #expect(GraphNavigator.operatorFamilyForAction("run_tests") == .repoAnalysis)
-        #expect(GraphNavigator.operatorFamilyForAction("build_project") == .repoAnalysis)
-        #expect(GraphNavigator.operatorFamilyForAction("apply_patch") == .patchGeneration)
-        #expect(GraphNavigator.operatorFamilyForAction("navigate_browser") == .browserTargeted)
-        #expect(GraphNavigator.operatorFamilyForAction("dismiss_modal") == .recovery)
-        #expect(GraphNavigator.operatorFamilyForAction("open_application") == .hostTargeted)
-        #expect(GraphNavigator.operatorFamilyForAction("unknown_action") == .graphEdge)
+        #expect(LedgerNavigator.operatorFamilyForAction("run_tests") == .repoAnalysis)
+        #expect(LedgerNavigator.operatorFamilyForAction("build_project") == .repoAnalysis)
+        #expect(LedgerNavigator.operatorFamilyForAction("apply_patch") == .patchGeneration)
+        #expect(LedgerNavigator.operatorFamilyForAction("navigate_browser") == .browserTargeted)
+        #expect(LedgerNavigator.operatorFamilyForAction("dismiss_modal") == .recovery)
+        #expect(LedgerNavigator.operatorFamilyForAction("open_application") == .hostTargeted)
+        #expect(LedgerNavigator.operatorFamilyForAction("unknown_action") == .graphEdge)
     }
 
     @Test("TaskStrategyKind maps to correct StrategyKind")

@@ -19,7 +19,7 @@ struct SearchControllerTests {
     @Test("Search returns best successful candidate")
     @MainActor func returnsBestSuccessful() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(
             app: "App",
             elements: [SemanticElement(id: "b", kind: .button, label: "Go")]
@@ -54,7 +54,7 @@ struct SearchControllerTests {
     @Test("Search early-exits on successful memory candidate")
     @MainActor func earlyExitOnMemorySuccess() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(
             app: "App",
             elements: [SemanticElement(id: "b", kind: .button, label: "Save")]
@@ -97,7 +97,7 @@ struct SearchControllerTests {
     @Test("Search evaluates all candidates when memory fails")
     @MainActor func evaluatesAllWhenMemoryFails() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(
             app: "App",
             elements: [SemanticElement(id: "b", kind: .button, label: "Try")]
@@ -134,7 +134,7 @@ struct SearchControllerTests {
             )
         }
 
-        #expect(evaluatedCount == 2)
+        #expect(evaluatedCount == controller.maxCandidates)
         #expect(result?.success == true)
         #expect(result?.candidate.source == .graph)
     }
@@ -146,7 +146,7 @@ struct SearchControllerTests {
         SearchController(
             generator: CandidateGenerator(
                 stateMemoryIndex: StateMemoryIndex(),
-                planningGraphStore: PlanningGraphStore()
+                planningGraphStore: GraphStore()
             )
         )
     }

@@ -71,7 +71,15 @@ public enum DOMScanner {
             semaphore.signal()
         }
         task.resume()
-        semaphore.wait()
+
+        // Bounded wait: if the HTTP request doesn't complete within the
+        // configured timeout + 1s grace period, give up rather than
+        // blocking the caller (which may be @MainActor) indefinitely.
+        let waitResult = semaphore.wait(timeout: .now() + httpTimeout + 1.0)
+        if waitResult == .timedOut {
+            task.cancel()
+            return nil
+        }
 
         guard box.error == nil,
               let data = box.data,

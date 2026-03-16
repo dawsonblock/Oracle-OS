@@ -43,9 +43,11 @@ struct ArchitectureFreezeTests {
         for file in files {
             let content = try String(contentsOf: file, encoding: .utf8)
             let filename = file.lastPathComponent
-            guard filename != "DecisionCoordinator.swift" else { continue }
+            guard filename != "DecisionCoordinator.swift",
+                  filename != "RuntimeOrchestrator.swift"
+            else { continue }
             #expect(
-                !content.contains("Planner("),
+                !content.contains("MainPlanner("),
                 "Runtime file \(filename) should not instantiate Planner directly; use DecisionCoordinator"
             )
         }
@@ -103,9 +105,7 @@ struct ArchitectureFreezeTests {
 
     @Test("Planner files do not spawn processes or write files")
     func plannerFilesDoNotExecute() throws {
-        let planningDir = sourcesRoot()
-            .appendingPathComponent("Agent")
-            .appendingPathComponent("Planning")
+        let planningDir = sourcesRoot().appendingPathComponent("Planning")
         let files = try swiftFilesRecursive(in: planningDir)
 
         for file in files {
@@ -126,17 +126,15 @@ struct ArchitectureFreezeTests {
 
     @Test("Planning files do not instantiate PlanGenerator or PlanEvaluator directly")
     func plannerFilesDoNotInstantiateCompetingPlanners() throws {
-        let planningDir = sourcesRoot()
-            .appendingPathComponent("Agent")
-            .appendingPathComponent("Planning")
+        let planningDir = sourcesRoot().appendingPathComponent("Planning")
         let files = try swiftFilesRecursive(in: planningDir)
 
         for file in files {
             let content = try String(contentsOf: file, encoding: .utf8)
             let filename = file.lastPathComponent
-            // Planner.swift is the canonical planner orchestrator and is
+            // MainPlanner.swift is the canonical planner orchestrator and is
             // expected to compose PlanEvaluator and PlanGenerator internally.
-            guard filename != "Planner.swift" else { continue }
+            guard filename != "MainPlanner.swift" else { continue }
             #expect(
                 !content.contains("PlanGenerator("),
                 "Planning file \(filename) must not instantiate PlanGenerator directly; use DecisionCoordinator → Planner"
@@ -154,14 +152,14 @@ struct ArchitectureFreezeTests {
     func protectedModulesExist() {
         let root = sourcesRoot()
         let expectedFiles = [
-            "Core/Execution/VerifiedActionExecutor.swift",
-            "Critic/CriticLoop.swift",
-            "Reasoning/PlanSimulator.swift",
-            "CodeIntelligence/ProgramKnowledgeGraph.swift",
-            "Core/World/WorldStateModel.swift",
-            "Core/Observation/ObservationChangeDetector.swift",
-            "TaskGraph/TaskGraphStore.swift",
-            "Core/Trace/TraceStore.swift",
+            "Execution/VerifiedExecutor.swift",
+            "Execution/Critic/CriticLoop.swift",
+            "Planning/Reasoning/PlanSimulator.swift",
+            "Code/Intelligence/ProgramKnowledgeGraph.swift",
+            "WorldModel/WorldStateModel.swift",
+            "WorldModel/ObservationChangeDetector.swift",
+            "TaskLedger/TaskLedgerStore.swift",
+            "Learning/ExperienceStore.swift",
         ]
         let fileManager = FileManager.default
         for relative in expectedFiles {
@@ -271,6 +269,16 @@ struct ArchitectureFreezeTests {
             }
 
             url = parent
+        }
+    }
+    private func assertNoNewInstantiation(of typeName: String, in path: String, message: String) {
+        do {
+            let root = repositoryRoot()
+            let url = root.appendingPathComponent(path)
+            let content = try String(contentsOf: url, encoding: .utf8)
+            #expect(!content.contains("\(typeName)("))
+        } catch {
+             Issue.record("Failed to read file \(path) for architecture check: \(error)")
         }
     }
 }

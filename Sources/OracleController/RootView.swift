@@ -12,7 +12,9 @@ struct RootView: View {
         } content: {
             content
         } detail: {
-            inspector
+            CopilotDockView(store: store) {
+                inspector
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1440, minHeight: 900)
@@ -26,6 +28,11 @@ struct RootView: View {
                 endPoint: .bottomTrailing
             )
         )
+        .safeAreaInset(edge: .top) {
+            ControllerStatusBar(store: store)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -78,8 +85,13 @@ struct RootView: View {
             await store.updateMonitoring()
         }
         .onChange(of: store.selectedSection) { _, section in
-            guard section == .diagnostics else { return }
-            Task { await store.loadDiagnostics() }
+            Task {
+                if section == .diagnostics {
+                    await store.loadDiagnostics()
+                } else if section == .missionControl, store.missionControl == nil {
+                    await store.refreshMissionControl()
+                }
+            }
         }
     }
 
@@ -114,6 +126,8 @@ struct RootView: View {
     @ViewBuilder
     private var content: some View {
         switch store.selectedSection {
+        case .missionControl:
+            MissionControlWorkspaceView(store: store)
         case .control:
             ControlWorkspaceView(store: store)
         case .recipes:
@@ -132,6 +146,8 @@ struct RootView: View {
     @ViewBuilder
     private var inspector: some View {
         switch store.selectedSection {
+        case .missionControl:
+            MissionControlInspectorView(store: store)
         case .control:
             ControlInspectorView(store: store)
         case .recipes:

@@ -28,8 +28,8 @@ public struct WorkflowRetriever: Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         workflowIndex: WorkflowIndex,
-memoryStore: UnifiedMemoryStore? = nil,
-        selectedStrategy: SelectedStrategy
+        memoryStore: UnifiedMemoryStore? = nil,
+        selectedStrategy: SelectedStrategy? = nil
     ) -> WorkflowMatch? {
         let memoryRouter = MemoryRouter(memoryStore: memoryStore)
         let memoryInfluence = memoryRouter.influence(
@@ -42,9 +42,14 @@ memoryStore: UnifiedMemoryStore? = nil,
         return workflowIndex.promotedPlans(for: taskContext.agentKind)
             .compactMap { plan -> WorkflowMatch? in
                 // ── Strategy filter: skip workflows outside strategy scope ──
-                let workflowKind = inferStrategyKind(for: plan)
-                if workflowKind != selectedStrategy.kind && workflowKind != .graphNavigation {
-                    return nil
+                if let selectedStrategy {
+                    let workflowKind = inferStrategyKind(for: plan)
+                    let allowsAllFamilies = Set(selectedStrategy.allowedOperatorFamilies) == Set(OperatorFamily.allCases)
+                    if !allowsAllFamilies,
+                       workflowKind != selectedStrategy.kind,
+                       workflowKind != .graphNavigation {
+                        return nil
+                    }
                 }
 
                 guard let stepIndex = matchingStepIndex(plan: plan, planningStateID: worldState.planningState.id.rawValue) else {

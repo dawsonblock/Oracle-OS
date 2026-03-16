@@ -123,11 +123,7 @@ public final class DecisionCoordinator {
             guard decision.workflowID != nil, decision.workflowStepID != nil else {
                 return nil
             }
-        case .stableGraph:
-            guard decision.currentEdgeID != nil || decision.pathEdgeIDs.isEmpty == false else {
-                return nil
-            }
-        case .candidateGraph:
+        case .stableGraph, .candidateGraph:
             guard decision.currentEdgeID != nil || decision.pathEdgeIDs.isEmpty == false else {
                 return nil
             }
@@ -140,6 +136,8 @@ public final class DecisionCoordinator {
                 )
             }
         case .recovery:
+            break
+        case .reasoning, .llm, .strategy:
             break
         }
 

@@ -38,7 +38,7 @@ public enum RecipeValidator {
                 violations.append("Step \(step.id) has empty action")
             }
             // Referenced parameters must be declared.
-            let referencedParameters = Set(step.params?.map(\.key) ?? [])
+            let referencedParameters = referencedParameters(in: step)
             let undeclared = referencedParameters.subtracting(declaredParameters)
             if !undeclared.isEmpty {
                 violations.append("Step \(step.id) references undeclared params: \(undeclared.sorted().joined(separator: ", "))")
@@ -125,5 +125,27 @@ public enum RecipeValidator {
             lastSucceededAt: plan.lastSucceededAt
         )
         return promotionPolicy.shouldPromote(candidate)
+    }
+
+    private static func referencedParameters(in step: RecipeStep) -> Set<String> {
+        let texts = (step.params.map { Array($0.values) } ?? [])
+            + [step.waitAfter?.value, step.note].compactMap { $0 }
+        let regex = try? NSRegularExpression(pattern: #"\{\{\s*([a-zA-Z0-9_\-]+)\s*\}\}"#)
+        var references = Set<String>()
+
+        for text in texts {
+            let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+            regex?.enumerateMatches(in: text, options: [], range: nsRange) { match, _, _ in
+                guard let match,
+                      match.numberOfRanges > 1,
+                      let range = Range(match.range(at: 1), in: text)
+                else {
+                    return
+                }
+                references.insert(String(text[range]))
+            }
+        }
+
+        return references
     }
 }

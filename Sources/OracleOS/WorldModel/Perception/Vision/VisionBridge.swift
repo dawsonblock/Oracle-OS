@@ -472,7 +472,17 @@ public enum VisionBridge {
             semaphore.signal()
         }
         task.resume()
-        semaphore.wait()
+
+        // Bounded wait: use the URLRequest's own timeout + 5s grace period.
+        // This prevents indefinite blocking when called from @MainActor context
+        // (e.g. ObservationBuilder → VisionScanner → VisionBridge).
+        let deadline = DispatchTime.now() + request.timeoutInterval + 5.0
+        let waitResult = semaphore.wait(timeout: deadline)
+        if waitResult == .timedOut {
+            task.cancel()
+            Log.warn("Vision HTTP request timed out (semaphore deadline exceeded)")
+            return nil
+        }
 
         if let error = box.error {
             // Don't log connection refused as error — sidecar might not be running

@@ -184,9 +184,9 @@ struct GovernanceEnforcementTests {
             workspaceRoot: "/tmp/workspace",
             buildTool: .swiftPackage,
             files: [
-                RepositoryFile(path: "Sources/OracleOS/Agent/Loop/AgentLoop.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Experiments/ExperimentManager.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Core/Ranking/ElementRanker.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Execution/Loop/AgentLoop.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Execution/Experiments/ExperimentManager.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Search/Ranking/ElementRanker.swift", isDirectory: false),
                 RepositoryFile(path: "Tests/OracleOSTests/Core/GraphAwareLoopTests.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
@@ -200,8 +200,8 @@ struct GovernanceEnforcementTests {
             goalDescription: "tighten loop orchestration around experiments",
             snapshot: snapshot,
             candidatePaths: [
-                "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
-                "Sources/OracleOS/Experiments/ExperimentManager.swift",
+                "Sources/OracleOS/Execution/Loop/AgentLoop.swift",
+                "Sources/OracleOS/Execution/Experiments/ExperimentManager.swift",
             ]
         )
 
@@ -217,8 +217,8 @@ struct GovernanceEnforcementTests {
             workspaceRoot: "/tmp/workspace",
             buildTool: .swiftPackage,
             files: [
-                RepositoryFile(path: "Sources/OracleOS/Agent/Planning/Planner.swift", isDirectory: false),
-                RepositoryFile(path: "Sources/OracleOS/Core/Ranking/ElementRanker.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Planning/MainPlanner.swift", isDirectory: false),
+                RepositoryFile(path: "Sources/OracleOS/Search/Ranking/ElementRanker.swift", isDirectory: false),
                 RepositoryFile(path: "Tests/OracleOSTests/Core/GovernanceEnforcementTests.swift", isDirectory: false),
             ],
             symbolGraph: SymbolGraph(),
@@ -232,8 +232,8 @@ struct GovernanceEnforcementTests {
             goalDescription: "planner chooses exact ranked target",
             snapshot: snapshot,
             candidatePaths: [
-                "Sources/OracleOS/Agent/Planning/Planner.swift",
-                "Sources/OracleOS/Core/Ranking/ElementRanker.swift",
+                "Sources/OracleOS/Planning/MainPlanner.swift",
+                "Sources/OracleOS/Search/Ranking/ElementRanker.swift",
                 "Tests/OracleOSTests/Core/GovernanceEnforcementTests.swift",
             ]
         )
@@ -267,7 +267,7 @@ struct GovernanceEnforcementTests {
     @Test("AgentLoop source file stays below 150 lines")
     func agentLoopSourceFileStaysBelowOneFiftyLines() throws {
         let agentLoopURL = repositoryRoot().appendingPathComponent(
-            "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+            "Sources/OracleOS/Execution/Loop/AgentLoop.swift",
             isDirectory: false
         )
         let lineCount = try String(contentsOf: agentLoopURL).split(
@@ -342,7 +342,7 @@ struct GovernanceEnforcementTests {
 
     private func agentLoopContents() throws -> String {
         let agentLoopURL = repositoryRoot().appendingPathComponent(
-            "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+            "Sources/OracleOS/Execution/Loop/AgentLoop.swift",
             isDirectory: false
         )
         return try String(contentsOf: agentLoopURL)

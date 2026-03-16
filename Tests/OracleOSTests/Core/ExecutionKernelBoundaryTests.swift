@@ -6,6 +6,7 @@ import Testing
 /// every action must pass through VerifiedActionExecutor,
 /// and the resulting ToolResult must carry action_result.executed_through_executor = true.
 @Suite("Execution Kernel Boundary")
+@MainActor
 struct ExecutionKernelBoundaryTests {
 
     // MARK: - executor stamp is present after run()

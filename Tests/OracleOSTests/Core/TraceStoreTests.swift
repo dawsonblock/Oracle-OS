@@ -5,10 +5,10 @@ import Testing
 @Suite("Trace Store")
 struct TraceStoreTests {
 
-    @Test("TraceStore writes JSONL events")
+    @Test("ExperienceStore writes JSONL events")
     func traceStoreWritesJSONL() throws {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let store = TraceStore(directoryURL: tempDirectory)
+        let store = ExperienceStore(directoryURL: tempDirectory)
 
         let event = TraceEvent(
             sessionID: "trace-session",
@@ -52,7 +52,7 @@ struct TraceStoreTests {
     @Test("One session file preserves ordered step IDs")
     func traceStorePreservesOrderedStepIDs() throws {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let store = TraceStore(directoryURL: tempDirectory)
+        let store = ExperienceStore(directoryURL: tempDirectory)
         let recorder = TraceRecorder(sessionID: "ordered-session")
 
         for action in ["focus", "click", "type"] {

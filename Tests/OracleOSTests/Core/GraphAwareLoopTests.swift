@@ -197,7 +197,7 @@ struct GraphAwareLoopTests {
             _ = try skill.resolve(
                 query: ElementQuery(text: "Send", clickable: true),
                 state: state,
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             Issue.record("Expected ambiguous target error")
         } catch let error as SkillResolutionError {
@@ -270,11 +270,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: store,
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -324,11 +324,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -374,11 +374,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -415,11 +415,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: StateAbstraction(),
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -494,11 +494,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: store,
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -535,11 +535,11 @@ struct GraphAwareLoopTests {
         let loop = AgentLoop(
             observationProvider: StubObservationProvider([observation]),
             executionDriver: driver,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -630,11 +630,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: store,
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -722,11 +722,11 @@ struct GraphAwareLoopTests {
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
-            planner: Planner(),
+            planner: MainPlanner(),
             graphStore: store,
             policyEngine: PolicyEngine(mode: .confirmRisky),
             recoveryEngine: RecoveryEngine(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         let outcome = await loop.run(
@@ -753,7 +753,7 @@ struct GraphAwareLoopTests {
     func blockedRuntimeActionsDoNotCreateGraphEdges() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let traceRecorder = TraceRecorder()
-        let traceStore = TraceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
+        let traceStore = ExperienceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
         let artifactWriter = FailureArtifactWriter(baseURL: root.appendingPathComponent("artifacts", isDirectory: true))
         let approvalStore = ApprovalStore(rootDirectory: root.appendingPathComponent("approvals", isDirectory: true))
         let graphStore = GraphStore(databaseURL: root.appendingPathComponent("graph.sqlite3"))
@@ -839,7 +839,7 @@ struct GraphAwareLoopTests {
         }
         _ = store.promoteEligibleEdges()
 
-        let planner = Planner()
+        let planner = MainPlanner()
         planner.workflowIndex.add(
             WorkflowPlan(
                 agentKind: .os,
@@ -879,7 +879,7 @@ struct GraphAwareLoopTests {
         let decision = planner.nextStep(
             worldState: WorldState(observation: inboxObservation),
             graphStore: store,
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(decision?.source == .workflow)
@@ -937,7 +937,7 @@ struct GraphAwareLoopTests {
             )
         }
 
-        let planner = Planner()
+        let planner = MainPlanner()
         planner.setGoal(
             Goal(
                 description: "open gmail compose",
@@ -950,7 +950,7 @@ struct GraphAwareLoopTests {
         let decision = planner.nextStep(
             worldState: WorldState(observation: inboxObservation),
             graphStore: store,
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(decision?.source == .candidateGraph)
@@ -961,7 +961,7 @@ struct GraphAwareLoopTests {
 
     @Test("Exploration decisions carry explicit fallback reasons")
     func explorationDecisionCarriesFallbackReason() {
-        let planner = Planner()
+        let planner = MainPlanner()
         planner.setGoal(
             Goal(
                 description: "rename file in finder",
@@ -983,7 +983,7 @@ struct GraphAwareLoopTests {
                 )
             ),
             graphStore: GraphStore(databaseURL: makeTempGraphURL()),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(decision?.source == .exploration)
@@ -1037,7 +1037,7 @@ struct GraphAwareLoopTests {
         }
         _ = store.promoteEligibleEdges()
 
-        let planner = GraphPlanner(maxDepth: 6, beamWidth: 5)
+        let planner = GraphMainPlanner(maxDepth: 6, beamWidth: 5)
         let result = planner.search(
             from: start,
             goal: Goal(
@@ -1048,7 +1048,7 @@ struct GraphAwareLoopTests {
                 preferredAgentKind: .os
             ),
             graphStore: store,
-            memoryStore: AppMemoryStore(),
+            memoryStore: UnifiedMemoryStore(),
             worldState: WorldState(
                 observationHash: "start-hash",
                 planningState: start,
@@ -1083,6 +1083,7 @@ struct GraphAwareLoopTests {
                 ),
             ],
             successRate: 0.9,
+            sourceTraceRefs: ["session1:compose:0", "session2:compose:0", "session3:compose:0"],
             evidenceTiers: [.candidate],
             repeatedTraceSegmentCount: 3,
             replayValidationSuccess: 0.9,
@@ -1099,6 +1100,7 @@ struct GraphAwareLoopTests {
                 ),
             ],
             successRate: 0.95,
+            sourceTraceRefs: ["session1:compose:0", "session2:compose:0", "session3:compose:0", "session4:compose:0"],
             evidenceTiers: [.experiment],
             repeatedTraceSegmentCount: 4,
             replayValidationSuccess: 0.9,

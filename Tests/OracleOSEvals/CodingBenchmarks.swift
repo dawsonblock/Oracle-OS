@@ -58,11 +58,11 @@ struct CodingBenchmarks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(
@@ -110,11 +110,11 @@ struct CodingBenchmarks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(
@@ -162,11 +162,11 @@ struct CodingBenchmarks {
             let loop = AgentLoop(
                 observationProvider: provider,
                 executionDriver: driver,
-                planner: Planner(),
+                planner: MainPlanner(),
                 graphStore: GraphStore(databaseURL: makeTempGraphURL()),
                 policyEngine: PolicyEngine(mode: .confirmRisky),
                 recoveryEngine: RecoveryEngine(),
-                memoryStore: AppMemoryStore()
+                memoryStore: UnifiedMemoryStore()
             )
             let outcome = await loop.run(
                 goal: Goal(
@@ -184,5 +184,16 @@ struct CodingBenchmarks {
                 patchSelectionSucceeded: EvalExecutionDriver.selectedExperimentReplay
             )
         }
+    }
+}
+
+extension CodingBenchmarks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = CodingBenchmarks()
+        return [
+            suite.makeBuildBreakRepairTask(),
+            suite.makeFailingTestRepairTask(),
+            suite.makeExperimentEscalationTask(),
+        ]
     }
 }

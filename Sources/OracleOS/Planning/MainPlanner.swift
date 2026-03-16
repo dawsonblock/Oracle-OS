@@ -39,21 +39,34 @@ public final class MainPlanner: @unchecked Sendable {
         reasoningThreshold: Double = 0.6,
         taskGraphStore: TaskLedgerStore? = nil
     ) {
-        self.workflowIndex = workflowIndex ?? WorkflowIndex()
+        let resolvedWorkflowIndex = workflowIndex ?? WorkflowIndex()
         let sharedWorkflowRetriever = WorkflowRetriever()
         let sharedPlanEvaluator = planEvaluator ?? PlanEvaluator(workflowRetriever: sharedWorkflowRetriever)
+        let resolvedOSPlanner = osPlanner ?? OSPlanner(
+            workflowIndex: resolvedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            promptEngine: promptEngine
+        )
+        let resolvedCodePlanner = codePlanner ?? CodePlanner(
+            workflowIndex: resolvedWorkflowIndex,
+            workflowRetriever: sharedWorkflowRetriever,
+            promptEngine: promptEngine
+        )
+        let resolvedMixedTaskPlanner = mixedTaskPlanner
+            ?? MixedTaskPlanner(osPlanner: resolvedOSPlanner, codePlanner: resolvedCodePlanner)
         
         self.planGenerator = PlanGenerator(
             reasoningEngine: reasoningEngine ?? ReasoningEngine(),
             planEvaluator: sharedPlanEvaluator,
-            osPlanner: osPlanner,
-            codePlanner: codePlanner,
-            mixedTaskPlanner: mixedTaskPlanner
+            osPlanner: resolvedOSPlanner,
+            codePlanner: resolvedCodePlanner,
+            mixedTaskPlanner: resolvedMixedTaskPlanner
         )
+        self.workflowIndex = resolvedWorkflowIndex
         self.workflowRetriever = sharedWorkflowRetriever
-        self.osPlanner = osPlanner ?? OSPlanner()
-        self.codePlanner = codePlanner ?? CodePlanner()
-        self.mixedTaskPlanner = mixedTaskPlanner ?? MixedTaskPlanner(osPlanner: self.osPlanner, codePlanner: self.codePlanner)
+        self.osPlanner = resolvedOSPlanner
+        self.codePlanner = resolvedCodePlanner
+        self.mixedTaskPlanner = resolvedMixedTaskPlanner
         self.reasoningEngine = reasoningEngine ?? ReasoningEngine()
         self.planEvaluator = sharedPlanEvaluator
         self.promptEngine = promptEngine
@@ -113,7 +126,8 @@ public final class MainPlanner: @unchecked Sendable {
             taskContext: taskContext,
             worldState: worldState,
             graphStore: graphStore,
-            memoryStore: memoryStore
+            memoryStore: memoryStore,
+            selectedStrategy: selectedStrategy
         )
 
         // ── Reasoning decision ──
@@ -152,7 +166,8 @@ public final class MainPlanner: @unchecked Sendable {
         taskContext: TaskContext,
         worldState: WorldState,
         graphStore: GraphStore,
-        memoryStore: UnifiedMemoryStore
+        memoryStore: UnifiedMemoryStore,
+        selectedStrategy: SelectedStrategy
     ) -> PlannerDecision? {
         switch taskContext.agentKind {
         case .os:
@@ -160,21 +175,24 @@ public final class MainPlanner: @unchecked Sendable {
                 taskContext: taskContext,
                 worldState: worldState,
                 graphStore: graphStore,
-                memoryStore: memoryStore
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
             )
         case .code:
             return codePlanner.nextStep(
                 taskContext: taskContext,
                 worldState: worldState,
                 graphStore: graphStore,
-                memoryStore: memoryStore
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
             )
         case .mixed:
             return mixedTaskPlanner.nextStep(
                 taskContext: taskContext,
                 worldState: worldState,
                 graphStore: graphStore,
-                memoryStore: memoryStore
+                memoryStore: memoryStore,
+                selectedStrategy: selectedStrategy
             )
         }
     }
@@ -219,20 +237,59 @@ public final class MainPlanner: @unchecked Sendable {
             return nil
         }
 
+        if selectedPlan.sourceType == .workflow,
+           let fallbackDecision,
+           fallbackDecision.source == .workflow {
+            return fallbackDecision
+        }
+        if selectedPlan.sourceType == .stableGraph,
+           let fallbackDecision,
+           fallbackDecision.source == .stableGraph {
+            return fallbackDecision
+        }
+
         let fallbackReason = fallbackDecision?.fallbackReason
             ?? "family planner had no viable workflow or graph-backed step"
-        
-        // This is a simplified version of the diagnostics logic to keep the merge clean but functional.
+
+        let selectedOperatorNames = selectedPlan.operators.map(\.name)
+        let candidateSummaries = [
+            ScoredPlanSummary(
+                operatorNames: selectedOperatorNames,
+                score: selectedPlan.score,
+                reasons: selectedPlan.reasons,
+                simulatedSuccessProbability: selectedPlan.simulatedOutcome?.successProbability,
+                simulatedRiskScore: selectedPlan.simulatedOutcome?.riskScore,
+                simulatedFailureMode: selectedPlan.simulatedOutcome?.likelyFailureMode
+            ),
+        ]
+        let planDiagnostics = PlanDiagnostics(
+            selectedOperatorNames: selectedOperatorNames,
+            candidatePlans: candidateSummaries,
+            fallbackReason: fallbackReason
+        )
+        let promptDiagnostics = promptEngine.planning(
+            goal: currentGoal!,
+            taskContext: taskContext,
+            worldState: worldState,
+            selectedOperators: selectedOperatorNames,
+            candidatePlans: candidateSummaries,
+            fallbackReason: fallbackReason,
+            projectMemoryRefs: memoryInfluence.projectMemoryRefs,
+            notes: ["reasoning-selected plan"] + selectedPlan.reasons
+        ).diagnostics
+
         return PlannerDecision(
             agentKind: selectedOperator.agentKind,
             plannerFamily: plannerFamily(for: taskContext.agentKind),
             stepPhase: selectedOperator.stepPhase,
             actionContract: actionContract,
-            source: selectedPlan.sourceType ?? .exploration,
+            source: selectedPlan.sourceType.plannerSource,
             fallbackReason: fallbackReason,
             semanticQuery: selectedOperator.semanticQuery(for: reasoningState, goal: currentGoal!),
             projectMemoryRefs: memoryInfluence.projectMemoryRefs,
-            notes: ["reasoning-selected plan"] + selectedPlan.reasons
+            notes: ["reasoning-selected plan"] + selectedPlan.reasons,
+            planDiagnostics: planDiagnostics,
+            promptDiagnostics: promptDiagnostics
         )
     }
 
@@ -305,7 +362,7 @@ public final class MainPlanner: @unchecked Sendable {
         )
     }
 
-    private func stepPhase(for agentKind: AgentKind) -> TaskPhase {
+    private func stepPhase(for agentKind: AgentKind) -> TaskStepPhase {
         switch agentKind {
         case .os:
             return .operatingSystem
@@ -364,5 +421,20 @@ public final class MainPlanner: @unchecked Sendable {
 
     private func operatorFamilyForSkill(_ skillName: String) -> OperatorFamily {
         LedgerNavigator.operatorFamilyForAction(skillName)
+    }
+}
+
+private extension PlanSourceType {
+    var plannerSource: PlannerSource {
+        switch self {
+        case .workflow: return .workflow
+        case .stableGraph: return .stableGraph
+        case .reasoning: return .reasoning
+        case .candidateGraph: return .candidateGraph
+        case .exploration: return .exploration
+        case .llm: return .llm
+        case .recovery: return .recovery
+        case .strategy: return .strategy
+        }
     }
 }

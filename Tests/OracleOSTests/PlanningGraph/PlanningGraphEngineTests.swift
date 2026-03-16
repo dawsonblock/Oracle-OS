@@ -10,8 +10,8 @@ struct PlanningGraphEngineTests {
     @Test("New edge has default score of 0.5")
     func newEdgeDefaultScore() {
         let edge = PlanningEdge(
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "run_tests", kind: .runTests)
         )
         #expect(edge.successRate == 0.5)
@@ -22,8 +22,8 @@ struct PlanningGraphEngineTests {
     @Test("Recording success increases success rate")
     func recordSuccessIncreasesRate() {
         var edge = PlanningEdge(
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "run_tests", kind: .runTests),
             successRate: 0,
             attempts: 0,
@@ -38,7 +38,7 @@ struct PlanningGraphEngineTests {
     @Test("Recording failure decreases success rate")
     func recordFailureDecreasesRate() {
         var edge = PlanningEdge(
-            fromState: .repo_loaded,
+            fromState: .repoLoaded,
             toState: .build_failed,
             schema: ActionSchema(name: "build_project", kind: .buildProject),
             successRate: 1.0,
@@ -56,15 +56,15 @@ struct PlanningGraphEngineTests {
     @Test("candidateEdges returns edges sorted by score")
     func candidateEdgesSortedByScore() {
         let good = PlanningEdge(
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "run_tests", kind: .runTests),
             successRate: 0.9,
             attempts: 10,
             successes: 9
         )
         let poor = PlanningEdge(
-            fromState: .repo_loaded,
+            fromState: .repoLoaded,
             toState: .build_failed,
             schema: ActionSchema(name: "build", kind: .buildProject),
             successRate: 0.3,
@@ -72,7 +72,7 @@ struct PlanningGraphEngineTests {
             successes: 3
         )
         let engine = PlanningGraphEngine(edges: [poor, good])
-        let candidates = engine.candidateEdges(from: .repo_loaded)
+        let candidates = engine.candidateEdges(from: .repoLoaded)
         #expect(candidates.count == 2)
         #expect(candidates[0].schema.name == "run_tests")
         #expect(candidates[1].schema.name == "build")
@@ -81,13 +81,13 @@ struct PlanningGraphEngineTests {
     @Test("bestEdge returns highest scoring edge")
     func bestEdgeReturnsHighest() {
         let edge = PlanningEdge(
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "run_tests", kind: .runTests),
             successRate: 0.9
         )
         let engine = PlanningGraphEngine(edges: [edge])
-        let best = engine.bestEdge(from: .repo_loaded)
+        let best = engine.bestEdge(from: .repoLoaded)
         #expect(best?.schema.name == "run_tests")
     }
 
@@ -105,7 +105,7 @@ struct PlanningGraphEngineTests {
         #expect(engine.edgeCount == 0)
         engine.addEdge(PlanningEdge(
             fromState: .idle,
-            toState: .repo_loaded,
+            toState: .repoLoaded,
             schema: ActionSchema(name: "load", kind: .custom)
         ))
         #expect(engine.edgeCount == 1)
@@ -115,8 +115,8 @@ struct PlanningGraphEngineTests {
     func recordOutcomeUpdatesEdge() {
         let edge = PlanningEdge(
             id: "e1",
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "run_tests", kind: .runTests),
             successRate: 0,
             attempts: 0,
@@ -124,7 +124,7 @@ struct PlanningGraphEngineTests {
         )
         var engine = PlanningGraphEngine(edges: [edge])
         engine.recordOutcome(edgeID: "e1", success: true, latencyMs: 50)
-        let candidates = engine.candidateEdges(from: .repo_loaded)
+        let candidates = engine.candidateEdges(from: .repoLoaded)
         #expect(candidates.first?.attempts == 1)
         #expect(candidates.first?.successes == 1)
     }
@@ -132,7 +132,7 @@ struct PlanningGraphEngineTests {
     @Test("pruneWeakEdges removes low-success edges")
     func pruneWeakEdges() {
         let weak = PlanningEdge(
-            fromState: .repo_loaded,
+            fromState: .repoLoaded,
             toState: .build_failed,
             schema: ActionSchema(name: "bad", kind: .custom),
             successRate: 0.05,
@@ -140,8 +140,8 @@ struct PlanningGraphEngineTests {
             successes: 0
         )
         let strong = PlanningEdge(
-            fromState: .repo_loaded,
-            toState: .tests_running,
+            fromState: .repoLoaded,
+            toState: .testsRunning,
             schema: ActionSchema(name: "good", kind: .runTests),
             successRate: 0.9,
             attempts: 10,
@@ -149,7 +149,7 @@ struct PlanningGraphEngineTests {
         )
         var engine = PlanningGraphEngine(edges: [weak, strong])
         engine.pruneWeakEdges(belowRate: 0.1, minAttempts: 5)
-        let candidates = engine.candidateEdges(from: .repo_loaded)
+        let candidates = engine.candidateEdges(from: .repoLoaded)
         #expect(candidates.count == 1)
         #expect(candidates[0].schema.name == "good")
     }
@@ -160,13 +160,13 @@ struct PlanningGraphEngineTests {
     func allStatesIncludesBothEnds() {
         let edge = PlanningEdge(
             fromState: .idle,
-            toState: .repo_loaded,
+            toState: .repoLoaded,
             schema: ActionSchema(name: "load", kind: .custom)
         )
         let engine = PlanningGraphEngine(edges: [edge])
         let states = engine.allStates
         #expect(states.contains(.idle))
-        #expect(states.contains(.repo_loaded))
+        #expect(states.contains(.repoLoaded))
     }
 
     // MARK: - recordOutcome by state + schema

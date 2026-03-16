@@ -56,7 +56,6 @@ public final class SearchController {
             compressedState: compressedState,
             abstractState: abstractState,
             planningStateID: planningStateID,
-            planningStateID: planningStateID,
             llmSchemas: llmSchemas
         )
 
@@ -68,7 +67,7 @@ public final class SearchController {
                 results.append(result)
                 // Early exit: if we find a fully successful result
                 // from memory, prefer it immediately.
-                if result.success && result.candidate.source == .memory {
+                if result.success && result.candidate.source == CandidateSource.memory {
                     break
                 }
             }

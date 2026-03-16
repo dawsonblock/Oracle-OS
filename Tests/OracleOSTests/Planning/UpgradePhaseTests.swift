@@ -63,11 +63,11 @@ struct UpgradePhaseTests {
         )
     }
 
-    // MARK: - Phase 1: TaskGraphStore exportJSON includes edge_success_rates
+    // MARK: - Phase 1: TaskLedgerStore exportJSON includes edge_success_rates
 
-    @Test("TaskGraphStore exportJSON includes edge_success_rates and current_node")
+    @Test("TaskLedgerStore exportJSON includes edge_success_rates and current_node")
     func taskGraphStoreExportJSONEdgeSuccessRates() {
-        let store = TaskGraphStore()
+        let store = TaskLedgerStore()
         let ws = makeWorldState(planningStateID: "s1")
         store.updateCurrentNode(worldState: ws)
 
@@ -91,7 +91,7 @@ struct UpgradePhaseTests {
         #expect(successRates?.count == 1)
 
         if let edgeID = edge?.id, let edgeRates = successRates?[edgeID] as? [String: Any] {
-            let rate = edgeRates["successRate"] as? Double
+            let rate = edgeRates["success_rate"] as? Double
             #expect(rate != nil)
             guard let rate else { return }
             // 2 successes / 3 attempts ≈ 0.667
@@ -99,26 +99,26 @@ struct UpgradePhaseTests {
         }
     }
 
-    // MARK: - Phase 2: GraphNavigator beamWidth
+    // MARK: - Phase 2: LedgerNavigator beamWidth
 
-    @Test("GraphNavigator beamWidth limits the number of returned paths")
+    @Test("LedgerNavigator beamWidth limits the number of returned paths")
     func graphNavigatorBeamWidth() {
-        let graph = TaskGraph(maxNodesPerTask: 200, maxEdgesPerNode: 10)
-        let scorer = GraphScorer()
+        let graph = TaskLedger(maxNodesPerTask: 200, maxEdgesPerNode: 10)
+        let scorer = LedgerScorer()
 
         // Create a root node with many branching paths
-        let root = TaskNode(abstractState: .repoLoaded, planningStateID: PlanningStateID(rawValue: "root"))
+        let root = TaskRecord(abstractState: .repoLoaded, planningStateID: PlanningStateID(rawValue: "root"))
         graph.addOrMergeNode(root)
         graph.setCurrent(root.id)
 
         // Create 6 target nodes with edges
         for i in 0..<6 {
-            let target = TaskNode(
+            let target = TaskRecord(
                 abstractState: .testsRunning,
                 planningStateID: PlanningStateID(rawValue: "target-\(i)")
             )
             let addedTarget = graph.addOrMergeNode(target)
-            let edge = TaskEdge(
+            let edge = TaskRecordEdge(
                 fromNodeID: root.id,
                 toNodeID: addedTarget.id,
                 action: "action_\(i)",
@@ -128,27 +128,27 @@ struct UpgradePhaseTests {
         }
 
         // Use a small beamWidth
-        let navigator = GraphNavigator(maxDepth: 2, maxBranching: 10, beamWidth: 3)
+        let navigator = LedgerNavigator(maxDepth: 2, maxBranching: 10, beamWidth: 3)
         let paths = navigator.expand(from: root.id, in: graph, scorer: scorer)
 
         // beamWidth * maxDepth = 3 * 2 = 6, limiting the total returned paths
         #expect(paths.count <= navigator.beamWidth * navigator.maxDepth)
     }
 
-    @Test("GraphNavigator default beamWidth is 4")
+    @Test("LedgerNavigator default beamWidth is 4")
     func graphNavigatorDefaultBeamWidth() {
-        let navigator = GraphNavigator()
+        let navigator = LedgerNavigator()
         #expect(navigator.beamWidth == 4)
         #expect(navigator.maxDepth == 3)
         #expect(navigator.maxBranching == 5)
     }
 
-    // MARK: - Phase 4: GraphScorer ScoreBreakdown includes memory_bias
+    // MARK: - Phase 4: LedgerScorer ScoreBreakdown includes memory_bias
 
-    @Test("GraphScorer scoreEdgeWithBreakdown returns memory_bias contribution")
+    @Test("LedgerScorer scoreEdgeWithBreakdown returns memory_bias contribution")
     func graphScorerBreakdownMemoryBias() {
-        let scorer = GraphScorer()
-        let edge = TaskEdge(
+        let scorer = LedgerScorer()
+        let edge = TaskRecordEdge(
             fromNodeID: "a",
             toNodeID: "b",
             action: "test_action",
@@ -178,10 +178,10 @@ struct UpgradePhaseTests {
         #expect(abs(breakdown.total - regularScore) < 0.001)
     }
 
-    @Test("GraphScorer ScoreBreakdown toDict contains all fields")
+    @Test("LedgerScorer ScoreBreakdown toDict contains all fields")
     func graphScorerBreakdownToDict() {
-        let scorer = GraphScorer()
-        let edge = TaskEdge(
+        let scorer = LedgerScorer()
+        let edge = TaskRecordEdge(
             fromNodeID: "a",
             toNodeID: "b",
             action: "click",
@@ -220,7 +220,7 @@ struct UpgradePhaseTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let writer = DiagnosticsWriter(outputDirectory: tmpDir)
-        let store = TaskGraphStore()
+        let store = TaskLedgerStore()
         let ws = makeWorldState(planningStateID: "s1")
         store.updateCurrentNode(worldState: ws)
         store.addCandidateEdge(
@@ -302,17 +302,17 @@ struct UpgradePhaseTests {
 
     @Test("DiagnosticsWriter pathSnapshot builds from ScoredPath with score breakdowns")
     func diagnosticsWriterPathSnapshot() {
-        let scorer = GraphScorer()
-        let node1 = TaskNode(abstractState: .repoLoaded, planningStateID: PlanningStateID(rawValue: "s1"))
-        let node2 = TaskNode(abstractState: .testsRunning, planningStateID: PlanningStateID(rawValue: "s2"))
-        let edge = TaskEdge(
+        let scorer = LedgerScorer()
+        let node1 = TaskRecord(abstractState: .repoLoaded, planningStateID: PlanningStateID(rawValue: "s1"))
+        let node2 = TaskRecord(abstractState: .testsRunning, planningStateID: PlanningStateID(rawValue: "s2"))
+        let edge = TaskRecordEdge(
             fromNodeID: node1.id,
             toNodeID: node2.id,
             action: "run_tests",
             status: .candidate
         )
 
-        let scoredPath = GraphNavigator.ScoredPath(
+        let scoredPath = LedgerNavigator.ScoredPath(
             edges: [edge],
             nodes: [node1, node2],
             cumulativeScore: 0.5,

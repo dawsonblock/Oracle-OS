@@ -88,6 +88,10 @@ public enum OracleProductPaths {
         dataRootDirectory.appendingPathComponent("Exports", isDirectory: true)
     }
 
+    public static var chatDirectory: URL {
+        dataRootDirectory.appendingPathComponent("Chat", isDirectory: true)
+    }
+
     public static var visionInstallDirectory: URL {
         dataRootDirectory.appendingPathComponent("Vision", isDirectory: true)
     }
@@ -291,6 +295,7 @@ public enum OracleProductPaths {
             graphDirectory,
             diagnosticsDirectory,
             exportsDirectory,
+            chatDirectory,
             visionInstallDirectory,
             visionModelsDirectory,
         ]

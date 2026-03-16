@@ -10,7 +10,8 @@ struct CodeIntelligenceBoundaryTests {
     @Test("ProgramKnowledgeGraph.swift exists and declares canonical model")
     func programKnowledgeGraphIsCanonical() throws {
         let file = sourcesRoot()
-            .appendingPathComponent("CodeIntelligence")
+            .appendingPathComponent("Code")
+            .appendingPathComponent("Intelligence")
             .appendingPathComponent("ProgramKnowledgeGraph.swift")
         #expect(
             FileManager.default.fileExists(atPath: file.path),
@@ -25,9 +26,7 @@ struct CodeIntelligenceBoundaryTests {
 
     @Test("Planning files do not directly instantiate raw code-intelligence graphs")
     func plannerUsesGraphQueriesNotRawGraphs() throws {
-        let planningDir = sourcesRoot()
-            .appendingPathComponent("Agent")
-            .appendingPathComponent("Planning")
+        let planningDir = sourcesRoot().appendingPathComponent("Planning")
         let files = try swiftFilesRecursive(in: planningDir)
 
         let forbidden = [

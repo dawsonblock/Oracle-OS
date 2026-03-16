@@ -66,7 +66,7 @@ struct CodeIntelligenceTests {
         let workspace = try makeRepositoryWorkspace()
         let planner = CodePlanner()
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let memoryStore = AppMemoryStore()
+        let memoryStore = UnifiedMemoryStore()
         let snapshot = RepositoryIndexer().index(workspaceRoot: workspace)
 
         let candidates = [

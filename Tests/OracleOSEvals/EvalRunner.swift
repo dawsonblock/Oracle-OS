@@ -20,7 +20,7 @@ enum EvalRunner {
 
         for index in 0..<task.runs {
             let snapshot = await task.executeRun(index)
-            if snapshot.outcome.reason == .goalAchieved {
+            if snapshot.succeeded {
                 successes += 1
             }
             if snapshot.firstPassSucceeded {

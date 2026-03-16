@@ -23,7 +23,7 @@ public final class RuntimeContext {
     public let stateMemoryIndex: StateMemoryIndex
     public let searchController: SearchController
     public let metricsRecorder: MetricsRecorder
-    public let telemetry: RuntimeTelemetry
+    public private(set) lazy var telemetry: RuntimeTelemetry = RuntimeTelemetry(context: self)
     public let criticLoop: CriticLoop
     public let stateAbstractionEngine: StateAbstractionEngine
 
@@ -76,7 +76,6 @@ public final class RuntimeContext {
             )
         )
         self.metricsRecorder = metricsRecorder
-        self.telemetry = RuntimeTelemetry(context: self)
         self.criticLoop = CriticLoop()
         self.stateAbstractionEngine = StateAbstractionEngine()
     }

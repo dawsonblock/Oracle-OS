@@ -54,7 +54,7 @@ public enum ObservationBuilder {
             )
         }
 
-        let focused = appElement.focusedUIElement().map {
+        let focused = appElement.focusedElement().map {
             unifiedElement(from: $0, appLabel: appLabel, windowTitle: windowTitle, source: .ax, confidence: 0.95)
         }
 

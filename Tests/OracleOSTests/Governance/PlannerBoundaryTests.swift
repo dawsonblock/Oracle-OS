@@ -37,7 +37,7 @@ struct PlannerBoundaryTests {
 
     private func plannerContents() throws -> String {
         let plannerURL = repositoryRoot().appendingPathComponent(
-            "Sources/OracleOS/Agent/Planning/Planner.swift",
+            "Sources/OracleOS/Planning/MainPlanner.swift",
             isDirectory: false
         )
         return try String(contentsOf: plannerURL)

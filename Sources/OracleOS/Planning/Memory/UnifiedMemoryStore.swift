@@ -3,12 +3,12 @@ import Foundation
 /// Unified entry point for all memory stores (App, Project, Execution, Pattern).
 /// Consolidates live runtime memory and static project knowledge.
 public final class UnifiedMemoryStore: @unchecked Sendable {
-    public let appMemory: AppMemoryStore
+    public let appMemory: StrategyMemory
     private var projectMemory: ProjectMemoryStore?
     private let executionStore: ExecutionMemoryStore
     private let patternStore: PatternMemoryStore
     
-    public init(appMemory: AppMemoryStore = AppMemoryStore()) {
+    public init(appMemory: StrategyMemory = StrategyMemory()) {
         self.appMemory = appMemory
         self.executionStore = ExecutionMemoryStore(store: appMemory)
         self.patternStore = PatternMemoryStore(store: appMemory)
@@ -133,7 +133,9 @@ public final class UnifiedMemoryStore: @unchecked Sendable {
                 store: store
             )
         }
-        
+        return ProjectMemoryPlanningSignals()
+    }
+
     // MARK: - AppMemory Recording Delegates
 
     public func recordControl(_ control: KnownControl) {
@@ -241,5 +243,26 @@ public final class UnifiedMemoryStore: @unchecked Sendable {
             body: body
         )
     }
-}
 
+    // MARK: - Memory Query Wrappers
+
+    public func controlsForApp(_ app: String) -> [KnownControl] {
+        appMemory.controlsForApp(app)
+    }
+
+    public func rankingBias(label: String?, app: String?) -> Double {
+        executionStore.rankingBias(label: label, app: app)
+    }
+
+    public func commandBias(category: String?, workspaceRoot: String?) -> Double {
+        patternStore.commandBias(category: category, workspaceRoot: workspaceRoot)
+    }
+
+    public func preferredFixPath(errorSignature: String?) -> String? {
+        patternStore.preferredFixPath(errorSignature: errorSignature)
+    }
+
+    public func preferredRecoveryStrategy(app: String) -> String? {
+        executionStore.preferredRecoveryStrategy(app: app)
+    }
+}

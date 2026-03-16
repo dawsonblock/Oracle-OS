@@ -3,7 +3,10 @@ import Foundation
 public enum ControllerHostCommand: String, Codable, Sendable {
     case bootstrap
     case refreshSnapshot
+    case refreshMissionControl
     case performAction
+    case sendChatMessage
+    case cancelChatMessage
     case listApprovalRequests
     case approveApprovalRequest
     case rejectApprovalRequest
@@ -45,6 +48,9 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
     public let monitoring: MonitoringConfiguration?
     public let approvalRequestID: String?
     public let resumeToken: String?
+    public let conversationID: String?
+    public let chatPrompt: String?
+    public let chatMessageID: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -57,7 +63,10 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
         traceSessionID: String? = nil,
         monitoring: MonitoringConfiguration? = nil,
         approvalRequestID: String? = nil,
-        resumeToken: String? = nil
+        resumeToken: String? = nil,
+        conversationID: String? = nil,
+        chatPrompt: String? = nil,
+        chatMessageID: String? = nil
     ) {
         self.id = id
         self.command = command
@@ -70,6 +79,9 @@ public struct ControllerHostRequest: Codable, Sendable, Identifiable {
         self.monitoring = monitoring
         self.approvalRequestID = approvalRequestID
         self.resumeToken = resumeToken
+        self.conversationID = conversationID
+        self.chatPrompt = chatPrompt
+        self.chatMessageID = chatMessageID
     }
 }
 
@@ -111,6 +123,9 @@ public struct ControllerHostResponse: Codable, Sendable {
     public let traceDetail: TraceSessionDetail?
     public let health: HealthStatus?
     public let diagnostics: ControllerDiagnosticsSnapshot?
+    public let missionControl: MissionControlSnapshot?
+    public let chatConversation: ChatConversation?
+    public let chatProviderStatus: ChatProviderStatus?
     public let errorMessage: String?
 
     public init(
@@ -128,6 +143,9 @@ public struct ControllerHostResponse: Codable, Sendable {
         traceDetail: TraceSessionDetail? = nil,
         health: HealthStatus? = nil,
         diagnostics: ControllerDiagnosticsSnapshot? = nil,
+        missionControl: MissionControlSnapshot? = nil,
+        chatConversation: ChatConversation? = nil,
+        chatProviderStatus: ChatProviderStatus? = nil,
         errorMessage: String? = nil
     ) {
         self.requestID = requestID
@@ -144,6 +162,9 @@ public struct ControllerHostResponse: Codable, Sendable {
         self.traceDetail = traceDetail
         self.health = health
         self.diagnostics = diagnostics
+        self.missionControl = missionControl
+        self.chatConversation = chatConversation
+        self.chatProviderStatus = chatProviderStatus
         self.errorMessage = errorMessage
     }
 }
@@ -156,6 +177,9 @@ public enum ControllerHostEventKind: String, Codable, Sendable {
     case healthChanged
     case recipesChanged
     case approvalsChanged
+    case missionControlChanged
+    case chatStreamDelta
+    case chatMessageCompleted
 }
 
 public struct ControllerHostEvent: Codable, Sendable {
@@ -167,6 +191,11 @@ public struct ControllerHostEvent: Codable, Sendable {
     public let health: HealthStatus?
     public let recipes: [RecipeDocument]?
     public let approvals: [ApprovalRequestDocument]?
+    public let missionControl: MissionControlSnapshot?
+    public let chatConversation: ChatConversation?
+    public let chatProviderStatus: ChatProviderStatus?
+    public let chatMessageID: String?
+    public let chatDelta: String?
     public let message: String?
 
     public init(
@@ -178,6 +207,11 @@ public struct ControllerHostEvent: Codable, Sendable {
         health: HealthStatus? = nil,
         recipes: [RecipeDocument]? = nil,
         approvals: [ApprovalRequestDocument]? = nil,
+        missionControl: MissionControlSnapshot? = nil,
+        chatConversation: ChatConversation? = nil,
+        chatProviderStatus: ChatProviderStatus? = nil,
+        chatMessageID: String? = nil,
+        chatDelta: String? = nil,
         message: String? = nil
     ) {
         self.kind = kind
@@ -188,6 +222,11 @@ public struct ControllerHostEvent: Codable, Sendable {
         self.health = health
         self.recipes = recipes
         self.approvals = approvals
+        self.missionControl = missionControl
+        self.chatConversation = chatConversation
+        self.chatProviderStatus = chatProviderStatus
+        self.chatMessageID = chatMessageID
+        self.chatDelta = chatDelta
         self.message = message
     }
 }

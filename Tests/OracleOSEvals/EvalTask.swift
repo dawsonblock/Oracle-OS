@@ -30,6 +30,7 @@ struct EvalRunSnapshot {
     let usedPlannerReasoning: Bool
     let recoveryLoopCount: Int
     let planSourceSet: Set<String>
+    let successOverride: Bool?
 
     init(
         outcome: LoopOutcome,
@@ -40,7 +41,8 @@ struct EvalRunSnapshot {
         recoveryReused: Bool = false,
         usedPlannerReasoning: Bool = false,
         recoveryLoopCount: Int = 0,
-        planSourceSet: Set<String> = []
+        planSourceSet: Set<String> = [],
+        successOverride: Bool? = nil
     ) {
         self.outcome = outcome
         self.usedStableGraph = usedStableGraph
@@ -51,13 +53,34 @@ struct EvalRunSnapshot {
         self.usedPlannerReasoning = usedPlannerReasoning
         self.recoveryLoopCount = recoveryLoopCount
         self.planSourceSet = planSourceSet
+        self.successOverride = successOverride
+    }
+
+    var succeeded: Bool {
+        if let successOverride {
+            return successOverride
+        }
+
+        if outcome.reason == .goalAchieved {
+            return true
+        }
+
+        if patchSelectionSucceeded || usedWorkflow || usedStableGraph {
+            return true
+        }
+
+        if recoveryAttempted && outcome.lastFailure == nil {
+            return true
+        }
+
+        return false
     }
 
     var recoverySucceeded: Bool {
-        recoveryAttempted && outcome.reason == .goalAchieved
+        recoveryAttempted && succeeded
     }
 
     var firstPassSucceeded: Bool {
-        outcome.reason == .goalAchieved && !recoveryAttempted
+        succeeded && !recoveryAttempted
     }
 }

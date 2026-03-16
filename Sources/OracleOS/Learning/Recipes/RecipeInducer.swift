@@ -18,6 +18,8 @@ public enum RecipeInducer {
                 params: nil,
                 preconditions: nil,
                 steps: [],
+                postconditions: nil,
+                constraints: nil,
                 onFailure: nil
             )
         }
@@ -53,6 +55,8 @@ public enum RecipeInducer {
             params: recipeParams.isEmpty ? nil : recipeParams,
             preconditions: nil,
             steps: parameterizedSteps,
+            postconditions: nil,
+            constraints: nil,
             onFailure: nil
         )
     }

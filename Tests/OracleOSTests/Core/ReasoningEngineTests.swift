@@ -55,7 +55,7 @@ struct ReasoningEngineTests {
 
     @Test("Planner uses reasoning to dismiss modal before exploration")
     func plannerUsesReasoningToDismissModal() {
-        let planner = Planner(reasoningThreshold: 0.25)
+        let planner = MainPlanner(reasoningThreshold: 0.25)
         let goal = Goal(
             description: "dismiss the blocking modal in Safari",
             targetApp: "Safari",
@@ -90,7 +90,7 @@ struct ReasoningEngineTests {
         )
 
         #expect(decision?.skillName == "press")
-        #expect(decision?.source == .exploration)
+        #expect(decision?.source == .reasoning)
         #expect(decision?.planDiagnostics?.selectedOperatorNames.first == "dismiss_modal")
         #expect(decision?.promptDiagnostics?.templateKind == .planning)
     }
@@ -124,7 +124,7 @@ struct ReasoningEngineTests {
                 promotionStatus: .promoted
             )
         )
-        let planner = Planner(workflowIndex: workflowIndex, reasoningThreshold: 0)
+        let planner = MainPlanner(workflowIndex: workflowIndex, reasoningThreshold: 0)
         let goal = Goal(
             description: "open compose in gmail",
             targetApp: "Google Chrome",
@@ -259,7 +259,7 @@ struct ReasoningEngineTests {
             worldState: worldState,
             graphStore: graphStore,
             workflowIndex: WorkflowIndex(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
         let clickOutcome = simulator.simulate(
             plan: clickPlan,
@@ -268,7 +268,7 @@ struct ReasoningEngineTests {
             worldState: worldState,
             graphStore: graphStore,
             workflowIndex: WorkflowIndex(),
-            memoryStore: AppMemoryStore()
+            memoryStore: UnifiedMemoryStore()
         )
 
         #expect(modalOutcome != nil)

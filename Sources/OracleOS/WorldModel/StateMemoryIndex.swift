@@ -100,11 +100,12 @@ public struct ActionStats: Sendable, Codable {
 /// action statistics. The planner queries this to reuse known-good
 /// strategies.
 ///
-/// Thread-safety: Callers must serialise writes. Read access is safe
-/// to overlap with other reads.
+/// Thread-safety: All reads and writes are serialised through an
+/// internal lock. Safe to call from any thread or isolation domain.
 public final class StateMemoryIndex: @unchecked Sendable {
     private var entries: [StateSignature: StateMemoryEntry]
     private let maxEntries: Int
+    private let lock = NSLock()
 
     public init(maxEntries: Int = 5_000) {
         self.entries = [:]
@@ -116,6 +117,8 @@ public final class StateMemoryIndex: @unchecked Sendable {
     /// Look up the memory entry for a compressed UI state.
     public func lookup(_ state: CompressedUIState) -> StateMemoryEntry? {
         let sig = StateSignature(from: state)
+        lock.lock()
+        defer { lock.unlock() }
         return entries[sig]
     }
 
@@ -135,7 +138,11 @@ public final class StateMemoryIndex: @unchecked Sendable {
     }
 
     /// Number of stored state signatures.
-    public var count: Int { entries.count }
+    public var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.count
+    }
 
     // MARK: - Record
 
@@ -146,6 +153,8 @@ public final class StateMemoryIndex: @unchecked Sendable {
         success: Bool
     ) {
         let sig = StateSignature(from: state)
+        lock.lock()
+        defer { lock.unlock() }
         var entry = entries[sig] ?? StateMemoryEntry(signature: sig)
         var stats = entry.actionStats[actionName] ?? ActionStats(actionName: actionName)
         stats.attempts += 1
@@ -159,6 +168,7 @@ public final class StateMemoryIndex: @unchecked Sendable {
     // MARK: - Maintenance
 
     /// Remove the oldest entries when the index exceeds its capacity.
+    /// Caller must hold `lock`.
     private func evictIfNeeded() {
         guard entries.count > maxEntries else { return }
         let sorted = entries.sorted { $0.value.lastSeen < $1.value.lastSeen }

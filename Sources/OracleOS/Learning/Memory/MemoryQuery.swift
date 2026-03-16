@@ -46,3 +46,4 @@ store: UnifiedMemoryStore
         store.commandBias(category: category, workspaceRoot: workspaceRoot)
     }
 }
+

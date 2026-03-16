@@ -7,7 +7,7 @@ struct RecoveryPlannerTests {
 
     @Test("Recovery planner produces plans for modal blocking")
     func producesPlansForModalBlocking() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState(modalPresent: true)
         let plans = planner.plan(failure: .modalBlocking, state: state)
         #expect(!plans.isEmpty)
@@ -16,7 +16,7 @@ struct RecoveryPlannerTests {
 
     @Test("Recovery planner produces plans for wrong focus")
     func producesPlansForWrongFocus() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState(targetApp: "Safari")
         let plans = planner.plan(failure: .wrongFocus, state: state)
         #expect(!plans.isEmpty)
@@ -24,7 +24,7 @@ struct RecoveryPlannerTests {
 
     @Test("Recovery planner produces plans for patch failure")
     func producesPlansForPatchFailure() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState(patchApplied: true)
         let plans = planner.plan(failure: .patchApplyFailed, state: state)
         #expect(!plans.isEmpty)
@@ -33,7 +33,7 @@ struct RecoveryPlannerTests {
 
     @Test("Recovery plans are sorted by probability descending")
     func plansSortedByProbabilityDescending() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState(targetApp: "Safari")
         let plans = planner.plan(failure: .wrongFocus, state: state)
         for i in 0..<max(plans.count - 1, 0) {
@@ -43,7 +43,7 @@ struct RecoveryPlannerTests {
 
     @Test("Best recovery plan returns highest probability plan")
     func bestPlanReturnsHighestProbability() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState(modalPresent: true)
         let best = planner.bestRecoveryPlan(failure: .modalBlocking, state: state)
         let all = planner.plan(failure: .modalBlocking, state: state)
@@ -74,12 +74,13 @@ struct RecoveryPlannerTests {
         targetApp: String? = nil,
         patchApplied: Bool = false
     ) -> ReasoningPlanningState {
+        let agentKind: AgentKind = patchApplied ? .code : .os
         var state = ReasoningPlanningState(
             taskContext: TaskContext(
-                goal: Goal(description: "recovery test", preferredAgentKind: .os),
-                agentKind: .os,
+                goal: Goal(description: "recovery test", preferredAgentKind: agentKind),
+                agentKind: agentKind,
                 workspaceRoot: patchApplied ? "/tmp/workspace" : nil,
-                phases: [.operatingSystem]
+                phases: patchApplied ? [.engineering] : [.operatingSystem]
             ),
             worldState: WorldState(
                 observationHash: "test",

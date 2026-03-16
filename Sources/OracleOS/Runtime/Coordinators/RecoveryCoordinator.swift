@@ -189,6 +189,14 @@ public final class RecoveryCoordinator {
         }
 
         if actionResult.success {
+            // Record the successful recovery in the learning system so that
+            // project memory (known-good patterns, architecture decisions) also
+            // benefits from recovery discoveries — not just the strategy store.
+            learningCoordinator.recordSuccess(
+                decision: recoveryDecision,
+                intent: preparedAction.resolution.intent,
+                taskContext: stateBundle.taskContext
+            )
             diagnostics.recordRecovery(
                 stepIndex: stepIndex,
                 strategyName: preparation.strategyName,

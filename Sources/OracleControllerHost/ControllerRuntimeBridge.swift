@@ -1,6 +1,5 @@
 import AppKit
 import ApplicationServices
-import AXorcist
 import Foundation
 import OracleControllerShared
 import OracleOS
@@ -27,7 +26,7 @@ final class ControllerRuntimeBridge {
             artifactWriter: artifactWriter
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
-        self.orchestrator = RuntimeOrchestrator(context: runtimeContext) // Initialized orchestrator
+        self.oracleRuntime = RuntimeOrchestrator(context: runtimeContext) // Initialized property properly
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()
@@ -120,7 +119,7 @@ final class ControllerRuntimeBridge {
             Actions.focusApp(
                 appName: request.appName ?? "",
                 windowTitle: request.windowTitle,
-                runtime: orchestrator,
+                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -137,7 +136,7 @@ final class ControllerRuntimeBridge {
                 y: request.y,
                 button: request.button,
                 count: request.count,
-                runtime: orchestrator,
+                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -151,7 +150,7 @@ final class ControllerRuntimeBridge {
                 domId: request.domID,
                 appName: request.appName,
                 clear: request.clearExisting,
-                runtime: orchestrator,
+                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -163,7 +162,7 @@ final class ControllerRuntimeBridge {
                 key: request.key ?? "",
                 modifiers: request.modifiers,
                 appName: request.appName,
-                runtime: orchestrator,
+                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -177,7 +176,7 @@ final class ControllerRuntimeBridge {
                 appName: request.appName,
                 x: request.x,
                 y: request.y,
-                runtime: orchestrator,
+                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -239,7 +238,7 @@ final class ControllerRuntimeBridge {
         let result = RecipeEngine.run(
             recipe: recipe,
             params: params,
-            runtime: orchestrator,
+            runtime: oracleRuntime,
             taskID: sessionID
         )
         return mapRecipeRunResult(recipeName: name, totalStepsFallback: recipe.steps.count, result: result)
@@ -249,7 +248,7 @@ final class ControllerRuntimeBridge {
         let result = RecipeEngine.resume(
             resumeToken: resumeToken,
             approvalRequestID: approvalRequestID,
-            runtime: orchestrator,
+            runtime: oracleRuntime,
             taskID: sessionID
         )
         let recipeName = (result.data?["recipe"] as? String) ?? "recipe"

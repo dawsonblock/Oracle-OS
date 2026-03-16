@@ -31,7 +31,7 @@ struct DialogStormTasks {
 
     private func makePermissionDialogStormTask() -> EvalTask {
         EvalTask(name: "permission-dialog-storm", family: .dialogStorm, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.dialogStormState(
                 app: "Safari",
                 goalDescription: "dismiss multiple permission dialogs appearing in sequence",
@@ -51,14 +51,15 @@ struct DialogStormTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
 
     private func makeSaveBeforeCloseStormTask() -> EvalTask {
         EvalTask(name: "save-before-close-storm", family: .dialogStorm, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.dialogStormState(
                 app: "TextEdit",
                 goalDescription: "handle save confirmation dialogs when closing multiple tabs",
@@ -78,14 +79,15 @@ struct DialogStormTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
 
     private func makeUpdateNotificationStormTask() -> EvalTask {
         EvalTask(name: "update-notification-storm", family: .dialogStorm, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.dialogStormState(
                 app: "System Preferences",
                 goalDescription: "dismiss cascading update notification dialogs",
@@ -105,7 +107,8 @@ struct DialogStormTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
@@ -154,5 +157,16 @@ struct DialogStormTasks {
             worldState: worldState,
             memoryInfluence: MemoryInfluence()
         )
+    }
+}
+
+extension DialogStormTasks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = DialogStormTasks()
+        return [
+            suite.makePermissionDialogStormTask(),
+            suite.makeSaveBeforeCloseStormTask(),
+            suite.makeUpdateNotificationStormTask(),
+        ]
     }
 }

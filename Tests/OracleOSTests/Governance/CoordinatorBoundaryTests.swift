@@ -39,7 +39,7 @@ struct CoordinatorBoundaryTests {
         )
         let content = try String(contentsOf: url, encoding: .utf8)
         #expect(
-            !content.contains("Planner("),
+            !content.contains("MainPlanner("),
             "LearningCoordinator must not instantiate Planner"
         )
         #expect(

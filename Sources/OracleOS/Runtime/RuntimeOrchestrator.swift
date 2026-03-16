@@ -673,7 +673,7 @@ public final class RuntimeOrchestrator {
         let result = context.searchController.search(
             compressedState: compressedState,
             abstractState: abstractState,
-            planningStateID: abstractState.id.rawValue,
+            planningStateID: PlanningStateID(rawValue: abstractState.rawValue) ?? PlanningStateID(rawValue: "idle"),
             llmSchemas: llmSchemas
         ) { candidate in
             // Track source distribution for metrics.

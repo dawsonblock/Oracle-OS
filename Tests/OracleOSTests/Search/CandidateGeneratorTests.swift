@@ -10,7 +10,7 @@ struct CandidateGeneratorTests {
     @Test("Memory candidates appear before graph candidates")
     @MainActor func memoryBeforeGraph() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(
             app: "Finder",
             elements: [SemanticElement(id: "btn", kind: .button, label: "Open")]
@@ -43,7 +43,7 @@ struct CandidateGeneratorTests {
     @Test("LLM candidates are last and fill gaps only")
     @MainActor func llmCandidatesAreLast() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(app: "Safari", elements: [])
 
         let llmSchemas = [
@@ -67,7 +67,7 @@ struct CandidateGeneratorTests {
     @Test("Duplicate action names are deduplicated across sources")
     @MainActor func deduplicatesAcrossSources() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(
             app: "Xcode",
             elements: [SemanticElement(id: "b", kind: .button, label: "Build")]
@@ -99,7 +99,7 @@ struct CandidateGeneratorTests {
     @Test("maxCandidates caps the output")
     @MainActor func maxCandidatesCaps() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(app: "App", elements: [])
 
         // Add many LLM schemas.
@@ -124,7 +124,7 @@ struct CandidateGeneratorTests {
     @Test("Empty state produces no candidates without LLM")
     @MainActor func emptyStateNoLLM() {
         let index = StateMemoryIndex()
-        let store = PlanningGraphStore()
+        let store = GraphStore()
         let state = CompressedUIState(app: "Empty", elements: [])
 
         let generator = CandidateGenerator(

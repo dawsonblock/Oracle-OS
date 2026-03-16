@@ -189,7 +189,7 @@ struct SystemIntelligenceUpgradeTests {
 
     @Test("Recovery planner generates plans for modal blocking")
     func recoveryPlannerHandlesModal() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = minimalReasoningState(agentKind: .os, modalPresent: true)
         let plans = planner.plan(failure: .modalBlocking, state: state)
 
@@ -199,7 +199,7 @@ struct SystemIntelligenceUpgradeTests {
 
     @Test("Recovery planner generates plans for wrong focus")
     func recoveryPlannerHandlesWrongFocus() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = minimalReasoningState(
             agentKind: .os,
             targetApplication: "Safari",
@@ -213,7 +213,7 @@ struct SystemIntelligenceUpgradeTests {
 
     @Test("Recovery planner generates plans for patch failure")
     func recoveryPlannerHandlesPatchFailure() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = minimalReasoningState(agentKind: .code, repoOpen: true, patchApplied: true)
         let plans = planner.plan(failure: .patchApplyFailed, state: state)
 
@@ -350,7 +350,7 @@ struct SystemIntelligenceUpgradeTests {
                 promotionStatus: .promoted
             )
         )
-        let planner = Planner(workflowIndex: workflowIndex, reasoningThreshold: 0)
+        let planner = MainPlanner(workflowIndex: workflowIndex, reasoningThreshold: 0)
         let goal = Goal(
             description: "open compose in gmail",
             targetApp: "Google Chrome",
@@ -399,9 +399,9 @@ struct SystemIntelligenceUpgradeTests {
         agentKind: AgentKind,
         repoOpen: Bool = false,
         patchApplied: Bool = false,
-        modalPresent: Bool = false,
         targetApplication: String? = nil,
         activeApplication: String? = nil,
+        modalPresent: Bool = false,
         visibleTargets: [String] = []
     ) -> ReasoningPlanningState {
         var state = ReasoningPlanningState(

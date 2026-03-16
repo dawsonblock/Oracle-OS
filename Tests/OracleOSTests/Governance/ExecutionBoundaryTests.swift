@@ -91,7 +91,7 @@ struct ExecutionBoundaryTests {
     // MARK: - VisionPerception does not reference the planner
 
     @Test("VisionPerception does not reference the planner")
-    func visionPerceptionDoesNotReferencePlanner() throws {
+    func visionPerceptionDoesNotReferenceMainPlanner() throws {
         let visionURL = sourcesRoot().appendingPathComponent(
             "Vision/VisionPerception.swift",
             isDirectory: false
@@ -99,8 +99,8 @@ struct ExecutionBoundaryTests {
         guard FileManager.default.fileExists(atPath: visionURL.path) else { return }
         let content = try String(contentsOf: visionURL, encoding: .utf8)
         #expect(
-            !content.contains("Planner("),
-            "VisionPerception.swift must not reference Planner("
+            !content.contains("MainPlanner("),
+            "VisionPerception.swift must not reference MainPlanner("
         )
         #expect(
             !content.contains("PlanGenerator("),

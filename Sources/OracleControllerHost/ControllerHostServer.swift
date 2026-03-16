@@ -1,5 +1,6 @@
 import Foundation
 import OracleControllerShared
+import OracleOS
 
 actor HostOutput {
     private let encoder: JSONEncoder
@@ -33,10 +34,15 @@ actor ControllerHostServer {
     private var monitoringTask: Task<Void, Never>?
     private var monitoringConfiguration = MonitoringConfiguration(enabled: false)
     private var lastHealth: HealthStatus?
+    private let chatPersistenceURL: URL
+    private var chatConversation: ChatConversation?
+    private var chatTask: Task<Void, Never>?
 
     init(output: HostOutput, bridge: ControllerRuntimeBridge) {
         self.output = output
         self.bridge = bridge
+        self.chatPersistenceURL = OracleProductPaths.chatDirectory.appendingPathComponent("latest-conversation.json", isDirectory: false)
+        self.chatConversation = Self.loadConversation(from: self.chatPersistenceURL)
     }
 
     func handle(_ request: ControllerHostRequest) async {
@@ -44,8 +50,11 @@ actor ControllerHostServer {
         case .bootstrap:
             let snapshot = await MainActor.run { bridge.refreshSnapshot(appName: request.appName) }
             let health = await MainActor.run { bridge.healthStatus() }
+            let providerStatus = await MainActor.run { bridge.chatProviderStatus() }
+            let missionControl = await MainActor.run { bridge.missionControlSnapshot(appName: request.appName) }
             lastHealth = health
             let monitoring = monitoringConfiguration
+            let existingConversation = chatConversation
             let bootstrap = await MainActor.run {
                 DashboardBootstrap(
                     session: bridge.currentSession(
@@ -56,7 +65,10 @@ actor ControllerHostServer {
                     health: health,
                     recipes: bridge.listRecipes(),
                     traceSessions: bridge.listTraceSessions(),
-                    approvals: bridge.listApprovalRequests()
+                    approvals: bridge.listApprovalRequests(),
+                    missionControl: missionControl,
+                    chatConversation: existingConversation,
+                    chatProviderStatus: providerStatus
                 )
             }
             await output.send(response: ControllerHostResponse(
@@ -72,6 +84,70 @@ actor ControllerHostServer {
                 command: request.command,
                 snapshot: snapshot
             ))
+
+        case .refreshMissionControl:
+            let appName = request.appName ?? monitoringConfiguration.appName
+            let missionControl = await MainActor.run {
+                bridge.missionControlSnapshot(appName: appName)
+            }
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                missionControl: missionControl,
+                chatProviderStatus: missionControl.providerStatus
+            ))
+
+        case .sendChatMessage:
+            guard let prompt = request.chatPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty else {
+                await output.send(response: ControllerHostResponse(
+                    requestID: request.id,
+                    command: request.command,
+                    acknowledged: false,
+                    errorMessage: "Missing chat prompt"
+                ))
+                return
+            }
+
+            let appName = request.appName ?? monitoringConfiguration.appName
+            let missionControl = await MainActor.run {
+                bridge.missionControlSnapshot(appName: appName)
+            }
+            let providerStatus = missionControl.providerStatus
+            let conversation = upsertConversation(with: prompt, conversationID: request.conversationID)
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                acknowledged: true,
+                missionControl: missionControl,
+                chatConversation: conversation,
+                chatProviderStatus: providerStatus
+            ))
+            startChatResponse(
+                prompt: prompt,
+                missionControl: missionControl,
+                providerStatus: providerStatus
+            )
+
+        case .cancelChatMessage:
+            chatTask?.cancel()
+            chatTask = nil
+            let updatedConversation = markActiveAssistantMessageStopped(
+                fallback: "Response cancelled."
+            )
+            await output.send(response: ControllerHostResponse(
+                requestID: request.id,
+                command: request.command,
+                acknowledged: true,
+                chatConversation: updatedConversation,
+                chatProviderStatus: await MainActor.run { bridge.chatProviderStatus() }
+            ))
+            if let updatedConversation {
+                await output.send(event: ControllerHostEvent(
+                    kind: .chatMessageCompleted,
+                    chatConversation: updatedConversation,
+                    chatProviderStatus: await MainActor.run { bridge.chatProviderStatus() }
+                ))
+            }
 
         case .getHealth:
             let health = await MainActor.run { bridge.healthStatus() }
@@ -122,6 +198,7 @@ actor ControllerHostServer {
             for step in newSteps {
                 await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
             }
+            await emitMissionControlUpdate(appName: action.appName)
 
         case .listApprovalRequests:
             let approvals = await MainActor.run { bridge.listApprovalRequests() }
@@ -152,6 +229,7 @@ actor ControllerHostServer {
                     approvals: approvals
                 ))
                 await output.send(event: ControllerHostEvent(kind: .approvalsChanged, approvals: approvals))
+                await emitMissionControlUpdate(appName: monitoringConfiguration.appName)
             } catch {
                 await output.send(response: ControllerHostResponse(
                     requestID: request.id,
@@ -182,6 +260,7 @@ actor ControllerHostServer {
                     approvals: approvals
                 ))
                 await output.send(event: ControllerHostEvent(kind: .approvalsChanged, approvals: approvals))
+                await emitMissionControlUpdate(appName: monitoringConfiguration.appName)
             } catch {
                 await output.send(response: ControllerHostResponse(
                     requestID: request.id,
@@ -300,6 +379,7 @@ actor ControllerHostServer {
             for step in newSteps {
                 await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
             }
+            await emitMissionControlUpdate(appName: monitoring.appName)
 
         case .resumeRecipeRun:
             guard let resumeToken = request.resumeToken else {
@@ -334,6 +414,7 @@ actor ControllerHostServer {
             for step in newSteps {
                 await output.send(event: ControllerHostEvent(kind: .traceStepAppended, session: session, traceStep: step))
             }
+            await emitMissionControlUpdate(appName: monitoring.appName)
 
         case .listTraceSessions:
             let traces = await MainActor.run { bridge.listTraceSessions() }
@@ -378,6 +459,7 @@ actor ControllerHostServer {
                 acknowledged: true
             ))
             await output.send(event: ControllerHostEvent(kind: .observationUpdated, session: session, snapshot: snapshot))
+            await emitMissionControlUpdate(appName: monitoring.appName)
 
         case .ping:
             await output.send(response: ControllerHostResponse(
@@ -386,6 +468,225 @@ actor ControllerHostServer {
                 acknowledged: true
             ))
         }
+    }
+
+    private func upsertConversation(with prompt: String, conversationID: String?) -> ChatConversation {
+        let now = Date()
+        let current = (chatConversation?.id == conversationID || conversationID == nil) ? chatConversation : nil
+        let conversationID = current?.id ?? conversationID ?? UUID().uuidString
+        let title = current?.title ?? suggestedConversationTitle(for: prompt)
+        let createdAt = current?.createdAt ?? now
+        let userMessage = ChatMessage(
+            id: UUID().uuidString,
+            role: .user,
+            content: prompt,
+            createdAt: now
+        )
+        let assistantMessage = ChatMessage(
+            id: UUID().uuidString,
+            role: .assistant,
+            content: "",
+            createdAt: now,
+            isStreaming: true
+        )
+        let conversation = ChatConversation(
+            id: conversationID,
+            title: title,
+            createdAt: createdAt,
+            updatedAt: now,
+            messages: (current?.messages ?? []) + [userMessage, assistantMessage]
+        )
+        chatConversation = conversation
+        persistConversation()
+        return conversation
+    }
+
+    private func startChatResponse(
+        prompt: String,
+        missionControl: MissionControlSnapshot,
+        providerStatus: ChatProviderStatus
+    ) {
+        chatTask?.cancel()
+        guard let conversation = chatConversation,
+              let assistantMessageID = conversation.messages.last?.id
+        else {
+            return
+        }
+
+        chatTask = Task {
+            let finalText: String
+            do {
+                if providerStatus.state == .ready {
+                    finalText = try await ClaudeLocalCopilot.complete(
+                        conversation: conversation,
+                        prompt: prompt,
+                        missionControl: missionControl
+                    ) { chunk in
+                        let updatedConversation = await self.appendChatDelta(
+                            messageID: assistantMessageID,
+                            delta: chunk
+                        )
+                        if let updatedConversation {
+                            await self.output.send(event: ControllerHostEvent(
+                                kind: .chatStreamDelta,
+                                chatConversation: updatedConversation,
+                                chatProviderStatus: providerStatus,
+                                chatMessageID: assistantMessageID,
+                                chatDelta: chunk
+                            ))
+                        }
+                    }
+                } else {
+                    finalText = ClaudeLocalCopilot.setupGuidance(for: providerStatus)
+                }
+            } catch {
+                finalText = "Copilot response failed: \(error.localizedDescription)"
+            }
+
+            let completedConversation = await self.completeChatMessage(
+                messageID: assistantMessageID,
+                content: finalText,
+                citations: ClaudeLocalCopilot.citations(for: prompt, missionControl: missionControl),
+                draftActions: ClaudeLocalCopilot.drafts(for: missionControl)
+            )
+            await output.send(event: ControllerHostEvent(
+                kind: .chatMessageCompleted,
+                chatConversation: completedConversation,
+                chatProviderStatus: providerStatus,
+                chatMessageID: assistantMessageID
+            ))
+        }
+    }
+
+    private func appendChatDelta(messageID: String, delta: String) -> ChatConversation? {
+        guard var conversation = chatConversation else { return nil }
+        let updatedMessages = conversation.messages.map { message in
+            guard message.id == messageID else { return message }
+            return ChatMessage(
+                id: message.id,
+                role: message.role,
+                content: message.content + delta,
+                createdAt: message.createdAt,
+                isStreaming: true,
+                citations: message.citations,
+                draftActions: message.draftActions
+            )
+        }
+        conversation = ChatConversation(
+            id: conversation.id,
+            title: conversation.title,
+            createdAt: conversation.createdAt,
+            updatedAt: Date(),
+            messages: updatedMessages
+        )
+        chatConversation = conversation
+        persistConversation()
+        return conversation
+    }
+
+    private func completeChatMessage(
+        messageID: String,
+        content: String,
+        citations: [ChatCitation],
+        draftActions: [ChatActionDraft]
+    ) -> ChatConversation {
+        let current = chatConversation ?? ChatConversation(id: UUID().uuidString, title: "Copilot")
+        let updatedMessages = current.messages.map { message in
+            guard message.id == messageID else { return message }
+            return ChatMessage(
+                id: message.id,
+                role: message.role,
+                content: content,
+                createdAt: message.createdAt,
+                isStreaming: false,
+                citations: citations,
+                draftActions: draftActions
+            )
+        }
+        let conversation = ChatConversation(
+            id: current.id,
+            title: current.title,
+            createdAt: current.createdAt,
+            updatedAt: Date(),
+            messages: updatedMessages
+        )
+        chatConversation = conversation
+        persistConversation()
+        return conversation
+    }
+
+    private func markActiveAssistantMessageStopped(fallback: String) -> ChatConversation? {
+        guard let current = chatConversation,
+              let message = current.messages.last,
+              message.role == .assistant
+        else {
+            return chatConversation
+        }
+
+        let updatedMessages = Array(current.messages.dropLast()) + [
+            ChatMessage(
+                id: message.id,
+                role: message.role,
+                content: message.content.isEmpty ? fallback : message.content,
+                createdAt: message.createdAt,
+                isStreaming: false,
+                citations: message.citations,
+                draftActions: message.draftActions
+            ),
+        ]
+
+        let conversation = ChatConversation(
+            id: current.id,
+            title: current.title,
+            createdAt: current.createdAt,
+            updatedAt: Date(),
+            messages: Array(updatedMessages)
+        )
+        chatConversation = conversation
+        persistConversation()
+        return conversation
+    }
+
+    private func emitMissionControlUpdate(appName: String?) async {
+        let actualAppName = appName ?? monitoringConfiguration.appName
+        let missionControl = await MainActor.run {
+            bridge.missionControlSnapshot(appName: actualAppName)
+        }
+        await output.send(event: ControllerHostEvent(
+            kind: .missionControlChanged,
+            missionControl: missionControl,
+            chatProviderStatus: missionControl.providerStatus
+        ))
+    }
+
+    private func persistConversation() {
+        guard let chatConversation else { return }
+        do {
+            try FileManager.default.createDirectory(
+                at: chatPersistenceURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(chatConversation)
+            try data.write(to: chatPersistenceURL, options: .atomic)
+        } catch {
+            // Persistence failure should not crash the host process.
+        }
+    }
+
+    private func suggestedConversationTitle(for prompt: String) -> String {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Mission Control Copilot" }
+        return trimmed.count > 40 ? String(trimmed.prefix(40)) + "…" : trimmed
+    }
+
+    private static func loadConversation(from url: URL) -> ChatConversation? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(ChatConversation.self, from: data)
     }
 
     private func restartMonitoringLoop() {
@@ -408,6 +709,7 @@ actor ControllerHostServer {
                 if health != lastHealth {
                     lastHealth = health
                     await output.send(event: ControllerHostEvent(kind: .healthChanged, session: session, health: health))
+                    await emitMissionControlUpdate(appName: monitoring.appName)
                 }
                 try? await Task.sleep(nanoseconds: interval)
             }

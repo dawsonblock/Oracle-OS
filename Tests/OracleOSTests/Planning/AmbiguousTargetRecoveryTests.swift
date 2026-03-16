@@ -20,7 +20,7 @@ struct AmbiguousTargetRecoveryTests {
 
     @Test("Recovery planner handles element ambiguous failure")
     func recoveryPlannerHandlesAmbiguousElement() {
-        let planner = RecoveryPlanner()
+        let planner = MainPlanner()
         let state = makeState()
         let plans = planner.plan(failure: .elementAmbiguous, state: state)
         #expect(plans.count >= 0)

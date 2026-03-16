@@ -5,7 +5,10 @@ public enum PlannerSource: String, Codable, Sendable {
     case stableGraph = "stable_graph"
     case candidateGraph = "candidate_graph"
     case exploration
+    case reasoning
+    case llm
     case recovery
+    case strategy
 }
 
 public enum PlannerExecutionMode: String, Codable, Sendable {

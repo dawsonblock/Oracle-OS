@@ -53,7 +53,7 @@ struct AgentLoopBoundaryTests {
 
     private func agentLoopContents() throws -> String {
         let agentLoopURL = repositoryRoot().appendingPathComponent(
-            "Sources/OracleOS/Agent/Loop/AgentLoop.swift",
+            "Sources/OracleOS/Execution/Loop/AgentLoop.swift",
             isDirectory: false
         )
         return try String(contentsOf: agentLoopURL)

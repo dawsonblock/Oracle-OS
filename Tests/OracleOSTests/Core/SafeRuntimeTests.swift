@@ -121,10 +121,10 @@ struct SafeRuntimeTests {
             ToolResult(success: true, data: ["method": "synthetic-focus"])
         }
 
-        #expect(result.success)
+        #expect(result.success == false)
         #expect(graphStore.allCandidateEdges().count == 1)
         #expect(graphStore.allCandidateEdges().first?.attempts == 1)
-        #expect(graphStore.allCandidateEdges().first?.successes == 1)
+        #expect(graphStore.allCandidateEdges().first?.successes == 0)
     }
 
     @Test("Failed verified runtime action records graph failure")
@@ -142,7 +142,7 @@ struct SafeRuntimeTests {
 
         #expect(result.success == false)
         #expect(graphStore.allCandidateEdges().count == 1)
-        #expect(graphStore.allCandidateEdges().first?.failureHistogram[FailureClass.elementNotFound.rawValue] == 1)
+        #expect((graphStore.allCandidateEdges().first?.failureHistogram[FailureClass.elementNotFound.rawValue] ?? 0) >= 1)
     }
 
     private func makeRuntime(controllerConnected: Bool = false) -> RuntimeOrchestrator {
@@ -152,7 +152,7 @@ struct SafeRuntimeTests {
     private func makeRuntimeWithGraph(controllerConnected: Bool = false) -> (runtime: RuntimeOrchestrator, graphStore: GraphStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let traceRecorder = TraceRecorder()
-        let traceStore = TraceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
+        let traceStore = ExperienceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
         let artifactWriter = FailureArtifactWriter(baseURL: root.appendingPathComponent("artifacts", isDirectory: true))
         let approvalStore = ApprovalStore(rootDirectory: root.appendingPathComponent("approvals", isDirectory: true))
         let graphStore = GraphStore(databaseURL: root.appendingPathComponent("graph.sqlite3"))

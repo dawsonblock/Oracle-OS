@@ -51,7 +51,7 @@ struct UpgradeBenchmarks {
 
     private func makeRecoveryPlanningTask() -> EvalTask {
         EvalTask(name: "recovery-planning", family: .operatorTask, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.modalReasoningState()
             let plans = planner.plan(failure: .modalBlocking, state: state)
             let recovered = !plans.isEmpty && plans[0].estimatedRecoveryProbability > 0.5
@@ -185,5 +185,16 @@ struct UpgradeBenchmarks {
             worldState: worldState,
             memoryInfluence: MemoryInfluence()
         )
+    }
+}
+
+extension UpgradeBenchmarks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = UpgradeBenchmarks()
+        return [
+            suite.makeMultiStepPlanningTask(),
+            suite.makeRecoveryPlanningTask(),
+            suite.makeWorkflowReuseTask(),
+        ]
     }
 }

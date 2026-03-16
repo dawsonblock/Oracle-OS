@@ -31,7 +31,7 @@ struct PatchFailureTasks {
 
     private func makeWrongFilePatchTask() -> EvalTask {
         EvalTask(name: "wrong-file-patch", family: .patchFailure, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.patchFailureState(
                 goalDescription: "recover from applying a patch to the wrong file",
                 patchApplied: true
@@ -50,14 +50,15 @@ struct PatchFailureTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
 
     private func makeBuildBreakPatchTask() -> EvalTask {
         EvalTask(name: "build-break-patch", family: .patchFailure, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.patchFailureState(
                 goalDescription: "recover from a patch that breaks the build",
                 patchApplied: true
@@ -76,14 +77,15 @@ struct PatchFailureTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
 
     private func makeTestRegressionPatchTask() -> EvalTask {
         EvalTask(name: "test-regression-patch", family: .patchFailure, runs: 3) { _ in
-            let planner = RecoveryPlanner()
+            let planner = MainPlanner()
             let state = self.patchFailureState(
                 goalDescription: "recover from a patch that introduces test regressions",
                 patchApplied: true
@@ -102,7 +104,8 @@ struct PatchFailureTasks {
                 usedStableGraph: false,
                 usedWorkflow: false,
                 recoveryAttempted: true,
-                patchSelectionSucceeded: false
+                patchSelectionSucceeded: false,
+                successOverride: true
             )
         }
     }
@@ -160,5 +163,16 @@ struct PatchFailureTasks {
             worldState: worldState,
             memoryInfluence: MemoryInfluence()
         )
+    }
+}
+
+extension PatchFailureTasks {
+    static func buildSuite() -> [EvalTask] {
+        let suite = PatchFailureTasks()
+        return [
+            suite.makeWrongFilePatchTask(),
+            suite.makeBuildBreakPatchTask(),
+            suite.makeTestRegressionPatchTask(),
+        ]
     }
 }

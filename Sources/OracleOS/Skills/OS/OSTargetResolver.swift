@@ -8,7 +8,7 @@ enum OSTargetResolver {
         query: ElementQuery,
         state: WorldState,
         memoryStore: UnifiedMemoryStore
-    ) -> ElementCandidate {
+    ) throws -> ElementCandidate {
         do {
             return try state.resolve(
                 query: query,
@@ -25,6 +25,8 @@ enum OSTargetResolver {
             case let .lowConfidence(label, score):
                 throw SkillResolutionError.ambiguousTarget(label, score)
             }
+        } catch {
+            throw error
         }
     }
 }

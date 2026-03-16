@@ -68,7 +68,6 @@ public struct LoopProjectMemoryCoordinator: @unchecked Sendable {
                 sourceTraceIDs: [],
                 body: """
                 Refactor proposal id: \(refactorProposalID)
- 
                 Findings:
                 \(majorFindings.map { "- \($0.title): \($0.summary)" }.joined(separator: "\n"))
                 """
