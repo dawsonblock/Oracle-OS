@@ -91,7 +91,7 @@ public final class LLMClient: @unchecked Sendable {
     private let providers: [LLMModelTier: any LLMProvider]
     private let defaultProvider: (any LLMProvider)?
     private let maxRetries: Int
-    private let lock = NSLock()
+    private let lockQueue = DispatchQueue(label: "org.oracleos.llmclient.lock")
     private var requestCount: Int = 0
     private var totalTokens: Int = 0
 
@@ -123,7 +123,7 @@ public final class LLMClient: @unchecked Sendable {
             throw LLMClientError.noProvider
         }
 
-        var lastError: Error?
+        var lastError: (any Error)?
         for attempt in 0...maxRetries {
             do {
                 let start = CFAbsoluteTimeGetCurrent()
@@ -132,10 +132,10 @@ public final class LLMClient: @unchecked Sendable {
                 // Use more accurate token estimation: ~3.5 chars per token for English
                 let estimatedTokens = max(1, text.count / 3)
 
-                lock.lock()
-                requestCount += 1
-                totalTokens += estimatedTokens
-                lock.unlock()
+                lockQueue.sync {
+                    requestCount += 1
+                    totalTokens += estimatedTokens
+                }
 
                 return LLMResponse(
                     text: text,
@@ -170,12 +170,12 @@ public final class LLMClient: @unchecked Sendable {
     }
 
     public var diagnostics: LLMClientDiagnostics {
-        lock.lock()
-        defer { lock.unlock() }
-        return LLMClientDiagnostics(
-            requestCount: requestCount,
-            totalTokens: totalTokens
-        )
+        lockQueue.sync {
+            return LLMClientDiagnostics(
+                requestCount: requestCount,
+                totalTokens: totalTokens
+            )
+        }
     }
 }
 

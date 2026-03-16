@@ -126,8 +126,6 @@ enum ClaudeLocalCopilot {
                     stdout.fileHandleForReading.readabilityHandler = nil
 
                     let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
-                    let errorText = String(data: errorData, encoding: .utf8)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
 
                     outputLock.lock()
                     let outputData = accumulated
@@ -146,6 +144,13 @@ enum ClaudeLocalCopilot {
                         continuation.resume(returning: text)
                         return
                     }
+
+                    let errorText = String(data: errorData, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    outputLock.lock()
+                    accumulated = Data()
+                    outputLock.unlock()
 
                     let message = errorText?.isEmpty == false
                         ? errorText!

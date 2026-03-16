@@ -107,7 +107,7 @@ public final class MainPlanner: @unchecked Sendable {
         )
 
         // ── Memory Influence ──
-        let memoryInfluence = MemoryRouter(memoryStore: memoryStore).influence(
+        let _ = MemoryRouter(memoryStore: memoryStore).influence(
             for: MemoryQueryContext(taskContext: taskContext, worldState: worldState)
         )
 
