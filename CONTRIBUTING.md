@@ -5,9 +5,11 @@ Oracle OS is open source and we welcome contributions.
 ## What We Need Help With
 
 ### Recipes
+
 The most impactful contribution is a new recipe. Pick an app, figure out the workflow, save it as a recipe JSON, test it 3+ times, and submit a PR.
 
 Good recipe candidates:
+
 - Slack: send a message, reply to a thread
 - Google Calendar: create an event
 - Finder: organize files, create folders
@@ -15,54 +17,58 @@ Good recipe candidates:
 - Any web app: login, fill forms, extract data
 
 ### Testing on Different Apps
+
 Oracle OS should work with every app. Test it with apps you use daily and report what works and what doesn't. File issues with:
+
 - Which app and version
 - What tool you called
 - What happened vs what you expected
 - The output from `oracle doctor`
 
 ### Bug Fixes
+
 Check the [issues](https://github.com/dawsonblock/Oracle-OS/issues) page. Issues labeled `good first issue` are a great starting point.
 
 ## Development Setup
 
 ```bash
 git clone https://github.com/dawsonblock/Oracle-OS.git
-cd oracle-os
+cd Oracle-OS
 swift build
 ```
 
 **All major refactors must run `swift test --filter OracleOSEvals` and pass the baseline.**
 
 Requirements:
+
 - macOS 14+
-- Swift 6.2+ (install via [swiftly](https://github.com/swiftlang/swiftly))
+- Swift 5.9+ (install via [swiftly](https://github.com/swiftlang/swiftly))
 - Accessibility permission for your terminal app
 - Screen Recording permission (optional, for screenshots)
 
-The project depends on [AXorcist](https://github.com/steipete/AXorcist) which is referenced as a local package at `../AXorcist`. Clone it alongside oracle-os:
-
-```
-your-workspace/
-├── AXorcist/      # git clone https://github.com/steipete/AXorcist
-└── oracle-os/      # this repo
-```
+The project vendors [AXorcist](https://github.com/steipete/AXorcist) in `Vendor/AXorcist`, so no extra local checkout is required.
 
 ## Project Structure
 
-```
+```text
 Sources/
-├── OracleOS/                   # Library (the MCP server logic)
-│   ├── MCP/                    # MCPServer, MCPTools, MCPDispatch
-│   ├── Perception/             # oracle_context, oracle_find, oracle_read, etc.
-│   ├── Actions/                # oracle_click, oracle_type, oracle_hotkey, etc.
-│   ├── Recipes/                # RecipeEngine, RecipeStore, RecipeTypes
-│   ├── Screenshot/             # ScreenCaptureKit wrapper
-│   └── Common/                 # Logger, Types, LocatorBuilder
-└── oracle/                     # CLI (thin entry point)
-    ├── main.swift              # oracle mcp, setup, doctor, status
-    ├── SetupWizard.swift       # Interactive first-run setup
-    └── Doctor.swift            # Diagnostic tool
+├── OracleOS/                   # Runtime, planning, memory, MCP, tools
+├── OracleController/           # Native SwiftUI/AppKit controller app
+├── OracleControllerHost/       # Local host process bundled with controller
+├── OracleControllerShared/     # Shared controller types
+└── oracle/                     # CLI entry point and setup tooling
+
+Tests/
+├── OracleOSTests/              # Runtime and governance-focused tests
+├── OracleOSEvals/              # Baseline/eval regression coverage
+├── OracleControllerTests/      # Controller and shared-model tests
+└── Fixtures/                   # Test fixtures
+
+Supporting directories:
+- `docs/` — architecture, governance, status, and rollout docs
+- `ProjectMemory/` — accepted decisions, open problems, and risk tracking
+- `recipes/` — JSON recipes for repeatable workflows
+- `scripts/` — local build, packaging, and release automation
 ```
 
 ## Writing a Recipe
@@ -111,6 +117,7 @@ Recipes are JSON files stored in `~/.oracle-os/recipes/`. Here's the structure:
 **Wait conditions:** elementExists, elementGone, urlContains, titleContains, urlChanged, titleChanged, delay
 
 **Tips:**
+
 - Use `computedNameContains` for fuzzy matching ("Compose" matches "Compose" button)
 - Add `criteria` with `AXRole` to narrow matches (e.g., only buttons)
 - Always include `"criteria": []` even if empty (required by the Locator decoder)

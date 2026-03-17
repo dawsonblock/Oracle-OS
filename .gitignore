@@ -3,6 +3,7 @@
 
 # Local editor settings
 .vscode/
+.kilocode/
 
 # Swift
 .build/
@@ -20,6 +21,9 @@ DerivedData/
 # Python
 vision-sidecar/.venv/
 .venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 __pycache__/
 *.pyc
 *.pyo
@@ -38,8 +42,13 @@ test.log
 build_output.txt
 test_output.txt
 ghost-os-*.tar.gz
+oracle-os-*.tar.gz
 local/
 .oracle-graph/
 dist/
+coverage/
+node_modules/
+web/node_modules/
+web/dist/
 
 .fake

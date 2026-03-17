@@ -1,7 +1,9 @@
+<!-- markdownlint-disable MD032 -->
+
 # Oracle OS Architecture Governance
 
 This document is the operational governance companion to
-[GOVERNANCE.md](./GOVERNANCE.md) and [ARCHITECTURE.md](./ARCHITECTURE.md).
+[GOVERNANCE.md](./GOVERNANCE.md) and [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 It exists to answer one practical question:
 

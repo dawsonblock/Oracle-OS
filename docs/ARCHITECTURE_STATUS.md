@@ -1,6 +1,6 @@
 # Oracle OS Architecture Status
 
-The descriptive architecture map is in [ARCHITECTURE.md](ARCHITECTURE.md). The normative architectural contract is in [GOVERNANCE.md](GOVERNANCE.md).
+The descriptive architecture map is in [ARCHITECTURE.md](../ARCHITECTURE.md). The normative architectural contract is in [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Stable
 

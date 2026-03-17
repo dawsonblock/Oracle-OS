@@ -1,8 +1,12 @@
+<!-- markdownlint-disable MD024 MD031 MD032 MD060 -->
+
 # Oracle-OS Runtime Hardening Technical Specification
 
 ## Executive Summary
 
 This document outlines the technical specification for implementing a 10-phase runtime hardening plan plus additional architectural layers for Oracle OS. The hardening effort ensures a single execution truth path: `intent → target resolution → policy check → verified execution → transition recording → graph/memory update`.
+
+This plan is a detailed implementation spec that lives under `plans/`. Source and test links in this document are repo-relative from that directory, and the current high-level architecture/status references live in [../docs/README.md](../docs/README.md) and [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Table of Contents
 
@@ -84,8 +88,8 @@ Strengthen RuntimeOrchestrator as the single authoritative coordinator, removing
 
 | File | Action |
 |------|--------|
-| [`RuntimeOrchestrator.swift`](Sources/OracleOS/Runtime/RuntimeOrchestrator.swift) | Remove duplicate pipeline; delegate to VerifiedExecutor |
-| [`VerifiedExecutor.swift`](Sources/OracleOS/Execution/VerifiedExecutor.swift) | Ensure complete pipeline implementation |
+| [`RuntimeOrchestrator.swift`](../Sources/OracleOS/Runtime/RuntimeOrchestrator.swift) | Remove duplicate pipeline; delegate to VerifiedExecutor |
+| [`VerifiedExecutor.swift`](../Sources/OracleOS/Execution/VerifiedExecutor.swift) | Ensure complete pipeline implementation |
 
 ### Current State Issues
 
@@ -139,8 +143,8 @@ Remove all alternate execution paths that bypass VerifiedExecutor, particularly 
 
 | File | Action |
 |------|--------|
-| [`CodeActionGateway.swift`](Sources/OracleOS/Runtime/CodeActionGateway.swift) | Deprecate or migrate logic to ToolDispatcher |
-| [`RuntimeExecutionDriver.swift`](Sources/OracleOS/Runtime/RuntimeExecutionDriver.swift) | Convert to intent translator |
+| [`CodeActionGateway.swift`](../Sources/OracleOS/Runtime/CodeActionGateway.swift) | Deprecate or migrate logic to ToolDispatcher |
+| [`RuntimeExecutionDriver.swift`](../Sources/OracleOS/Runtime/RuntimeExecutionDriver.swift) | Convert to intent translator |
 
 ### Current Bypass Paths
 
@@ -186,11 +190,11 @@ Ensure VerifiedExecutor is the ONLY layer allowed to produce side effects, with 
 
 | File | Status |
 |------|--------|
-| [`PreconditionsValidator.swift`](Sources/OracleOS/Execution/PreconditionsValidator.swift) | Must validate before execution |
-| [`SafetyValidator.swift`](Sources/OracleOS/Execution/SafetyValidator.swift) | Must check dangerous patterns |
-| [`CapabilityBinder.swift`](Sources/OracleOS/Execution/CapabilityBinder.swift) | Must bind capabilities |
-| [`ToolDispatcher.swift`](Sources/OracleOS/Execution/ToolDispatcher.swift) | Must be ONLY invocation point |
-| [`PostconditionsValidator.swift`](Sources/OracleOS/Execution/PostconditionsValidator.swift) | Must validate after execution |
+| [`PreconditionsValidator.swift`](../Sources/OracleOS/Execution/PreconditionsValidator.swift) | Must validate before execution |
+| [`SafetyValidator.swift`](../Sources/OracleOS/Execution/SafetyValidator.swift) | Must check dangerous patterns |
+| [`CapabilityBinder.swift`](../Sources/OracleOS/Execution/CapabilityBinder.swift) | Must bind capabilities |
+| [`ToolDispatcher.swift`](../Sources/OracleOS/Execution/ToolDispatcher.swift) | Must be ONLY invocation point |
+| [`PostconditionsValidator.swift`](../Sources/OracleOS/Execution/PostconditionsValidator.swift) | Must validate after execution |
 
 ### Pipeline Contract
 
@@ -246,9 +250,9 @@ Transform MainPlanner from god-object to route-only façade that delegates to sp
 
 | File | Action |
 |------|--------|
-| [`MainPlanner.swift`](Sources/OracleOS/Planning/MainPlanner.swift) | Extract to façade |
-| [`Planning/Strategies/`](Sources/OracleOS/Planning/Strategies/) | Expand with extracted logic |
-| [`PlanningContext.swift`](Sources/OracleOS/Runtime/PlanningContext.swift) | Move to Planning/ |
+| [`MainPlanner.swift`](../Sources/OracleOS/Planning/MainPlanner.swift) | Extract to façade |
+| [`Planning/Strategies/`](../Sources/OracleOS/Planning/Strategies/) | Expand with extracted logic |
+| [`PlanningContext.swift`](../Sources/OracleOS/Runtime/PlanningContext.swift) | Move to Planning/ |
 
 ### Current MainPlanner Responsibilities (to extract)
 
@@ -296,8 +300,8 @@ Narrow AgentLoop to orchestration-only, using RuntimeOrchestrator for all execut
 
 | File | Action |
 |------|--------|
-| [`AgentLoop.swift`](Sources/OracleOS/Execution/Loop/AgentLoop.swift) | Simplify to orchestrator wrapper |
-| [`AgentLoop+Run.swift`](Sources/OracleOS/Execution/Loop/AgentLoop+Run.swift) | Rewrite to use orchestrator spine |
+| [`AgentLoop.swift`](../Sources/OracleOS/Execution/Loop/AgentLoop.swift) | Simplify to orchestrator wrapper |
+| [`AgentLoop+Run.swift`](../Sources/OracleOS/Execution/Loop/AgentLoop+Run.swift) | Rewrite to use orchestrator spine |
 
 ### Current AgentLoop Issues
 
@@ -361,9 +365,9 @@ Ensure event sourcing is the ONLY state mutation path, with complete event histo
 
 | File | Action |
 |------|--------|
-| [`EventStore.swift`](Sources/OracleOS/Events/EventStore.swift) | Ensure append-only |
-| [`CommitCoordinator.swift`](Sources/OracleOS/Events/CommitCoordinator.swift) | Ensure single mutation gate |
-| [`StateReducers/`](Sources/OracleOS/State/Reducers/) | Ensure pure derivation |
+| [`EventStore.swift`](../Sources/OracleOS/Events/EventStore.swift) | Ensure append-only |
+| [`CommitCoordinator.swift`](../Sources/OracleOS/Events/CommitCoordinator.swift) | Ensure single mutation gate |
+| [`StateReducers/`](../Sources/OracleOS/State/Reducers/) | Ensure pure derivation |
 
 ### Event Contract
 
@@ -403,8 +407,8 @@ Break monolithic Actions.swift into focused command modules.
 
 | File | Action |
 |------|--------|
-| [`Commands/`](Sources/OracleOS/Commands/) | Create command type modules |
-| [`Intent/Actions/Actions.swift`](Sources/OracleOS/Intent/Actions/Actions.swift) | Split or deprecate |
+| [`Commands/`](../Sources/OracleOS/Commands/) | Create command type modules |
+| [`Intent/Actions/Actions.swift`](../Sources/OracleOS/Intent/Actions/Actions.swift) | Split or deprecate |
 
 ### Split Plan
 
@@ -435,8 +439,8 @@ Ensure Controller (OracleController) only interacts through IntentAPI, not inter
 
 | File | Action |
 |------|--------|
-| [`ControllerRuntimeBridge.swift`](Sources/OracleControllerHost/ControllerRuntimeBridge.swift) | Audit and restrict |
-| [`IntentAPI.swift`](Sources/OracleOS/API/IntentAPI.swift) | Ensure complete interface |
+| [`ControllerRuntimeBridge.swift`](../Sources/OracleControllerHost/ControllerRuntimeBridge.swift) | Audit and restrict |
+| [`IntentAPI.swift`](../Sources/OracleOS/API/IntentAPI.swift) | Ensure complete interface |
 
 ### Boundary Rules
 
@@ -472,11 +476,11 @@ Implement comprehensive governance tests that enforce architectural boundaries.
 
 | File | Action |
 |------|--------|
-| [`ExecutionBoundaryTests.swift`](Tests/OracleOSTests/Governance/ExecutionBoundaryTests.swift) | Real assertions |
-| [`StateMutationTests.swift`](Tests/OracleOSTests/Governance/StateMutationTests.swift) | Scan for banned patterns |
-| [`LayerImportRulesTests.swift`](Tests/OracleOSTests/Governance/LayerImportRulesTests.swift) | Scan import statements |
-| [`ControllerBoundaryTests.swift`](Tests/OracleOSTests/Governance/ControllerBoundaryTests.swift) | Verify IntentAPI only |
-| [`EventHistoryInvariantTests.swift`](Tests/OracleOSTests/Governance/EventHistoryInvariantTests.swift) | Verify ancestry |
+| [`ExecutionBoundaryTests.swift`](../Tests/OracleOSTests/Governance/ExecutionBoundaryTests.swift) | Real assertions |
+| [`StateMutationTests.swift`](../Tests/OracleOSTests/Governance/StateMutationTests.swift) | Scan for banned patterns |
+| [`LayerImportRulesTests.swift`](../Tests/OracleOSTests/Governance/LayerImportRulesTests.swift) | Scan import statements |
+| [`ControllerBoundaryTests.swift`](../Tests/OracleOSTests/Governance/ControllerBoundaryTests.swift) | Verify IntentAPI only |
+| [`EventHistoryInvariantTests.swift`](../Tests/OracleOSTests/Governance/EventHistoryInvariantTests.swift) | Verify ancestry |
 
 ### Test Strategy
 
@@ -527,7 +531,7 @@ Remove legacy migration code and compatibility shims after hardening complete.
 **Purpose**: Central registry for all available actions with metadata.
 
 **Components**:
-- [`SkillRegistry.swift`](Sources/OracleOS/Skills/SkillRegistry.swift) - Existing
+- [`SkillRegistry.swift`](../Sources/OracleOS/Skills/SkillRegistry.swift) - Existing
 - NEW: ActionRegistry wrapper with governance metadata
 
 **Interface**:
@@ -544,8 +548,8 @@ public protocol ActionRegistry: Sendable {
 **Purpose**: Centralized policy decision making.
 
 **Components**:
-- [`SafetyPolicy.swift`](Sources/OracleOS/Policy/SafetyPolicy.swift) - Existing stub
-- [`CapabilityPolicy.swift`](Sources/OracleOS/Policy/CapabilityPolicy.swift) - Existing stub
+- [`SafetyPolicy.swift`](../Sources/OracleOS/Policy/SafetyPolicy.swift) - Existing stub
+- [`CapabilityPolicy.swift`](../Sources/OracleOS/Policy/CapabilityPolicy.swift) - Existing stub
 - NEW: UnifiedPolicyEngine
 
 **Interface**:
@@ -561,7 +565,7 @@ public protocol PolicyEngine: Sendable {
 **Purpose**: Typed, versioned event definitions.
 
 **Components**:
-- [`EventEnvelope.swift`](Sources/OracleOS/Events/EventEnvelope.swift) - Existing
+- [`EventEnvelope.swift`](../Sources/OracleOS/Events/EventEnvelope.swift) - Existing
 - NEW: Typed event definitions per domain
 
 **Schema Categories**:
@@ -575,7 +579,7 @@ public protocol PolicyEngine: Sendable {
 **Purpose**: Durable event storage and state snapshots.
 
 **Components**:
-- [`EventStore.swift`](Sources/OracleOS/Events/EventStore.swift) - In-memory, needs persistence
+- [`EventStore.swift`](../Sources/OracleOS/Events/EventStore.swift) - In-memory, needs persistence
 - NEW: PersistentEventStore adapter
 
 **Interface**:
@@ -592,7 +596,7 @@ public protocol PersistentEventStore: Sendable {
 **Purpose**: Runtime safety guarantees.
 
 **Components**:
-- [`SafetyValidator.swift`](Sources/OracleOS/Execution/SafetyValidator.swift) - Expand
+- [`SafetyValidator.swift`](../Sources/OracleOS/Execution/SafetyValidator.swift) - Expand
 - NEW: SafetyPolicy enforcement layer
 
 ### Capability Sandboxing
@@ -600,7 +604,7 @@ public protocol PersistentEventStore: Sendable {
 **Purpose**: Limit action capabilities based on context.
 
 **Components**:
-- [`CapabilityBinder.swift`](Sources/OracleOS/Execution/CapabilityBinder.swift) - Expand
+- [`CapabilityBinder.swift`](../Sources/OracleOS/Execution/CapabilityBinder.swift) - Expand
 - NEW: SandboxPolicy
 
 ### Learning
@@ -608,7 +612,7 @@ public protocol PersistentEventStore: Sendable {
 **Purpose**: Experience accumulation and pattern discovery.
 
 **Components**:
-- [`Learning/`](Sources/OracleOS/Learning/) - Existing modules
+- [`Learning/`](../Sources/OracleOS/Learning/) - Existing modules
 - NEW: UnifiedLearningCoordinator
 
 ### Multi-agent
@@ -624,7 +628,7 @@ public protocol PersistentEventStore: Sendable {
 **Purpose**: User-facing controller interface.
 
 **Components**:
-- [`OracleController/`](Sources/OracleController/) - Existing
+- [`OracleController/`](../Sources/OracleController/) - Existing
 - NEW: Diagnostics UI
 
 ---

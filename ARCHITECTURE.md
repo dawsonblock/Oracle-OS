@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD040 MD060 -->
+
 # Oracle OS Architecture
 
-This document describes the current runtime layers and how they satisfy the governance contract in [GOVERNANCE.md](GOVERNANCE.md).
+This document describes the current runtime layers and how they satisfy the governance contract in [docs/GOVERNANCE.md](docs/GOVERNANCE.md).
 
 ## Core Spine
 

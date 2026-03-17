@@ -1,32 +1,24 @@
-<div align="center">
-
-<img src=".github/assets/oracle_os_logo.png" width="180" alt="Oracle OS Logo" />
-
 # Oracle OS
+
+![Oracle OS Logo](.github/assets/oracle_os_logo.png)
 
 **A safe, local macOS operator runtime with a shared dual-agent substrate.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)]()
+![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138.svg)](https://swift.org)
-[![MCP Tools](https://img.shields.io/badge/MCP%20Tools-22-8A2BE2.svg)]()
+![MCP Tools](https://img.shields.io/badge/MCP%20Tools-22-8A2BE2.svg)
 
-[Quick Start](#-quick-start) · [Features](#-features) · [Architecture](#-architecture) · [MCP Tools](#-mcp-tool-surface) · [Contributing](CONTRIBUTING.md)
-
-</div>
+[Quick Start](#-quick-start) · [Features](#-features) · [Architecture](#-architecture) · [MCP Tools](#-mcp-tool-surface) · [Docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 
 Oracle OS runs two agents on a single execution core — one controls your Mac, the other writes your code — sharing a unified trust boundary, policy engine, and verified execution path.
 
-<div align="center">
-
 | | |
-|:---:|:---:|
+| :---: | :---: |
 | ![Demo](demo.gif) | ![Recipes Demo](demo-recipes.gif) |
 | *macOS operator agent in action* | *Replayable recipe execution* |
-
-</div>
 
 ## 📖 Table of Contents
 
@@ -36,7 +28,7 @@ Oracle OS runs two agents on a single execution core — one controls your Mac, 
 - [Safety Model](#-safety-model)
 - [MCP Tool Surface](#-mcp-tool-surface)
 - [Oracle Controller](#-oracle-controller)
-- [How It Works](#-how-it-works)
+- [How It Works](#how-it-works)
 - [Repository Layout](#-repository-layout)
 - [Development](#-development)
 - [Roadmap](#-roadmap)
@@ -51,6 +43,13 @@ git clone https://github.com/dawsonblock/Oracle-OS.git
 cd Oracle-OS
 swift build
 
+# First-time setup
+./.build/debug/oracle setup
+./.build/debug/oracle doctor
+```
+
+Current highlights:
+
 - 22 public MCP tools remain available under stable `oracle_*` names
 - native local controller and bundled host process are working
 - verified execution is active for the core interaction actions
@@ -61,10 +60,6 @@ swift build
 - code-domain execution uses a workspace-scoped runner instead of unsafe shell UI control
 - project memory, experiment fanout, and architecture review are implemented as bounded upper layers
 - Reasoning Layer: Multi-coordinator architecture for decision, execution, learning, and recovery
-# First-time setup
-./.build/debug/oracle setup
-./.build/debug/oracle doctor
-```
 
 > **Requirements:** macOS 14+, Swift 5.9+, Accessibility and Screen Recording permissions.
 
@@ -120,8 +115,7 @@ Every action flows through:
 
 This makes the system slower to overclaim and harder to poison with weak evidence. For full details see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-<details>
-<summary><strong>Core runtime layers</strong></summary>
+### Core runtime layers
 
 #### Observation & Planning State
 
@@ -139,20 +133,17 @@ Transitions are recorded into a SQLite-backed graph with tiered knowledge: `expl
 
 OS-domain planning (graph-backed UI interaction, ranked targets, verified execution) and code-domain planning (repo indexing, patch/build/test loops, workspace-scoped execution) hand off seamlessly in one bounded loop.
 
-</details>
-
 ## 🛡 Safety Model
 
 Oracle OS is intentionally conservative. Ambiguous policy states fail closed.
 
 | | Examples |
-|---|---|
+| --- | --- |
 | ✅ **Allowed** | Observation, inspection, safe navigation, workspace reads, local build/test/lint, safe git (`status`, `diff`, `branch`, `commit`) |
 | 🔐 **Approval-gated** | Send/submit flows, purchase interactions, destructive file ops, `git push`, sensitive config changes |
 | 🚫 **Blocked** | Terminal/shell UI control, arbitrary shell strings, writes outside workspace, force push, system file mutation |
 
-<details>
-<summary><strong>Governance contract</strong></summary>
+### Governance contract
 
 - One hard execution truth path
 - Reusable knowledge separated from episode residue
@@ -160,20 +151,18 @@ Oracle OS is intentionally conservative. Ambiguous policy states fail closed.
 - Recovery treated as a first-class mode
 - Architecture growth gated by eval and governance coverage
 
-See [GOVERNANCE.md](GOVERNANCE.md) for the full normative contract.
-
-</details>
+See [docs/GOVERNANCE.md](docs/GOVERNANCE.md) for the full normative contract.
 
 ## 🔌 MCP Tool Surface
 
 Oracle OS exposes **22 stable public MCP tools** under `oracle_*` names:
 
 | Category | Tools |
-|---|---|
+| --- | --- |
 | **Perception** | `oracle_context` · `oracle_state` · `oracle_find` · `oracle_read` · `oracle_inspect` · `oracle_element_at` · `oracle_screenshot` |
 | **Actions** | `oracle_click` · `oracle_type` · `oracle_press` · `oracle_hotkey` · `oracle_scroll` · `oracle_focus` · `oracle_window` |
 | **Vision** | `oracle_ground` · `oracle_parse_screen` |
-| **Diaoracle-os** | `oracle_wait` · `oracle_permissions` · `oracle_doctor` |
+| **Diagnostics** | `oracle_wait` · `oracle_permissions` · `oracle_doctor` |
 | **Recipes** | `oracle_recipes` · `oracle_run` · `oracle_recipe_show` · `oracle_recipe_save` · `oracle_recipe_delete` |
 
 ## 🎛 Oracle Controller
@@ -193,10 +182,9 @@ The controller surfaces operator controls, recipe execution, trace inspection, p
 
 More details: [docs/oracle-controller.md](docs/oracle-controller.md)
 
-## ⚙️ How It Works
+## How It Works
 
-<details>
-<summary><strong>macOS task execution</strong></summary>
+### macOS task execution
 
 1. Observe the frontmost app and UI state
 2. Abstract the state into reusable planning state
@@ -207,10 +195,7 @@ More details: [docs/oracle-controller.md](docs/oracle-controller.md)
 7. Classify success / failure
 8. Record trace and update graph / memory
 
-</details>
-
-<details>
-<summary><strong>Code task execution</strong></summary>
+### Code task execution
 
 1. Classify the goal as code-domain or mixed
 2. Index the current workspace
@@ -221,61 +206,35 @@ More details: [docs/oracle-controller.md](docs/oracle-controller.md)
 7. Replay the selected winner through the primary runtime path
 8. Record trace, graph, and memory updates
 
-</details>
-
-<details>
-<summary><strong>Project memory</strong></summary>
+### Project memory
 
 Engineering memory — not chat memory. Canonical Markdown in [`ProjectMemory/`](ProjectMemory) covering architecture decisions, open problems, rejected approaches, known-good patterns, risks, and roadmap state. The runtime writes draft records only; promotion to accepted memory is deliberate.
 
-</details>
-
-<details>
-<summary><strong>Parallel experiments</strong></summary>
+### Parallel experiments
 
 Code tasks fan out into bounded candidate experiments (default: 3) using git worktrees. Candidates are ranked by: passing build/tests → fewer touched files → smaller diff → lower architecture risk → lower latency. Only the selected candidate, replayed in the primary workspace, can become stable graph knowledge.
-
-</details>
 
 ## 📁 Repository Layout
 
 ```text
-ProjectMemory/                  canonical project memory
-Sources/OracleOS/
-  Runtime/                      runtime spine, loop, routing, task context
-  Core/
-    Observation/                canonical observations and fusion
-    PlanningState/              reusable planning state abstraction
-    Execution/                  verified execution boundary + critic integration
-    ExecutionSemantics/         action contracts and verified transitions
-    Policy/                     gating and approvals
-    Ranking/                    ranked target resolution
-    Trace/                      structured traces and artifacts
-    World/                      shared world view
-  StateAbstraction/             compressed semantic UI state
-  ActionSchema/                 typed action schemas with pre/postconditions
-  Critic/                       self-evaluation loop (SUCCESS/PARTIAL/FAILURE/UNKNOWN)
-  PlanningGraph/                deterministic planning graph for action selection
-  TraceReplay/                  execution replay and divergence detection
-  StateMemory/                  compressed state caching and reuse
-  Graph/                        candidate/stable graph + SQLite persistence
-  TaskGraph/                    runtime task tracking
-  CodeExecution/                workspace-scoped command runner
-  CodeIntelligence/             repository indexing and structural queries
-  Experiments/                  git worktree experiment fanout
-  Architecture/                 advisory architecture analysis
-  ProjectMemory/                runtime-facing project-memory index/query/store
-  Agent/
-    Planning/                   OS/code/mixed planning
-    Skills/                     OS skills and code skills
-    Recovery/                   runtime and code recovery logic
-  Learning/Memory/              lightweight bias memory
-  MCP/                          MCP surface
-Sources/OracleController/       native local controller UI
-Sources/OracleControllerHost/   local host process for controller
-Tests/OracleOSTests/            unit/runtime contract tests
-Tests/OracleOSEvals/            repeated task eval harness with baseline regression detection
+AppResources/                   controller assets, entitlements, and release notes
+docs/                           status, governance, rollout, and architecture docs
+plans/                          active implementation plans and checklists
+ProjectMemory/                  canonical project memory records
+recipes/                        replayable JSON workflow recipes
+scripts/                        build, packaging, and release helpers
+Sources/
+  OracleOS/                     runtime, planning, tools, memory, and execution core
+  OracleController/             native local controller UI
+  OracleControllerHost/         bundled host process for the controller
+  OracleControllerShared/       shared controller models and protocols
+  oracle/                       CLI entrypoints and setup tooling
+Tests/                          controller tests, runtime tests, evals, and fixtures
+vision-sidecar/                 optional Python vision service
+web/                            frontend assets and Vite app
 ```
+
+See [docs/README.md](docs/README.md) for a guided documentation index.
 
 ## 🔧 Development
 
@@ -300,7 +259,7 @@ open OracleController.xcworkspace   # open controller in Xcode
 Oracle OS is on the path from **safe local operator + bounded coding agent** toward a **project-carrying engineering runtime**.
 
 | Status | Area |
-|:---:|---|
+| :---: | --- |
 | ✅ | Verified execution with pre/post observation |
 | ✅ | Planning-state abstraction over raw observations |
 | ✅ | SQLite-backed graph learning with trust tiers |
@@ -314,7 +273,7 @@ Oracle OS is on the path from **safe local operator + bounded coding agent** tow
 | 🔜 | Workflow synthesis and promotion from traces |
 | 🔜 | Belief-state reasoning and learned policies |
 
-See [STATUS.md](STATUS.md), [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md), and [docs/progress.md](docs/progress.md) for detailed tracking.
+See [docs/STATUS.md](docs/STATUS.md), [docs/ARCHITECTURE_STATUS.md](docs/ARCHITECTURE_STATUS.md), and [docs/progress.md](docs/progress.md) for detailed tracking.
 
 ## 🤝 Contributing
 
