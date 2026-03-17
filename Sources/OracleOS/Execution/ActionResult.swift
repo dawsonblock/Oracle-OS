@@ -165,9 +165,9 @@ extension RuntimeOrchestrator {
         toolName: String?,
         approvalRequestID: String?,
         intent: ActionIntent,
-        action: () -> ToolResult
+        action: @MainActor () -> ToolResult
     ) -> ToolResult {
-        return action()
+        return MainActor.assumeIsolated { action() }
     }
 
     /// Legacy synchronous performAction bridge (full metadata form) for RuntimeExecutionDriver.swift.
@@ -197,8 +197,8 @@ extension RuntimeOrchestrator {
         architectureFindings: [String]? = nil,
         refactorProposalID: String? = nil,
         knowledgeTier: KnowledgeTier? = nil,
-        action: () -> ToolResult
+        action: @MainActor () -> ToolResult
     ) -> ToolResult {
-        return action()
+        return MainActor.assumeIsolated { action() }
     }
 }
