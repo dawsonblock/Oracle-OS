@@ -5,12 +5,20 @@ import Foundation
 public actor RuntimeOrchestrator: IntentAPI {
     private let eventStore: EventStore
     private let commitCoordinator: CommitCoordinator
+    // LEGACY: remove when performAction is eliminated
     private let preconditionsValidator: PreconditionsValidator
+    // LEGACY: remove when performAction is eliminated
     private let safetyValidator: SafetyValidator
+    // LEGACY: remove when performAction is eliminated
     private let toolDispatcher: ToolDispatcher
+    // LEGACY: remove when performAction is eliminated
     private let postconditionsValidator: PostconditionsValidator
+    // LEGACY: remove when performAction is eliminated
     private let capabilityBinder: CapabilityBinder
     nonisolated(unsafe) public var _legacyContext: RuntimeContext?
+
+    /// The authoritative execution delegate — only layer allowed to produce side effects.
+    private let verifiedExecutor: VerifiedExecutor
 
     public init(
         eventStore: EventStore,
@@ -30,6 +38,13 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.postconditionsValidator = postconditionsValidator
         self.capabilityBinder = capabilityBinder
         self._legacyContext = context
+        self.verifiedExecutor = VerifiedExecutor(
+            preconditionsValidator: preconditionsValidator,
+            safetyValidator: safetyValidator,
+            capabilityBinder: capabilityBinder,
+            toolDispatcher: toolDispatcher,
+            postconditionsValidator: postconditionsValidator
+        )
     }
 
     /// Backward-compatibility initializer for callers that only have a RuntimeContext.
@@ -42,6 +57,7 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
         self._legacyContext = context
+        self.verifiedExecutor = VerifiedExecutor()
     }
 
     /// PHASE 1: Decide — invoke planner to produce a Command
@@ -50,114 +66,27 @@ public actor RuntimeOrchestrator: IntentAPI {
         return try await planner.plan(intent: intent, context: context)
     }
 
-    /// PHASE 2: Execute — VerifiedExecutor pipeline
+    /// PHASE 2: Execute — delegates to VerifiedExecutor (the single side-effect layer)
     public func execute(_ command: any Command, state: WorldStateModel) async throws -> ExecutionOutcome {
-        // Phase 1: Preconditions
-        do {
-            guard try preconditionsValidator.validate(command, state: state) else {
-                return ExecutionOutcome(
-                    commandID: command.id,
-                    status: .preconditionFailed,
-                    events: [],
-                    verifierReport: VerifierReport(
-                        commandID: command.id,
-                        preconditionsPassed: false,
-                        policyDecision: "blocked",
-                        postconditionsPassed: false
-                    )
-                )
-            }
-        } catch {
-            return ExecutionOutcome(
-                commandID: command.id,
-                status: .preconditionFailed,
-                events: [],
-                verifierReport: VerifierReport(
-                    commandID: command.id,
-                    preconditionsPassed: false,
-                    policyDecision: error.localizedDescription,
-                    postconditionsPassed: false,
-                    notes: [error.localizedDescription]
-                )
-            )
-        }
-        
-        // Phase 2: Safety check
-        let safety = safetyValidator.isSafe(command, state: state)
-        guard safety.safe else {
-            return ExecutionOutcome(
-                commandID: command.id,
-                status: .policyBlocked,
-                events: [],
-                verifierReport: VerifierReport(
-                    commandID: command.id,
-                    preconditionsPassed: true,
-                    policyDecision: safety.reason,
-                    postconditionsPassed: false,
-                    notes: [safety.reason]
-                )
-            )
-        }
-        
-        // Phase 3: Bind capabilities and dispatch
-        let capabilities = try capabilityBinder.bind(command)
-        let (observations, artifacts) = try await toolDispatcher.dispatch(command, capabilities: capabilities)
-        
-        // Phase 4: Determine actual execution status based on results
-        let executionStatus: ExecutionStatus
-        let postconditionsPassed: Bool
-        
-        // Check if actual execution occurred
-        if observations.isEmpty && artifacts.isEmpty {
-            // No execution results - command was not actually run
-            executionStatus = .failed
-            postconditionsPassed = false
-        } else {
-            // Execution occurred - check postconditions
-            let initialOutcome = ExecutionOutcome(
-                commandID: command.id,
-                status: .success,
-                observations: observations,
-                artifacts: artifacts,
-                events: [],
-                verifierReport: VerifierReport(
-                    commandID: command.id,
-                    preconditionsPassed: true,
-                    policyDecision: "approved",
-                    postconditionsPassed: true
-                )
-            )
-            
-            // Validate postconditions
-            do {
-                if try postconditionsValidator.validate(command, outcome: initialOutcome) {
-                    executionStatus = .success
-                    postconditionsPassed = true
-                } else {
-                    executionStatus = .postconditionFailed
-                    postconditionsPassed = false
-                }
-            } catch {
-                executionStatus = .postconditionFailed
-                postconditionsPassed = false
-            }
-        }
-        
-        // Build events from completed action
-        let events: [EventEnvelope] = buildEvents(from: command, observations: observations, artifacts: artifacts, status: executionStatus)
-        
+        // Delegate the full validation + dispatch pipeline to VerifiedExecutor
+        let rawOutcome = try await verifiedExecutor.execute(command, state: state)
+
+        // Build event envelopes from the outcome
+        let events = buildEvents(
+            from: command,
+            observations: rawOutcome.observations,
+            artifacts: rawOutcome.artifacts,
+            status: rawOutcome.status
+        )
+
+        // Return a new outcome with events attached
         return ExecutionOutcome(
-            commandID: command.id,
-            status: executionStatus,
-            observations: observations,
-            artifacts: artifacts,
+            commandID: rawOutcome.commandID,
+            status: rawOutcome.status,
+            observations: rawOutcome.observations,
+            artifacts: rawOutcome.artifacts,
             events: events,
-            verifierReport: VerifierReport(
-                commandID: command.id,
-                preconditionsPassed: true,
-                policyDecision: "approved",
-                postconditionsPassed: postconditionsPassed
-            )
+            verifierReport: rawOutcome.verifierReport
         )
     }
     
