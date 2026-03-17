@@ -21,7 +21,9 @@ public enum MCPDispatch {
         traceStore: traceStore,
         artifactWriter: failureArtifactWriter
     )
-    private static let runtime = RuntimeOrchestrator(context: runtimeContext)
+    private static let eventStore = EventStore()
+    private static let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
+    private static let runtime = RuntimeOrchestrator(eventStore: eventStore, commitCoordinator: commitCoordinator)
 
     /// Handle a tools/call request. Returns MCP-formatted result.
     /// Wraps every tool call in a timeout so no single tool can block

@@ -127,3 +127,6 @@ public struct ActionResult: Sendable, Codable {
         )
     }
 }
+
+/// Backward-compatibility alias: VerifiedExecutor was previously named VerifiedActionExecutor.
+public typealias VerifiedActionExecutor = VerifiedExecutor
