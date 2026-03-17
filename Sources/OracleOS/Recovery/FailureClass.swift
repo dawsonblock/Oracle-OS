@@ -20,4 +20,5 @@ public enum FailureClass: String, Codable, Sendable {
     case unexpectedDialog
     case environmentMismatch
     case workflowReplayFailure
+    case loopStalled
 }

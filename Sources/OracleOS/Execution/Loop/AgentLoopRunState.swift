@@ -6,4 +6,5 @@ struct AgentLoopRunState {
     var diagnostics = LoopDiagnostics.empty
     var budgetState = LoopBudgetState()
     var recentFailureCount: Int = 0
+    var consecutiveStallCount: Int = 0
 }

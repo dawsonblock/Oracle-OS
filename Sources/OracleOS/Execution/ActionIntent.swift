@@ -1,4 +1,4 @@
-public struct ActionIntent: Sendable, Codable {
+public struct ActionIntent: Sendable, Codable, Equatable {
     public let agentKind: AgentKind
     public let app: String
     public let name: String

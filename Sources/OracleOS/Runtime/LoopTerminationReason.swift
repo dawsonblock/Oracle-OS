@@ -9,6 +9,7 @@ public enum LoopTerminationReason: String, Codable, Sendable {
     case unrecoverableFailure
     case explorationBudgetExceeded
     case lowConfidenceRepeatedFailure
+    case loopStalled
 }
 
 public struct LoopOutcome: Sendable {

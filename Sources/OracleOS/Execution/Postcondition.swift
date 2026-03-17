@@ -1,4 +1,4 @@
-public enum Postcondition: Codable, Sendable {
+public enum Postcondition: Codable, Sendable, Equatable {
 
     case elementFocused(String)
     case elementValueEquals(String, String)

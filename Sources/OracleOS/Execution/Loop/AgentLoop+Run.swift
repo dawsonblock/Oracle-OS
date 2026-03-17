@@ -28,6 +28,29 @@ extension AgentLoop {
             // over the authoritative committed snapshot, not raw perception data.
             worldModel.reset(from: stateBundle.worldState)
             
+            // ── Stall Detection ──
+            if let lastState = runState.latestWorldState, 
+               lastState.observationHash == stateBundle.worldState.observationHash,
+               let lastAction = runState.lastAction,
+               lastAction == decision.intent {
+                runState.consecutiveStallCount += 1
+            } else {
+                runState.consecutiveStallCount = 0
+            }
+
+            if runState.consecutiveStallCount >= budget.maxConsecutiveStalls {
+                runState.diagnostics.recordTermination(stepIndex: stepIndex, reason: .loopStalled)
+                return finalize(
+                    reason: .loopStalled,
+                    finalWorldState: stateBundle.worldState,
+                    steps: stepIndex,
+                    lastFailure: .actionFailed,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            }
+
             if decisionCoordinator.goalReached(in: stateBundle) {
                 return finalize(
                     reason: .goalAchieved,

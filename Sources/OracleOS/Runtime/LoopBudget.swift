@@ -7,6 +7,7 @@ public struct LoopBudget: Sendable {
     public let maxPatchIterations: Int
     public let maxBuildAttempts: Int
     public let maxTestAttempts: Int
+    public let maxConsecutiveStalls: Int
 
     public init(
         maxSteps: Int = 25,
@@ -14,7 +15,8 @@ public struct LoopBudget: Sendable {
         maxConsecutiveExplorationSteps: Int = 3,
         maxPatchIterations: Int = 5,
         maxBuildAttempts: Int = 5,
-        maxTestAttempts: Int = 5
+        maxTestAttempts: Int = 5,
+        maxConsecutiveStalls: Int = 3
     ) {
         self.maxSteps = maxSteps
         self.maxRecoveries = maxRecoveries
@@ -22,6 +24,7 @@ public struct LoopBudget: Sendable {
         self.maxPatchIterations = maxPatchIterations
         self.maxBuildAttempts = maxBuildAttempts
         self.maxTestAttempts = maxTestAttempts
+        self.maxConsecutiveStalls = maxConsecutiveStalls
     }
 }
 
