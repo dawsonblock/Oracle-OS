@@ -34,6 +34,10 @@ func main() async {
         var doctor = Doctor()
         doctor.run()
 
+    case "dashboard":
+        let dash = Dashboard()
+        dash.run()
+
     case "status":
         printStatus()
 
@@ -87,11 +91,12 @@ func printUsage() {
     Usage: oracle <command>
 
     Commands:
-      mcp       Start the MCP server (used by Claude Code)
-      setup     Interactive setup wizard (first-time configuration)
-      doctor    Diagnose issues and suggest fixes
-      status    Quick health check
-      version   Print version
+      mcp         Start the MCP server (used by Claude Code)
+      setup       Interactive setup wizard (first-time configuration)
+      doctor      Diagnose issues and suggest fixes
+      dashboard   Live terminal dashboard (agent state, policy, metrics)
+      status      Quick health check
+      version     Print version
 
     Get started:
       oracle setup    Configure permissions and MCP
