@@ -96,6 +96,10 @@ rsync -a \
     --exclude ".venv" \
     --exclude ".mypy_cache" \
     --exclude "__pycache__" \
+    --exclude "tests" \
+    --exclude "docs" \
+    --exclude "*.md" \
+    --exclude "mypy.ini" \
     "$PROJECT_ROOT/vision-sidecar/" \
     "$RESOURCES_DIR/VisionBootstrap/vision-sidecar/"
 
