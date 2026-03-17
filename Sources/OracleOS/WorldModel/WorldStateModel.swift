@@ -77,6 +77,7 @@ public final class WorldStateModel: @unchecked Sendable {
 /// An immutable snapshot of the world model at a point in time.
 public struct WorldModelSnapshot: Sendable {
     public let timestamp: Date
+    public let cycleCount: Int
     public let activeApplication: String?
     public let windowTitle: String?
     public let url: String?
@@ -96,6 +97,7 @@ public struct WorldModelSnapshot: Sendable {
 
     public init(
         timestamp: Date = Date(),
+        cycleCount: Int = 0,
         activeApplication: String? = nil,
         windowTitle: String? = nil,
         url: String? = nil,
@@ -114,6 +116,7 @@ public struct WorldModelSnapshot: Sendable {
         notes: [String] = []
     ) {
         self.timestamp = timestamp
+        self.cycleCount = cycleCount
         self.activeApplication = activeApplication
         self.windowTitle = windowTitle
         self.url = url
@@ -169,6 +172,7 @@ public struct WorldModelSnapshot: Sendable {
     ) -> WorldModelSnapshot {
         WorldModelSnapshot(
             timestamp: Date(),
+            cycleCount: self.cycleCount,
             activeApplication: activeApplication ?? self.activeApplication,
             windowTitle: windowTitle ?? self.windowTitle,
             url: url ?? self.url,

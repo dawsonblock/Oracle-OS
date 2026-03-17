@@ -7,7 +7,7 @@ public struct AXNodeScanner {
     public init() {}
     public func scan(pid: pid_t) throws -> [RawAXNode] { [] }
 }
-public struct RawAXNode: Sendable {
+public struct RawAXNode: @unchecked Sendable {
     public let ref: AnyObject
     public let role: String
     public let title: String?

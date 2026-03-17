@@ -51,6 +51,29 @@ public actor RuntimeOrchestrator: IntentAPI {
         )
     }
 
+    public init(
+        eventStore: EventStore,
+        commitCoordinator: CommitCoordinator,
+        context: RuntimeContext? = nil
+    ) {
+        self.eventStore = eventStore
+        self.commitCoordinator = commitCoordinator
+        self.planner = MainPlanner()
+        self.preconditionsValidator = PreconditionsValidator()
+        self.safetyValidator = SafetyValidator()
+        self.toolDispatcher = ToolDispatcher()
+        self.postconditionsValidator = PostconditionsValidator()
+        self.capabilityBinder = CapabilityBinder()
+        self._legacyContext = context
+        self.verifiedExecutor = VerifiedExecutor(
+            preconditionsValidator: self.preconditionsValidator,
+            safetyValidator: self.safetyValidator,
+            capabilityBinder: self.capabilityBinder,
+            toolDispatcher: self.toolDispatcher,
+            postconditionsValidator: self.postconditionsValidator
+        )
+    }
+
     /// Backward-compatibility initializer for callers that only have a RuntimeContext.
     public init(context: RuntimeContext, planner: any Planner) {
         self.eventStore = EventStore()

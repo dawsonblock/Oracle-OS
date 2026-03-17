@@ -2,7 +2,7 @@ import Foundation
 
 /// Validates preconditions before command execution.
 /// Returns false if required conditions are not met.
-public struct PreconditionsValidator {
+public struct PreconditionsValidator: Sendable {
     public init() {}
     
     public func validate(_ command: any Command, state: WorldStateModel) throws -> Bool {

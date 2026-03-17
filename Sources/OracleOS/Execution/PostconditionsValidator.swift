@@ -2,7 +2,7 @@ import Foundation
 
 /// Validates postconditions after command execution.
 /// Returns true if expected outcomes were achieved, false otherwise.
-public struct PostconditionsValidator {
+public struct PostconditionsValidator: Sendable {
     public init() {}
     
     public func validate(_ command: any Command, outcome: ExecutionOutcome) throws -> Bool {

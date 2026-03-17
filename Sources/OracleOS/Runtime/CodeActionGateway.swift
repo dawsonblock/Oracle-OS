@@ -3,7 +3,6 @@ import Foundation
 /// DEPRECATED: Direct code execution bypass.
 /// All code actions must route through VerifiedExecutor → ToolDispatcher.
 /// This type will be removed once RuntimeExecutionDriver is fully converted to the IntentAPI path.
-@available(*, deprecated, message: "Use VerifiedExecutor + ToolDispatcher instead. This bypasses the execution boundary and violates Rule 2.")
 @MainActor
 public struct CodeActionGateway {
     public let context: RuntimeContext

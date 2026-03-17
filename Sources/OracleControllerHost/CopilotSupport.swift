@@ -2,6 +2,30 @@ import Foundation
 import OracleControllerShared
 import OracleOS
 
+private final class LockedDataBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+
+    func append(_ data: Data) {
+        lock.lock()
+        buffer.append(data)
+        lock.unlock()
+    }
+
+    func snapshot() -> Data {
+        lock.lock()
+        let data = buffer
+        lock.unlock()
+        return data
+    }
+
+    func reset() {
+        lock.lock()
+        buffer = Data()
+        lock.unlock()
+    }
+}
+
 enum ClaudeLocalCopilot {
     static let providerID = "claude-local"
 
@@ -100,16 +124,13 @@ enum ClaudeLocalCopilot {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        let outputLock = NSLock()
-        var accumulated = Data()
+        let accumulated = LockedDataBuffer()
 
         stdout.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
 
-            outputLock.lock()
             accumulated.append(data)
-            outputLock.unlock()
 
             if let chunk = String(data: data, encoding: .utf8), !chunk.isEmpty {
                 Task {
@@ -126,10 +147,7 @@ enum ClaudeLocalCopilot {
                     stdout.fileHandleForReading.readabilityHandler = nil
 
                     let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
-
-                    outputLock.lock()
-                    let outputData = accumulated
-                    outputLock.unlock()
+                    let outputData = accumulated.snapshot()
 
                     let text = String(data: outputData, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,9 +166,7 @@ enum ClaudeLocalCopilot {
                     let errorText = String(data: errorData, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    outputLock.lock()
-                    accumulated = Data()
-                    outputLock.unlock()
+                    accumulated.reset()
 
                     let message = errorText?.isEmpty == false
                         ? errorText!

@@ -4,10 +4,10 @@ import Foundation
 /// INVARIANT: No state write may bypass CommitCoordinator.
 public actor CommitCoordinator {
     private let eventStore: EventStore
-    private var reducers: [EventReducer]
+    private var reducers: [any EventReducer]
     private(set) var currentState: WorldStateModel
 
-    public init(eventStore: EventStore, reducers: [EventReducer], initialState: WorldStateModel = WorldStateModel()) {
+    public init(eventStore: EventStore, reducers: [any EventReducer], initialState: WorldStateModel = WorldStateModel()) {
         self.eventStore = eventStore
         self.reducers = reducers
         self.currentState = initialState
@@ -19,7 +19,7 @@ public actor CommitCoordinator {
         // Assign sequence numbers to envelopes before appending
         var numberedEnvelopes = envelopes
         for i in 0..<numberedEnvelopes.count {
-            let seq = try await eventStore.nextSequenceNumber()
+            let seq = await eventStore.nextSequenceNumber()
             // Create new envelope with sequence number (struct is immutable)
             let old = numberedEnvelopes[i]
             numberedEnvelopes[i] = EventEnvelope(

@@ -2,7 +2,7 @@ import Foundation
 
 /// Validates that a command is safe to execute under current system policy.
 /// Returns (safe: true, reason: "") if allowed, or (safe: false, reason: "") if blocked.
-public struct SafetyValidator {
+public struct SafetyValidator: Sendable {
     // Sensitive operations that require extra scrutiny
     private let sensitiveKinds: Set<String> = [
         "modifyFile", "launchApp", "openURL", "runBuild"
@@ -62,7 +62,7 @@ public struct SafetyValidator {
     }
 }
 
-enum SafetyResult {
+enum SafetyResult: Sendable {
     case allowed
     case blocked
     case warned

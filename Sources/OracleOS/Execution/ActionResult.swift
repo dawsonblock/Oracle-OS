@@ -152,6 +152,19 @@ public final class VerifiedActionExecutor: @unchecked Sendable {
     ) -> ToolResult {
         return action()
     }
+
+    public static func run(
+        intent: ActionIntent,
+        action: () -> ToolResult
+    ) -> ToolResult {
+        VerifiedActionExecutor().run(
+            taskID: nil,
+            toolName: nil,
+            intent: intent,
+            surface: .mcp,
+            action: action
+        )
+    }
 }
 
 extension RuntimeOrchestrator {
@@ -165,9 +178,25 @@ extension RuntimeOrchestrator {
         toolName: String?,
         approvalRequestID: String?,
         intent: ActionIntent,
-        action: @MainActor () -> ToolResult
+        action: @MainActor @Sendable () -> ToolResult
     ) -> ToolResult {
         return MainActor.assumeIsolated { action() }
+    }
+
+    public nonisolated func performAction(
+        surface: RuntimeSurface,
+        toolName: String?,
+        intent: ActionIntent,
+        action: @MainActor @Sendable () -> ToolResult
+    ) -> ToolResult {
+        performAction(
+            surface: surface,
+            taskID: nil,
+            toolName: toolName,
+            approvalRequestID: nil,
+            intent: intent,
+            action: action
+        )
     }
 
     /// Legacy synchronous performAction bridge (full metadata form) for RuntimeExecutionDriver.swift.
@@ -197,8 +226,65 @@ extension RuntimeOrchestrator {
         architectureFindings: [String]? = nil,
         refactorProposalID: String? = nil,
         knowledgeTier: KnowledgeTier? = nil,
-        action: @MainActor () -> ToolResult
+        action: @MainActor @Sendable () -> ToolResult
     ) -> ToolResult {
         return MainActor.assumeIsolated { action() }
+    }
+
+    public nonisolated func performAction(
+        surface: RuntimeSurface,
+        toolName: String?,
+        intent: ActionIntent,
+        selectedElementID: String? = nil,
+        selectedElementLabel: String? = nil,
+        candidateScore: Double? = nil,
+        candidateReasons: [String] = [],
+        candidateAmbiguityScore: Double? = nil,
+        plannerSource: String? = nil,
+        plannerFamily: String? = nil,
+        pathEdgeIDs: [String]? = nil,
+        currentEdgeID: String? = nil,
+        recoveryTagged: Bool? = nil,
+        recoveryStrategy: String? = nil,
+        recoverySource: String? = nil,
+        projectMemoryRefs: [String]? = nil,
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String]? = nil,
+        refactorProposalID: String? = nil,
+        knowledgeTier: KnowledgeTier? = nil,
+        action: @MainActor @Sendable () -> ToolResult
+    ) -> ToolResult {
+        performAction(
+            surface: surface,
+            taskID: nil,
+            toolName: toolName,
+            intent: intent,
+            selectedElementID: selectedElementID,
+            selectedElementLabel: selectedElementLabel,
+            candidateScore: candidateScore,
+            candidateReasons: candidateReasons,
+            candidateAmbiguityScore: candidateAmbiguityScore,
+            plannerSource: plannerSource,
+            plannerFamily: plannerFamily,
+            pathEdgeIDs: pathEdgeIDs,
+            currentEdgeID: currentEdgeID,
+            recoveryTagged: recoveryTagged,
+            recoveryStrategy: recoveryStrategy,
+            recoverySource: recoverySource,
+            projectMemoryRefs: projectMemoryRefs,
+            experimentID: experimentID,
+            candidateID: candidateID,
+            sandboxPath: sandboxPath,
+            selectedCandidate: selectedCandidate,
+            experimentOutcome: experimentOutcome,
+            architectureFindings: architectureFindings,
+            refactorProposalID: refactorProposalID,
+            knowledgeTier: knowledgeTier,
+            action: action
+        )
     }
 }

@@ -1,62 +1,6 @@
 import Foundation
 import Combine
 
-private class RuntimeExecutionDriverInternal {
-    private let runtime: RuntimeOrchestrator
-    private let surface: RuntimeSurface
-    private let rawActionExecutor: @MainActor (ActionIntent) -> ToolResult
-    
-    public init(
-        runtime: RuntimeOrchestrator,
-        surface: RuntimeSurface = .recipe,
-        rawActionExecutor: @escaping @MainActor (ActionIntent) -> ToolResult
-    ) {
-        self.runtime = runtime
-        self.surface = surface
-        self.rawActionExecutor = rawActionExecutor
-    }
-    
-    public func execute(
-        intent: ActionIntent,
-        plannerDecision: PlannerDecision,
-        selectedCandidate: ElementCandidate?
-    ) -> ToolResult {
-        runtime.performAction(
-            surface: surface,
-            taskID: nil,
-            toolName: "agent_loop",
-            intent: intent,
-            selectedElementID: selectedCandidate?.element.id,
-            selectedElementLabel: selectedCandidate?.element.label,
-            candidateScore: selectedCandidate?.score,
-            candidateReasons: selectedCandidate?.reasons ?? [],
-            candidateAmbiguityScore: selectedCandidate?.ambiguityScore,
-            plannerSource: plannerDecision.source.rawValue,
-            plannerFamily: plannerDecision.plannerFamily.rawValue,
-            pathEdgeIDs: plannerDecision.pathEdgeIDs,
-            currentEdgeID: plannerDecision.currentEdgeID,
-            recoveryTagged: plannerDecision.recoveryTagged,
-            recoveryStrategy: plannerDecision.recoveryStrategy,
-            recoverySource: plannerDecision.recoverySource,
-            projectMemoryRefs: plannerDecision.projectMemoryRefs.map(\.path),
-            experimentID: plannerDecision.experimentSpec?.id,
-            candidateID: plannerDecision.experimentCandidateID,
-            sandboxPath: plannerDecision.experimentSandboxPath,
-            selectedCandidate: plannerDecision.selectedExperimentCandidate,
-            experimentOutcome: plannerDecision.experimentOutcome ?? (plannerDecision.executionMode == .experiment ? "requested" : nil),
-            architectureFindings: plannerDecision.architectureFindings.map(\.title),
-            refactorProposalID: plannerDecision.refactorProposalID,
-            knowledgeTier: plannerDecision.knowledgeTier
-        ) {
-            if intent.agentKind == .code {
-                CodeActionGateway(context: runtime.context).execute(intent)
-            } else {
-                rawActionExecutor(intent)
-            }
-        }
-    }
-}
-
 /// Bridges the legacy AgentLoop execution path to the new IntentAPI spine.
 ///
 /// MIGRATION STATUS:
@@ -66,8 +10,6 @@ private class RuntimeExecutionDriverInternal {
 /// When AgentLoop is fully narrowed, the legacy init can be removed.
 @MainActor
 public final class RuntimeExecutionDriver: AgentExecutionDriver {
-    private let internalDriver: RuntimeExecutionDriverInternal
-    
     // LEGACY: remove when AgentLoop is converted to submitIntent path
     private let runtime: RuntimeOrchestrator
     private let surface: RuntimeSurface
@@ -87,7 +29,6 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
         self.surface = surface
         self.rawActionExecutor = rawActionExecutor
         self.intentAPI = nil
-        self.internalDriver = RuntimeExecutionDriverInternal(runtime: runtime, surface: surface, rawActionExecutor: rawActionExecutor)
     }
 
     /// NEW preferred init — translates ActionIntent to Intent and submits via IntentAPI.
@@ -102,7 +43,6 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
         self.runtime = legacyRuntime
         self.surface = surface
         self.rawActionExecutor = rawActionExecutor
-        self.internalDriver = RuntimeExecutionDriverInternal(runtime: legacyRuntime, surface: surface, rawActionExecutor: rawActionExecutor)
     }
 
     public func execute(
@@ -160,7 +100,6 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
 
     // MARK: - Legacy path (deprecated)
 
-    @available(*, deprecated)
     private func executeLegacy(
         intent: ActionIntent,
         plannerDecision: PlannerDecision,

@@ -5,7 +5,7 @@ import Foundation
 ///
 /// INVARIANT: ToolDispatcher is called only from VerifiedExecutor.
 /// Nothing else may call dispatch() directly.
-public struct ToolDispatcher {
+public struct ToolDispatcher: @unchecked Sendable {
 
     /// Optional automation host for UI commands (injected for testability).
     private let automationHost: AutomationHost?
