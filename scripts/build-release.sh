@@ -110,9 +110,11 @@ cp "$PROJECT_ROOT/ORACLE-MCP.md" "$STAGE_DIR/"
 # Recipes
 cp "$PROJECT_ROOT/recipes/"*.json "$STAGE_DIR/recipes/" 2>/dev/null || true
 
-# Vision sidecar
-cp "$PROJECT_ROOT/vision-sidecar/server.py" "$STAGE_DIR/vision-sidecar/"
-cp "$PROJECT_ROOT/vision-sidecar/requirements.txt" "$STAGE_DIR/vision-sidecar/"
+# Vision sidecar - Copy full directory structure to support detectors/fusion/schema
+cp -R "$PROJECT_ROOT/vision-sidecar/"* "$STAGE_DIR/vision-sidecar/"
+# Cleanup non-production files from stage
+rm -f "$STAGE_DIR/vision-sidecar/mypy.ini"
+rm -f "$STAGE_DIR/vision-sidecar/oracle-vision" # Already at root of stage
 
 echo "  Staged files:"
 ls -la "$STAGE_DIR/"
