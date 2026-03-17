@@ -60,12 +60,30 @@ echo "========================================"
 echo ""
 echo "Step 1: Building Swift binary..."
 cd "$PROJECT_ROOT"
-swift build -c "$CONFIG" 2>&1
+
+# Optimization flags for release
+SWIFT_FLAGS=""
+if [[ "$CONFIG" == "release" ]]; then
+    echo "  Enabling Link-Time Optimization (LTO) and stripping..."
+    # Apply LTO and stripping via compiler/linker flags
+    # -Xswiftc -O: Optimize for speed
+    # -Xswiftc -lto=llvm-full: Enable Full LTO
+    # -Xlinker -dead_strip: Remove unreachable code
+    SWIFT_FLAGS="-Xswiftc -O -Xswiftc -lto=llvm-full -Xlinker -dead_strip"
+fi
+
+swift build -c "$CONFIG" $SWIFT_FLAGS 2>&1
 
 BINARY="$PROJECT_ROOT/.build/$CONFIG/oracle"
 if [[ ! -f "$BINARY" ]]; then
     echo "ERROR: Binary not found at $BINARY" >&2
     exit 1
+fi
+
+# Final stripping for release
+if [[ "$CONFIG" == "release" ]]; then
+    echo "  Stripping debug symbols from $BINARY..."
+    strip "$BINARY"
 fi
 
 # Verify it runs

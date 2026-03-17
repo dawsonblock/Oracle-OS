@@ -11,7 +11,7 @@ public struct EventReplay {
 
     /// Replay all events for a given cycle (identified by intentID) into a timeline.
     public func replay(cycleID: UUID) async throws -> Timeline {
-        let allEvents = try await eventStore.all()
+        let allEvents = await eventStore.all()
         let cycleEvents = allEvents.filter { $0.intentID == cycleID }
         return TimelineBuilder().build(from: cycleEvents)
     }
