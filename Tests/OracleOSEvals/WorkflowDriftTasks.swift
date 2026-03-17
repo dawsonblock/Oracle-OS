@@ -83,6 +83,7 @@ struct WorkflowDriftTasks {
                 ])
             }
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(workflowIndex: workflowIndex),
@@ -155,6 +156,7 @@ struct WorkflowDriftTasks {
             }
             EvalExecutionDriver.recordedSources = []
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(workflowIndex: workflowIndex),
@@ -236,6 +238,7 @@ struct WorkflowDriftTasks {
             }
             EvalExecutionDriver.recordedSources = []
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(workflowIndex: workflowIndex),

@@ -80,6 +80,7 @@ struct RecoveryLoopTasks {
             var usedStableGraph = false
             var usedWorkflow = false
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([ambiguous, refreshed]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     switch decision.source {

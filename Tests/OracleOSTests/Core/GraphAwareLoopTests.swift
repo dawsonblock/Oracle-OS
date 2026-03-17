@@ -267,6 +267,7 @@ struct GraphAwareLoopTests {
             ])
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
@@ -321,6 +322,7 @@ struct GraphAwareLoopTests {
             ])
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
@@ -371,6 +373,7 @@ struct GraphAwareLoopTests {
             ])
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
@@ -412,6 +415,7 @@ struct GraphAwareLoopTests {
             return ToolResult(success: true)
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: StateAbstraction(),
@@ -491,6 +495,7 @@ struct GraphAwareLoopTests {
             return ToolResult(success: true)
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
@@ -533,6 +538,7 @@ struct GraphAwareLoopTests {
             return ToolResult(success: true)
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: StubObservationProvider([observation]),
             executionDriver: driver,
             planner: MainPlanner(),
@@ -627,6 +633,7 @@ struct GraphAwareLoopTests {
             ], error: "wrong focus")
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,
@@ -719,6 +726,7 @@ struct GraphAwareLoopTests {
             ], error: "wrong focus")
         }
         let loop = AgentLoop(
+            orchestrator: NoOpIntentAPI(),
             observationProvider: provider,
             executionDriver: driver,
             stateAbstraction: abstraction,

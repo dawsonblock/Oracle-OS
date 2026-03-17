@@ -68,6 +68,7 @@ struct OperatorBenchmarks {
                 ])
             }
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 stateAbstraction: abstraction,
@@ -136,6 +137,7 @@ struct OperatorBenchmarks {
             }
             EvalExecutionDriver.recordedSources = []
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 stateAbstraction: abstraction,
@@ -209,6 +211,7 @@ struct OperatorBenchmarks {
             }
             EvalExecutionDriver.recordedSources = []
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(workflowIndex: workflowIndex),
@@ -251,6 +254,7 @@ struct OperatorBenchmarks {
                 ]
             )
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([ambiguous, resolved]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     EvalExecutionDriver.recordedSources.append(decision.source)

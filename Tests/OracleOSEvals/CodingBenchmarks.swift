@@ -56,6 +56,7 @@ struct CodingBenchmarks {
             EvalExecutionDriver.recordedSources = []
             EvalExecutionDriver.selectedExperimentReplay = false
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(),
@@ -108,6 +109,7 @@ struct CodingBenchmarks {
             EvalExecutionDriver.recordedSources = []
             EvalExecutionDriver.selectedExperimentReplay = false
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(),
@@ -160,6 +162,7 @@ struct CodingBenchmarks {
             EvalExecutionDriver.recordedSources = []
             EvalExecutionDriver.selectedExperimentReplay = false
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: provider,
                 executionDriver: driver,
                 planner: MainPlanner(),

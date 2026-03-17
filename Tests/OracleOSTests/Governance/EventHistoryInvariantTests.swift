@@ -1,6 +1,24 @@
 import XCTest
 @testable import OracleOS
 
+private final class LockedBoolBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    func setTrue() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+
+    func get() -> Bool {
+        lock.lock()
+        let current = value
+        lock.unlock()
+        return current
+    }
+}
+
 /// Verifies that every committed state change has event ancestry.
 /// INVARIANT: No snapshot may be committed without domain events behind it.
 final class EventHistoryInvariantTests: XCTestCase {
@@ -72,8 +90,8 @@ final class EventHistoryInvariantTests: XCTestCase {
 
     func test_commit_coordinator_appends_events_then_applies_reducers() async throws {
         let store = EventStore()
-        var reducerCalled = false
-        let testReducer = TestReducer { reducerCalled = true }
+        let reducerCalled = LockedBoolBox()
+        let testReducer = TestReducer { reducerCalled.setTrue() }
         let coordinator = CommitCoordinator(eventStore: store, reducers: [testReducer])
 
         let envelope = EventEnvelope(
@@ -89,7 +107,7 @@ final class EventHistoryInvariantTests: XCTestCase {
         let events = await store.all()
         XCTAssertEqual(events.count, 1, "Event must be appended to store on commit")
         XCTAssertEqual(events[0].eventType, "commandIssued")
-        XCTAssertTrue(reducerCalled, "Reducer must be called after event is appended")
+        XCTAssertTrue(reducerCalled.get(), "Reducer must be called after event is appended")
     }
 
     func test_commit_coordinator_empty_commit_is_noop() async throws {
@@ -125,7 +143,7 @@ final class EventHistoryInvariantTests: XCTestCase {
 // MARK: - Test Helpers
 
 private struct TestReducer: EventReducer {
-    let onApply: () -> Void
+    let onApply: @Sendable () -> Void
     func apply(events: [EventEnvelope], to state: inout WorldStateModel) {
         if !events.isEmpty { onApply() }
     }

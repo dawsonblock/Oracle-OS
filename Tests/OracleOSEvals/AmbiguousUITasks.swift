@@ -60,6 +60,7 @@ struct AmbiguousUITasks {
             )
             var recordedSources = [PlannerSource]()
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([ambiguous, resolved]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     recordedSources.append(decision.source)
@@ -108,6 +109,7 @@ struct AmbiguousUITasks {
                 ]
             )
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([ambiguous, resolved]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     EvalExecutionDriver.recordedSources.append(decision.source)
@@ -157,6 +159,7 @@ struct AmbiguousUITasks {
                 ]
             )
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([ambiguous, resolved]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     EvalExecutionDriver.recordedSources.append(decision.source)
@@ -207,6 +210,7 @@ struct AmbiguousUITasks {
                 ]
             )
             let loop = AgentLoop(
+                orchestrator: NoOpIntentAPI(),
                 observationProvider: EvalObservationProvider([stacked, cleared]),
                 executionDriver: EvalExecutionDriver { _, decision, _ in
                     EvalExecutionDriver.recordedSources.append(decision.source)
