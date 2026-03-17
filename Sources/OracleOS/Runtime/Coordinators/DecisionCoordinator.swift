@@ -62,7 +62,8 @@ public final class DecisionCoordinator {
         )
 
         // ── Step 2: Reevaluate strategy if needed ──
-        let reevalCause = strategyEvaluator.shouldReevaluate()
+        let hardFailure = stateBundle.recentFailureCount >= 3
+        let reevalCause = strategyEvaluator.shouldReevaluate(hardFailure: hardFailure)
         let strategy: SelectedStrategy
         if let active = activeStrategy, reevalCause == nil {
             strategy = active

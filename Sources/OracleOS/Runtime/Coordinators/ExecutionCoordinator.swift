@@ -124,19 +124,57 @@ public final class ExecutionCoordinator {
         return nil
     }
 
+    /// Delegate a world-state-change reset to the policy engine’s
+    /// repeated-action guard. Call this whenever execution succeeds and the
+    /// observation hash changes.
+    public func resetPolicyGuard() {
+        policyEngine.resetRepeatedActionGuard()
+    }
+
     public func execute(
         preparedAction: PreparedLoopAction,
         decision: PlannerDecision,
         budgetState: inout LoopBudgetState,
         budget: LoopBudget
     ) -> LoopExecutionResult {
+        let intent = preparedAction.resolution.intent
+
+        // Workspace-scope integrity check: abort any code-write whose resolved
+        // path escapes the declared workspace root before touching the driver.
+        if let root = intent.workspaceRoot, let rel = intent.workspaceRelativePath {
+            let escapesRoot = rel.hasPrefix("/") || rel.contains("../")
+            let isWrite = intent.commandCategory.map { cat in
+                [CodeCommandCategory.editFile.rawValue,
+                 CodeCommandCategory.writeFile.rawValue,
+                 CodeCommandCategory.generatePatch.rawValue].contains(cat)
+            } ?? false
+            if isWrite && escapesRoot {
+                let blocked = ActionResult(
+                    success: false,
+                    verified: false,
+                    message: "Workspace-scope violation: path \(rel) escapes root \(root)",
+                    failureClass: FailureClass.workspaceScopeViolation.rawValue,
+                    blockedByPolicy: true,
+                    executedThroughExecutor: false
+                )
+                return LoopExecutionResult(
+                    toolResult: ToolResult(success: false, data: nil, error: blocked.message),
+                    actionResult: blocked,
+                    intent: intent,
+                    selectedCandidate: preparedAction.resolution.selectedCandidate,
+                    approvalPending: false,
+                    budgetTerminationReason: nil
+                )
+            }
+        }
+
         let toolResult = executionDriver.execute(
-            intent: preparedAction.resolution.intent,
+            intent: intent,
             plannerDecision: decision,
             selectedCandidate: preparedAction.resolution.selectedCandidate
         )
         let budgetReason = budgetState.registerExecution(
-            intent: preparedAction.resolution.intent,
+            intent: intent,
             budget: budget
         )
         let actionResult = ActionResult.from(dict: toolResult.data?["action_result"] as? [String: Any] ?? [:])
@@ -148,7 +186,7 @@ public final class ExecutionCoordinator {
         return LoopExecutionResult(
             toolResult: toolResult,
             actionResult: actionResult,
-            intent: preparedAction.resolution.intent,
+            intent: intent,
             selectedCandidate: preparedAction.resolution.selectedCandidate,
             approvalPending: actionResult.approvalStatus == ApprovalStatus.pending.rawValue,
             budgetTerminationReason: budgetReason

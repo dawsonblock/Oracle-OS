@@ -12,6 +12,13 @@ public final class PolicyEngine: @unchecked Sendable {
     /// Cache TTL in seconds (default 5 minutes)
     private let cacheTTL: TimeInterval = 300
 
+    /// Repeated-action guard: tracks consecutive occurrences of the same
+    /// protected operation. After `maxConsecutiveProtectedOps` hits the action
+    /// is blocked, preventing tight loops that hammer risky operations.
+    private var lastProtectedOperation: ProtectedOperation? = nil
+    private var consecutiveProtectedOpCount: Int = 0
+    private let maxConsecutiveProtectedOps: Int = 3
+
     /// Cached decision with timestamp for TTL tracking
     private struct CachedDecision {
         let decision: PolicyDecision
@@ -24,6 +31,14 @@ public final class PolicyEngine: @unchecked Sendable {
 
     public init(mode: PolicyMode? = nil) {
         self.mode = mode ?? Self.defaultMode()
+    }
+
+    /// Reset the repeated-action guard (call when world state changes).
+    public func resetRepeatedActionGuard() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        lastProtectedOperation = nil
+        consecutiveProtectedOpCount = 0
     }
 
     /// Clear the policy decision cache (call after hot-reload)
@@ -66,6 +81,35 @@ public final class PolicyEngine: @unchecked Sendable {
         )
         let protectedOperation = classification.protectedOperation
         let riskLevel = classification.riskLevel
+
+        // Repeated-action guard: block if the same protected operation fires
+        // too many consecutive times without an intervening state change.
+        if let op = protectedOperation, riskLevel != .blocked {
+            cacheLock.lock()
+            if lastProtectedOperation == op {
+                consecutiveProtectedOpCount += 1
+            } else {
+                lastProtectedOperation = op
+                consecutiveProtectedOpCount = 1
+            }
+            let tripped = consecutiveProtectedOpCount > maxConsecutiveProtectedOps
+            cacheLock.unlock()
+
+            if tripped {
+                Log.warn("PolicyEngine: repeated-action guard tripped for \(op.rawValue) (\(consecutiveProtectedOpCount) consecutive)")
+                return PolicyDecision(
+                    allowed: false,
+                    riskLevel: .blocked,
+                    protectedOperation: op,
+                    appProtectionProfile: appProtectionProfile,
+                    blockedByPolicy: true,
+                    surface: context.surface,
+                    policyMode: mode,
+                    requiresApproval: false,
+                    reason: "Repeated-action guard: \(op.rawValue) has fired \(consecutiveProtectedOpCount) consecutive times without a state change"
+                )
+            }
+        }
 
         let baseDecision = PolicyDecision(
             allowed: riskLevel == .low,

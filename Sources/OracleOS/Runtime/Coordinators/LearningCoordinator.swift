@@ -48,6 +48,30 @@ public final class LearningCoordinator {
         )
     }
 
+    /// Records a stall event so the planner can learn to avoid the
+    /// (state, action) pair that produced no observable change.
+    public func recordStall(
+        decision: PlannerDecision,
+        stateBundle: LoopStateBundle
+    ) {
+        MemoryUpdater.recordFailure(
+            failure: .loopStalled,
+            state: stateBundle.worldState,
+            store: memoryStore
+        )
+        projectMemoryCoordinator.recordOpenProblem(
+            outcome: LoopOutcome(
+                reason: .loopStalled,
+                finalWorldState: stateBundle.worldState,
+                steps: 0,
+                recoveries: 0,
+                lastFailure: .loopStalled
+            ),
+            taskContext: stateBundle.taskContext,
+            decision: decision
+        )
+    }
+
     public func recordStrategy(
         app: String,
         strategy: String,

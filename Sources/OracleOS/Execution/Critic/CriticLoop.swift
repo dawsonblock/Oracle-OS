@@ -127,7 +127,82 @@ public enum CriticSignal: Sendable {
 // MARK: - CriticLoop
 
 public struct CriticLoop: Sendable {
-    public init() {}
+    /// How many consecutive `.unknown` verdicts are tolerated before
+    /// the critic upgrades the outcome to `.failure`. This prevents the
+    /// agent from silently drifting through a long run of unverifiable steps.
+    public let maxConsecutiveUnknown: Int
+
+    private var consecutiveUnknownCount: Int = 0
+
+    public init(maxConsecutiveUnknown: Int = 3) {
+        self.maxConsecutiveUnknown = maxConsecutiveUnknown
+    }
+
+    /// Record the verdict and apply consecutive-unknown escalation.
+    /// Returns the (potentially upgraded) verdict.
+    private mutating func tracked(_ verdict: CriticVerdict) -> CriticVerdict {
+        if verdict.outcome == .unknown {
+            consecutiveUnknownCount += 1
+            if consecutiveUnknownCount > maxConsecutiveUnknown {
+                return CriticVerdict(
+                    outcome: .failure,
+                    preStateHash: verdict.preStateHash,
+                    postStateHash: verdict.postStateHash,
+                    actionName: verdict.actionName,
+                    stateChanged: verdict.stateChanged,
+                    expectedConditionsMet: verdict.expectedConditionsMet,
+                    expectedConditionsTotal: verdict.expectedConditionsTotal,
+                    notes: verdict.notes + ["consecutive-unknown threshold reached (\(consecutiveUnknownCount)); escalated to failure"],
+                    timestamp: verdict.timestamp
+                )
+            }
+        } else {
+            consecutiveUnknownCount = 0
+        }
+        return verdict
+    }
+
+    // MARK: - Fast-path: ActionResult only
+
+    /// Evaluate an action using only the ``ActionResult`` when no UI state
+    /// snapshot is available (e.g., code actions, background tasks).
+    ///
+    /// - Returns: A ``CriticVerdict`` based solely on executor-reported flags.
+    public mutating func evaluateActionResult(
+        _ result: ActionResult,
+        actionName: String
+    ) -> CriticVerdict {
+        let hash = "no-state"
+        if result.blockedByPolicy {
+            return tracked(CriticVerdict(
+                outcome: .failure,
+                preStateHash: hash,
+                postStateHash: hash,
+                actionName: actionName,
+                stateChanged: false,
+                notes: ["action blocked by policy"]
+            ))
+        }
+        if !result.executedThroughExecutor {
+            return tracked(CriticVerdict(
+                outcome: .failure,
+                preStateHash: hash,
+                postStateHash: hash,
+                actionName: actionName,
+                stateChanged: false,
+                notes: ["trust boundary violation: action did not pass through VerifiedActionExecutor"]
+            ))
+        }
+        let outcome: CriticOutcome = result.verified ? .success : (result.success ? .partialSuccess : .failure)
+        return tracked(CriticVerdict(
+            outcome: outcome,
+            preStateHash: hash,
+            postStateHash: hash,
+            actionName: actionName,
+            stateChanged: result.success,
+            notes: result.message.map { [$0] } ?? []
+        ))
+    }
 
     /// Evaluate a single action step.
     ///
@@ -138,7 +213,7 @@ public struct CriticLoop: Sendable {
     ///     actions that do not yet have schemas).
     ///   - actionResult: The ``ActionResult`` from the executor.
     /// - Returns: A ``CriticVerdict`` classifying the outcome.
-    public func evaluate(
+    public mutating func evaluate(
         preState: CompressedUIState,
         postState: CompressedUIState,
         schema: ActionSchema?,
@@ -151,38 +226,38 @@ public struct CriticLoop: Sendable {
         // If the executor already reports policy-blocked or hard failure,
         // short-circuit.
         if actionResult.blockedByPolicy {
-            return CriticVerdict(
+            return tracked(CriticVerdict(
                 outcome: .failure,
                 preStateHash: preHash,
                 postStateHash: postHash,
                 actionName: schema?.name ?? "unknown",
                 stateChanged: stateChanged,
                 notes: ["action blocked by policy"]
-            )
+            ))
         }
 
         if !actionResult.success {
-            return CriticVerdict(
+            return tracked(CriticVerdict(
                 outcome: .failure,
                 preStateHash: preHash,
                 postStateHash: postHash,
                 actionName: schema?.name ?? "unknown",
                 stateChanged: stateChanged,
                 notes: [actionResult.message ?? "action failed"]
-            )
+            ))
         }
 
         // If no schema is attached we can only do hash-level evaluation.
         guard let schema else {
             let outcome: CriticOutcome = stateChanged ? .success : .unknown
-            return CriticVerdict(
+            return tracked(CriticVerdict(
                 outcome: outcome,
                 preStateHash: preHash,
                 postStateHash: postHash,
                 actionName: "unknown",
                 stateChanged: stateChanged,
                 notes: stateChanged ? ["state changed"] : ["no schema; state unchanged"]
-            )
+            ))
         }
 
         // Check expected postconditions against postState.
@@ -196,10 +271,11 @@ public struct CriticLoop: Sendable {
             conditionsMet: met,
             conditionsTotal: total,
             actionSuccess: actionResult.success,
-            verified: actionResult.verified
+            verified: actionResult.verified,
+            executedThroughExecutor: actionResult.executedThroughExecutor
         )
 
-        return CriticVerdict(
+        return tracked(CriticVerdict(
             outcome: outcome,
             preStateHash: preHash,
             postStateHash: postHash,
@@ -208,7 +284,7 @@ public struct CriticLoop: Sendable {
             expectedConditionsMet: met,
             expectedConditionsTotal: total,
             notes: notes
-        )
+        ))
     }
 
     /// Evaluate an action step using multi-signal evidence.
@@ -224,7 +300,7 @@ public struct CriticLoop: Sendable {
     ///   - actionResult: The base success/failure report from the executor.
     ///   - signals: Array of heterogeneous ``CriticSignal`` evidence blocks.
     /// - Returns: A calibrated ``CriticVerdict``.
-    public func evaluate(
+    public mutating func evaluate(
         preState: CompressedUIState,
         postState: CompressedUIState,
         schema: ActionSchema?,
@@ -320,7 +396,8 @@ public struct CriticLoop: Sendable {
             conditionsMet: met,
             conditionsTotal: total,
             actionSuccess: actionResult.success,
-            verified: actionResult.verified
+            verified: actionResult.verified,
+            executedThroughExecutor: actionResult.executedThroughExecutor
         )
 
         // ... then adjust based on strong signal evidence.
@@ -336,7 +413,7 @@ public struct CriticLoop: Sendable {
             finalOutcome = baselineOutcome
         }
 
-        return CriticVerdict(
+        return tracked(CriticVerdict(
             outcome: finalOutcome,
             preStateHash: preHash,
             postStateHash: postHash,
@@ -345,7 +422,7 @@ public struct CriticLoop: Sendable {
             expectedConditionsMet: met,
             expectedConditionsTotal: total,
             notes: evidenceNotes + baselineNotes
-        )
+        ))
     }
 
     // MARK: - Internal
@@ -356,8 +433,13 @@ public struct CriticLoop: Sendable {
         conditionsMet: Int,
         conditionsTotal: Int,
         actionSuccess: Bool,
-        verified: Bool
+        verified: Bool,
+        executedThroughExecutor: Bool = true
     ) -> CriticOutcome {
+        // Actions that bypassed the verified executor are untrustworthy.
+        if !executedThroughExecutor {
+            return .failure
+        }
         // If postconditions are declared, use them as ground truth.
         if conditionsTotal > 0 {
             if conditionsMet == conditionsTotal { return .success }
@@ -367,7 +449,10 @@ public struct CriticLoop: Sendable {
         // No postconditions declared — fall back to state diff + executor verdict.
         if verified { return .success }
         if actionSuccess && stateChanged { return .success }
-        if actionSuccess && !stateChanged { return .unknown }
+        // A successful action that produced no state change is a soft stall:
+        // treat it as failure rather than unknown so the planner gets a clear
+        // recovery signal rather than silently continuing.
+        if actionSuccess && !stateChanged { return .failure }
         return .failure
     }
 

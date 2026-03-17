@@ -49,6 +49,7 @@ public final class RecoveryRegistry {
         registry.register(failure: .unexpectedDialog, strategy: RetryStrategy())
         registry.register(failure: .environmentMismatch, strategy: RefreshIndexStrategy())
         registry.register(failure: .environmentMismatch, strategy: RetryStrategy())
+        registry.register(failure: .loopStalled, strategy: StallRecoveryStrategy())
         return registry
     }
 }

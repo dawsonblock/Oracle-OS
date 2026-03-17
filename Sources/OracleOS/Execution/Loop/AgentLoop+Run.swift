@@ -27,29 +27,6 @@ extension AgentLoop {
             // Commit perceived state to the world model so the planner reasons
             // over the authoritative committed snapshot, not raw perception data.
             worldModel.reset(from: stateBundle.worldState)
-            
-            // ── Stall Detection ──
-            if let lastState = runState.latestWorldState, 
-               lastState.observationHash == stateBundle.worldState.observationHash,
-               let lastAction = runState.lastAction,
-               lastAction == decision.intent {
-                runState.consecutiveStallCount += 1
-            } else {
-                runState.consecutiveStallCount = 0
-            }
-
-            if runState.consecutiveStallCount >= budget.maxConsecutiveStalls {
-                runState.diagnostics.recordTermination(stepIndex: stepIndex, reason: .loopStalled)
-                return finalize(
-                    reason: .loopStalled,
-                    finalWorldState: stateBundle.worldState,
-                    steps: stepIndex,
-                    lastFailure: .actionFailed,
-                    decision: decision,
-                    taskContext: taskContext,
-                    runState: runState
-                )
-            }
 
             if decisionCoordinator.goalReached(in: stateBundle) {
                 return finalize(
@@ -76,6 +53,38 @@ extension AgentLoop {
             }
 
             runState.diagnostics.beginStep(stepIndex: stepIndex, decision: decision)
+
+            // ── Stall Detection ──
+            // Compare the current world-state hash and the resolved intent
+            // against the previous step. Identical hash + identical intent
+            // means no progress was made; count consecutive stalls and abort
+            // if the budget is exceeded.
+            if let lastState = runState.latestWorldState,
+               lastState.observationHash == stateBundle.worldState.observationHash,
+               let lastContract = runState.lastDecisionContract,
+               lastContract == decision.actionContract {
+                runState.consecutiveStallCount += 1
+            } else {
+                runState.consecutiveStallCount = 0
+            }
+            runState.lastDecisionContract = decision.actionContract
+
+            if runState.consecutiveStallCount >= budget.maxConsecutiveStalls {
+                runState.diagnostics.recordTermination(stepIndex: stepIndex, reason: .loopStalled)
+                learningCoordinator.recordStall(
+                    decision: decision,
+                    stateBundle: stateBundle
+                )
+                return finalize(
+                    reason: .loopStalled,
+                    finalWorldState: stateBundle.worldState,
+                    steps: stepIndex,
+                    lastFailure: .loopStalled,
+                    decision: decision,
+                    taskContext: taskContext,
+                    runState: runState
+                )
+            }
 
             if let budgetReason = runState.budgetState.registerPlannerSource(decision.source, budget: budget) {
                 runState.diagnostics.recordTermination(stepIndex: stepIndex, reason: budgetReason)
@@ -242,6 +251,7 @@ extension AgentLoop {
                     notes: decision.notes
                 )
                 runState.recentFailureCount = 0
+                runState.consecutiveStallCount = 0
                 learningCoordinator.recordSuccess(
                     decision: decision,
                     intent: execution.intent,
@@ -253,6 +263,13 @@ extension AgentLoop {
                     recentFailureCount: runState.recentFailureCount
                 )
                 runState.latestWorldState = afterStateBundle.worldState
+
+                // If the world state genuinely changed, reset the policy engine’s
+                // repeated-action guard so legitimate multi-step workflows aren’t
+                // blocked by the consecutive-operation counter.
+                if afterStateBundle.worldState.observationHash != stateBundle.worldState.observationHash {
+                    executionCoordinator.resetPolicyGuard()
+                }
                 
                 if decisionCoordinator.goalReached(in: afterStateBundle) {
                     return finalize(

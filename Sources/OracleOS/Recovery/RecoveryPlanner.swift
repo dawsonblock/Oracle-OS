@@ -189,6 +189,16 @@ public final class RecoveryPlanner: @unchecked Sendable {
              .ambiguousEditTarget:
             return []
 
+        case .loopStalled:
+            // Force a refocus so the AX tree rebuilds, giving the planner a
+            // fresh observation to diversify from.
+            var plans: [[Operator]] = []
+            let focusOp = Operator(kind: .focusWindow)
+            if focusOp.precondition(state) {
+                plans.append([focusOp])
+            }
+            return plans
+
         case .workflowReplayFailure:
             var plans: [[Operator]] = []
             let focusOp = Operator(kind: .focusWindow)

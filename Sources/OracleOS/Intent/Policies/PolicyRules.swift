@@ -259,6 +259,8 @@ public enum PolicyRules {
             || normalized == "package.swift"
             || normalized.hasPrefix("src/")
             || normalized.hasPrefix("lib/")
+            || normalized.hasPrefix("docs/")
+            || normalized.hasPrefix("documentation/")
     }
 
     private static func isSensitiveWorkspacePath(_ path: String) -> Bool {
@@ -275,6 +277,13 @@ public enum PolicyRules {
             "package-lock.json",
             "pnpm-lock.yaml",
             "podfile.lock",
+            // Executable build/deploy infrastructure
+            "makefile",
+            "dockerfile",
+            ".gitconfig",
+            ".ssh/",
+            "fastlane/",
+            "scripts/",
         ]
         return sensitiveFragments.contains(where: normalized.contains)
     }
