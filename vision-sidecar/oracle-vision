@@ -1,14 +1,14 @@
 #!/bin/bash
-# ghost-vision — Launcher for Oracle OS Vision Sidecar
+# oracle-vision — Launcher for Oracle OS Vision Sidecar
 #
 # Finds the best Python environment (venv > system) and runs server.py.
-# Installed to /opt/homebrew/bin/ghost-vision by the Homebrew formula.
+# Installed to /opt/homebrew/bin/oracle-vision by the Homebrew formula.
 #
 # Usage:
-#   ghost-vision                    # Start server (default port 9876)
-#   ghost-vision --port 9877        # Custom port
-#   ghost-vision --health-check     # Test model loading, then exit
-#   ghost-vision --version          # Print version
+#   oracle-vision                    # Start server (default port 9876)
+#   oracle-vision --port 9877        # Custom port
+#   oracle-vision --health-check     # Test model loading, then exit
+#   oracle-vision --version          # Print version
 
 set -euo pipefail
 
@@ -18,10 +18,10 @@ VERSION="2.0.6"
 find_server_script() {
     local candidates=(
         # Homebrew install
-        "/opt/homebrew/share/ghost-os/vision-sidecar/server.py"
-        "/usr/local/share/ghost-os/vision-sidecar/server.py"
-        # Next to the ghost-vision script
-        "$(dirname "$0")/../share/ghost-os/vision-sidecar/server.py"
+        "/opt/homebrew/share/oracle-os/vision-sidecar/server.py"
+        "/usr/local/share/oracle-os/vision-sidecar/server.py"
+        # Next to the oracle-vision script
+        "$(dirname "$0")/../share/oracle-os/vision-sidecar/server.py"
         # Development
         "$(dirname "$0")/../vision-sidecar/server.py"
     )
@@ -39,7 +39,7 @@ find_server_script() {
 # Find the best Python with mlx_vlm
 find_python() {
     # Priority 1: Oracle OS venv
-    local venv_python="$HOME/.ghost-os/venv/bin/python3"
+    local venv_python="$HOME/.oracle-os/venv/bin/python3"
     if [[ -x "$venv_python" ]]; then
         # Verify mlx_vlm is available
         if "$venv_python" -c "import mlx_vlm" 2>/dev/null; then
@@ -72,14 +72,14 @@ find_python() {
 
 # Handle --version before anything else
 if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
-    echo "ghost-vision $VERSION"
+    echo "oracle-vision $VERSION"
     exit 0
 fi
 
 # Find server.py
 SERVER_SCRIPT=$(find_server_script) || {
     echo "ERROR: Cannot find vision sidecar server.py" >&2
-    echo "Expected at: /opt/homebrew/share/ghost-os/vision-sidecar/server.py" >&2
+    echo "Expected at: /opt/homebrew/share/oracle-os/vision-sidecar/server.py" >&2
     echo "Run: oracle setup" >&2
     exit 1
 }
@@ -89,8 +89,8 @@ PYTHON=$(find_python) || {
     echo "ERROR: Cannot find Python with mlx_vlm installed" >&2
     echo "" >&2
     echo "Run 'oracle setup' to create the vision environment, or install manually:" >&2
-    echo "  python3 -m venv ~/.ghost-os/venv" >&2
-    echo "  ~/.ghost-os/venv/bin/pip install mlx mlx-vlm transformers Pillow" >&2
+    echo "  python3 -m venv ~/.oracle-os/venv" >&2
+    echo "  ~/.oracle-os/venv/bin/pip install mlx mlx-vlm transformers Pillow" >&2
     exit 1
 }
 

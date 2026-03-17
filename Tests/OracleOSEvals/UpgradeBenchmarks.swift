@@ -84,7 +84,7 @@ struct UpgradeBenchmarks {
                 promotionStatus: .promoted,
                 lastSucceededAt: Date()
             )
-            let confidence = confidenceModel.confidence(for: workflow)
+            _ = confidenceModel.confidence(for: workflow)
             let reliable = confidenceModel.isReliable(workflow)
 
             return EvalRunSnapshot(

@@ -350,7 +350,7 @@ struct TaskGraphTests {
     @Test("StateAbstractor derives repo_loaded for code state without specific phase")
     func stateAbstractorRepoLoaded() {
         let abstractor = StateAbstractor()
-        let ps = makePlanningState(id: "code|main", appID: "Xcode", taskPhase: "editing")
+        _ = makePlanningState(id: "code|main", appID: "Xcode", taskPhase: "editing")
         let repo = makeRepoSnapshot()
         let ws = WorldState(
             observation: Observation(app: "Xcode", windowTitle: "Project", url: nil, focusedElementID: nil, elements: []),
@@ -619,7 +619,7 @@ struct TaskGraphTests {
             toAbstractState: .navigationCompleted,
             toPlanningStateID: PlanningStateID(rawValue: "s2")
         )
-        let edge2 = store.addCandidateEdge(
+        _ = store.addCandidateEdge(
             action: "try_B",
             toAbstractState: .formVisible,
             toPlanningStateID: PlanningStateID(rawValue: "s3")
@@ -737,13 +737,13 @@ struct TaskGraphTests {
         #expect(startNode.abstractState == .repoLoaded)
 
         // Step 2: Add candidate edges (planner would do this)
-        let testEdge = store.addCandidateEdge(
+        _ = store.addCandidateEdge(
             action: "run_tests",
             actionContractID: "run-tests-contract",
             toAbstractState: .testsRunning,
             toPlanningStateID: PlanningStateID(rawValue: "s2")
         )
-        let buildEdge = store.addCandidateEdge(
+        _ = store.addCandidateEdge(
             action: "build",
             actionContractID: "build-contract",
             toAbstractState: .buildRunning,

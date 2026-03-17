@@ -84,10 +84,10 @@ struct PlannerPlanSelectionTests {
         planner.setGoal(goal)
 
         let graphStore = GraphStore(databaseURL: makeTempGraphURL())
-        let stableEdge = graphStore.outgoingStableEdges(
+        _ = graphStore.outgoingStableEdges(
             from: PlanningStateID(rawValue: "safari|browse")
         )
-        let candidateEdge = graphStore.outgoingCandidateEdges(
+        _ = graphStore.outgoingCandidateEdges(
             from: PlanningStateID(rawValue: "safari|browse")
         )
 

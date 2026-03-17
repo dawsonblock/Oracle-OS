@@ -90,7 +90,7 @@ final class StateMutationTests: XCTestCase {
         let coordinator = CommitCoordinator(eventStore: store, reducers: [])
         // Commit with empty events should be a no-op (not crash)
         try await coordinator.commit([])
-        let events = try await store.all()
+        let events = await store.all()
         XCTAssertEqual(events.count, 0, "Empty commit must not append events")
     }
 
