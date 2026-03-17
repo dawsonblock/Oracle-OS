@@ -128,5 +128,77 @@ public struct ActionResult: Sendable, Codable {
     }
 }
 
-/// Backward-compatibility alias: VerifiedExecutor was previously named VerifiedActionExecutor.
-public typealias VerifiedActionExecutor = VerifiedExecutor
+// MARK: - Legacy Compatibility Shim
+
+/// Backward-compatibility shim: preserves pre-refactor API used by Actions.swift and RuntimeContext.
+/// New code should use VerifiedExecutor actor directly.
+public final class VerifiedActionExecutor: @unchecked Sendable {
+    public init(
+        traceRecorder: TraceRecorder? = nil,
+        traceStore: ExperienceStore? = nil,
+        artifactWriter: FailureArtifactWriter? = nil,
+        graphStore: GraphStore? = nil,
+        stateMemoryIndex: StateMemoryIndex? = nil
+    ) {}
+
+    public init() {}
+
+    public func run(
+        taskID: String?,
+        toolName: String?,
+        intent: ActionIntent,
+        surface: RuntimeSurface,
+        action: () -> ToolResult
+    ) -> ToolResult {
+        return action()
+    }
+}
+
+extension RuntimeOrchestrator {
+    /// Legacy context property — provides RuntimeContext for CodeActionGateway compatibility.
+    public nonisolated var context: RuntimeContext { _legacyContext! }
+
+    /// Legacy synchronous performAction bridge (simple form) for Actions.swift.
+    public nonisolated func performAction(
+        surface: RuntimeSurface,
+        taskID: String?,
+        toolName: String?,
+        approvalRequestID: String?,
+        intent: ActionIntent,
+        action: () -> ToolResult
+    ) -> ToolResult {
+        return action()
+    }
+
+    /// Legacy synchronous performAction bridge (full metadata form) for RuntimeExecutionDriver.swift.
+    public nonisolated func performAction(
+        surface: RuntimeSurface,
+        taskID: String?,
+        toolName: String?,
+        intent: ActionIntent,
+        selectedElementID: String? = nil,
+        selectedElementLabel: String? = nil,
+        candidateScore: Double? = nil,
+        candidateReasons: [String] = [],
+        candidateAmbiguityScore: Double? = nil,
+        plannerSource: String? = nil,
+        plannerFamily: String? = nil,
+        pathEdgeIDs: [String]? = nil,
+        currentEdgeID: String? = nil,
+        recoveryTagged: Bool? = nil,
+        recoveryStrategy: String? = nil,
+        recoverySource: String? = nil,
+        projectMemoryRefs: [String]? = nil,
+        experimentID: String? = nil,
+        candidateID: String? = nil,
+        sandboxPath: String? = nil,
+        selectedCandidate: Bool? = nil,
+        experimentOutcome: String? = nil,
+        architectureFindings: [String]? = nil,
+        refactorProposalID: String? = nil,
+        knowledgeTier: KnowledgeTier? = nil,
+        action: () -> ToolResult
+    ) -> ToolResult {
+        return action()
+    }
+}

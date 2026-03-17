@@ -10,6 +10,7 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let toolDispatcher: ToolDispatcher
     private let postconditionsValidator: PostconditionsValidator
     private let capabilityBinder: CapabilityBinder
+    nonisolated(unsafe) public var _legacyContext: RuntimeContext?
 
     public init(
         eventStore: EventStore,
@@ -18,7 +19,8 @@ public actor RuntimeOrchestrator: IntentAPI {
         safetyValidator: SafetyValidator = SafetyValidator(),
         toolDispatcher: ToolDispatcher = ToolDispatcher(),
         postconditionsValidator: PostconditionsValidator = PostconditionsValidator(),
-        capabilityBinder: CapabilityBinder = CapabilityBinder()
+        capabilityBinder: CapabilityBinder = CapabilityBinder(),
+        context: RuntimeContext? = nil
     ) {
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
@@ -27,6 +29,19 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.toolDispatcher = toolDispatcher
         self.postconditionsValidator = postconditionsValidator
         self.capabilityBinder = capabilityBinder
+        self._legacyContext = context
+    }
+
+    /// Backward-compatibility initializer for callers that only have a RuntimeContext.
+    public init(context: RuntimeContext) {
+        self.eventStore = EventStore()
+        self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
+        self.preconditionsValidator = PreconditionsValidator()
+        self.safetyValidator = SafetyValidator()
+        self.toolDispatcher = ToolDispatcher()
+        self.postconditionsValidator = PostconditionsValidator()
+        self.capabilityBinder = CapabilityBinder()
+        self._legacyContext = context
     }
 
     /// PHASE 1: Decide — invoke planner to produce a Command
@@ -115,12 +130,13 @@ public actor RuntimeOrchestrator: IntentAPI {
             
             // Validate postconditions
             do {
-                guard try postconditionsValidator.validate(command, outcome: initialOutcome) else {
+                if try postconditionsValidator.validate(command, outcome: initialOutcome) {
+                    executionStatus = .success
+                    postconditionsPassed = true
+                } else {
                     executionStatus = .postconditionFailed
                     postconditionsPassed = false
                 }
-                executionStatus = .success
-                postconditionsPassed = true
             } catch {
                 executionStatus = .postconditionFailed
                 postconditionsPassed = false
