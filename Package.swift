@@ -20,9 +20,9 @@ let package = Package(
         .executable(name: "OracleController", targets: ["OracleController"]),
     ],
     dependencies: [
-        // Pin AXorcist to the last Swift 5.9-compatible revision.
+        // Pin AXorcist to a vendored revision.
         // The v0.1.0 tag bumped swift-tools-version to 6.2 which is
-        // incompatible with this package's 5.9 toolchain.
+        // incompatible with this package's 6.0 toolchain.
         .package(path: "Vendor/AXorcist"),
     ],
     targets: [
