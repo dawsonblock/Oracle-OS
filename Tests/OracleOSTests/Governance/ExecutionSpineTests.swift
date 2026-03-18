@@ -14,7 +14,7 @@ struct ExecutionSpineTests {
     @Test("ToolDispatcher.dispatch is not called outside VerifiedExecutor")
     func toolDispatcherOnlyCalledFromExecutor() throws {
         let executionDir = sourcesRoot().appendingPathComponent("Execution")
-        let allSwift = try swiftFilesRecursive(in: sourcesRoot())
+        let allSwift = try swiftFilesRecursive(in: executionDir)
 
         for file in allSwift {
             let content = try String(contentsOf: file, encoding: .utf8)
