@@ -48,3 +48,17 @@ public struct ArtifactPayload: Sendable, Codable {
     public init(kind: String, identifier: String, data: Data? = nil) {
         self.kind = kind; self.identifier = identifier; self.data = data }
 }
+
+/// Result of the critic evaluation phase in RuntimeOrchestrator.
+/// Classifies the execution outcome and signals whether recovery is needed.
+public struct EvaluationResult: Sendable {
+    public let commandID: CommandID
+    public let criticOutcome: CriticOutcome
+    public let needsRecovery: Bool
+    public let notes: [String]
+
+    public init(commandID: CommandID, criticOutcome: CriticOutcome, needsRecovery: Bool, notes: [String] = []) {
+        self.commandID = commandID; self.criticOutcome = criticOutcome
+        self.needsRecovery = needsRecovery; self.notes = notes
+    }
+}

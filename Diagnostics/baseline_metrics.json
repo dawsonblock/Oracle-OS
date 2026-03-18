@@ -9,14 +9,14 @@
       "dialog_interruption_recovery"
     ],
     "metrics": {
-      "success_rate": null,
-      "average_steps": null,
-      "wrong_target_rate": null,
-      "recovery_count": null,
-      "workflow_reuse_rate": null,
-      "patch_success_rate": null
+      "success_rate": 0.0,
+      "average_steps": 0.0,
+      "wrong_target_rate": 0.0,
+      "recovery_count": 0,
+      "workflow_reuse_rate": 0.0,
+      "patch_success_rate": 0.0
     },
-    "recorded_at": null,
-    "notes": "Populate by running the fixed task set against the pre-upgrade system."
+    "recorded_at": "2026-03-18T00:00:00Z",
+    "notes": "Initial baseline with zero values. Run the fixed task set to populate with real measurements before merging metric-sensitive changes."
   }
 }

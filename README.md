@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)
-[![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138.svg)](https://swift.org)
+[![Swift 6.0+](https://img.shields.io/badge/Swift-6.0%2B-F05138.svg)](https://swift.org)
 ![MCP Tools](https://img.shields.io/badge/MCP%20Tools-22-8A2BE2.svg)
 
 [Quick Start](#-quick-start) · [Features](#-features) · [Architecture](#-architecture) · [MCP Tools](#-mcp-tool-surface) · [Docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
@@ -61,7 +61,7 @@ Current highlights:
 - project memory, experiment fanout, and architecture review are implemented as bounded upper layers
 - Reasoning Layer: Multi-coordinator architecture for decision, execution, learning, and recovery
 
-> **Requirements:** macOS 14+, Swift 5.9+, Accessibility and Screen Recording permissions.
+> **Requirements:** macOS 14+, Swift 6.0+, Accessibility and Screen Recording permissions.
 
 ## ✨ Features
 

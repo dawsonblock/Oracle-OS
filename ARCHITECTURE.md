@@ -8,7 +8,7 @@ This document describes the current runtime layers and how they satisfy the gove
 
 Oracle OS has one execution spine:
 
-`surface -> RuntimeOrchestrator -> Policy -> VerifiedActionExecutor -> Critic -> Trace -> runtime-managed graph/memory/recovery update`
+`surface -> RuntimeOrchestrator -> Policy -> VerifiedExecutor -> Critic -> Trace -> runtime-managed graph/memory/recovery update`
 
 Surfaces:
 
@@ -54,9 +54,9 @@ Responsibilities:
 
 Primary files:
 
-- `Sources/OracleOS/Core/Observation/*`
-- `Sources/OracleOS/Core/PlanningState/*`
-- `Sources/OracleOS/Core/World/*`
+- `Sources/OracleOS/WorldModel/Observation/*`
+- `Sources/OracleOS/Planning/*`
+- `Sources/OracleOS/WorldModel/*`
 
 Responsibilities:
 
@@ -69,8 +69,8 @@ Responsibilities:
 
 Primary files:
 
-- `Sources/OracleOS/Core/Observation/ObservationChangeDetector.swift`
-- `Sources/OracleOS/Core/Observation/ObservationDelta.swift`
+- `Sources/OracleOS/WorldModel/ObservationChangeDetector.swift`
+- `Sources/OracleOS/WorldModel/ObservationDelta.swift`
 
 Responsibilities:
 
@@ -137,7 +137,7 @@ resolves the actual coordinates.
 
 Primary files:
 
-- `Sources/OracleOS/Agent/Planning/*`
+- `Sources/OracleOS/Planning/*`
 
 Responsibilities:
 
@@ -150,8 +150,9 @@ Responsibilities:
 
 Primary files:
 
-- `Sources/OracleOS/Agent/Skills/OS/*`
-- `Sources/OracleOS/Agent/Skills/Code/*`
+- `Sources/OracleOS/Skills/OS/*`
+- `Sources/OracleOS/Code/Skills/*`
+- `Sources/OracleOS/Browser/Skills/*`
 
 Responsibilities:
 
@@ -165,29 +166,32 @@ They do not execute directly.
 
 Primary files:
 
-- `Sources/OracleOS/Core/Execution/VerifiedActionExecutor.swift`
-- `Sources/OracleOS/Core/ExecutionSemantics/*`
+- `Sources/OracleOS/Execution/VerifiedExecutor.swift`
+- `Sources/OracleOS/Execution/ExecutionOutcome.swift`
 
 Responsibilities:
 
-- pre/post observation
-- postcondition verification
-- failure classification
-- transition semantics emission
-- trace event creation
-- stamps `executedThroughExecutor` on every `ActionResult`
-- feeds critic verdict into state memory index
-- feeds critic verdict into planning graph engine
+- precondition/postcondition validation
+- safety and policy validation
+- capability binding
+- structured tool dispatch via ToolDispatcher
+- event emission for CommitCoordinator
+- comprehensive failure classification for recovery
 
-This is the execution truth boundary, not the planner and not the architecture engine.
-Every action must pass through this executor; the runtime asserts
-`executedThroughExecutor == true` on every result to enforce the trust boundary.
+This is the execution truth boundary. Every side effect must flow through
+``VerifiedExecutor`` — the only layer allowed to produce side effects.
+``VerifiedExecutor`` returns ``ExecutionOutcome`` with events and artifacts;
+``CommitCoordinator`` is the only entity that writes committed state.
+
+> **Note:** The legacy ``VerifiedActionExecutor`` shim in ``ActionResult.swift``
+> is deprecated. It performs no actual verification. All new code must use
+> ``VerifiedExecutor`` routed through ``RuntimeOrchestrator``.
 
 ### Critic (Self-Evaluation Loop)
 
 Primary files:
 
-- `Sources/OracleOS/Critic/CriticLoop.swift`
+- `Sources/OracleOS/Execution/Critic/CriticLoop.swift`
 
 Responsibilities:
 
@@ -216,7 +220,9 @@ directly influences:
 
 Primary files:
 
-- `Sources/OracleOS/PlanningGraph/PlanningGraphEngine.swift`
+- `Sources/OracleOS/Planning/GraphSearch/PathSearch.swift`
+- `Sources/OracleOS/Planning/GraphSearch/PathScorer.swift`
+- `Sources/OracleOS/Planning/GraphSearch/GraphSearchDiagnostics.swift`
 
 Responsibilities:
 
@@ -347,7 +353,7 @@ Responsibilities:
 
 Primary files:
 
-- `Sources/OracleOS/Agent/Recovery/*`
+- `Sources/OracleOS/Recovery/*`
 
 Responsibilities:
 
@@ -455,7 +461,7 @@ observe environment
   → compress state (StateAbstractionEngine)
   → query state memory for known strategies (StateMemoryIndex.likelyActions)
   → generate candidates: memory → graph → LLM fallback (CandidateGenerator)
-  → execute candidate actions (VerifiedActionExecutor via SearchController)
+  → execute candidate actions (VerifiedExecutor via RuntimeOrchestrator)
   → critic evaluates each result (CriticLoop)
   → select best verified result (ResultSelector)
   → critic verdict drives graph promotion/demotion (TaskGraphStore)
@@ -504,7 +510,10 @@ Only reusable knowledge is eligible for canonical long-term storage.
 ## Current Enforcement
 
 - runtime owns post-execution updates
-- runtime asserts `executedThroughExecutor` on every action result to enforce the trust boundary
+- all side effects flow through `VerifiedExecutor` — the single execution gate
+- `CommitCoordinator` is the only entity that writes committed state
+- `RuntimeOrchestrator` follows four phases: decide → execute → commit → evaluate
+- legacy `performAction` bridges and `VerifiedActionExecutor` shim are deprecated
 - graph promotion blocks experiment and recovery evidence from stable promotion
 - target-bearing OS skills resolve through ranking
 - project-memory episode residue is kept out of canonical `ProjectMemory/`

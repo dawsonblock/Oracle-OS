@@ -128,10 +128,19 @@ public struct ActionResult: Sendable, Codable {
     }
 }
 
-// MARK: - Legacy Compatibility Shim
+// MARK: - Legacy Compatibility Shim (Deprecated)
 
-/// Backward-compatibility shim: preserves pre-refactor API used by Actions.swift and RuntimeContext.
-/// New code should use VerifiedExecutor actor directly.
+/// **DEPRECATED** — This shim provides NO actual verification. It simply calls
+/// the action closure directly and returns the result.
+///
+/// All new code **must** use ``VerifiedExecutor`` actor (the real typed execution
+/// layer) routed through ``RuntimeOrchestrator``. The ``VerifiedExecutor`` path
+/// performs precondition/postcondition validation, safety checks, capability
+/// binding, and structured event emission — none of which this shim does.
+///
+/// Migrate callers to submit typed ``Intent`` through ``IntentAPI.submitIntent``
+/// which flows through: Intent → Planner → Command → VerifiedExecutor → Events.
+@available(*, deprecated, message: "Use VerifiedExecutor actor via RuntimeOrchestrator/IntentAPI. This shim performs no verification.")
 public final class VerifiedActionExecutor: @unchecked Sendable {
     public init(
         traceRecorder: TraceRecorder? = nil,
@@ -153,6 +162,7 @@ public final class VerifiedActionExecutor: @unchecked Sendable {
         return action()
     }
 
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead.")
     public static func run(
         intent: ActionIntent,
         action: () -> ToolResult
@@ -169,9 +179,14 @@ public final class VerifiedActionExecutor: @unchecked Sendable {
 
 extension RuntimeOrchestrator {
     /// Legacy context property — provides RuntimeContext for CodeActionGateway compatibility.
+    /// **DEPRECATED**: Migrate to IntentAPI.submitIntent path.
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing RuntimeContext directly.")
     public nonisolated var context: RuntimeContext { _legacyContext! }
 
-    /// Legacy synchronous performAction bridge (simple form) for Actions.swift.
+    /// **DEPRECATED** — Legacy synchronous performAction bridge (simple form) for Actions.swift.
+    /// This bridge bypasses the typed Command → VerifiedExecutor pipeline entirely.
+    /// Migrate callers to submit typed Intent through IntentAPI.submitIntent.
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent. This bridge bypasses VerifiedExecutor.")
     public nonisolated func performAction(
         surface: RuntimeSurface,
         taskID: String?,
@@ -183,6 +198,7 @@ extension RuntimeOrchestrator {
         return MainActor.assumeIsolated { action() }
     }
 
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent. This bridge bypasses VerifiedExecutor.")
     public nonisolated func performAction(
         surface: RuntimeSurface,
         toolName: String?,
@@ -199,7 +215,10 @@ extension RuntimeOrchestrator {
         )
     }
 
-    /// Legacy synchronous performAction bridge (full metadata form) for RuntimeExecutionDriver.swift.
+    /// **DEPRECATED** — Legacy synchronous performAction bridge (full metadata form) for RuntimeExecutionDriver.swift.
+    /// This bridge bypasses the typed Command → VerifiedExecutor pipeline entirely.
+    /// Migrate callers to submit typed Intent through IntentAPI.submitIntent.
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent. This bridge bypasses VerifiedExecutor.")
     public nonisolated func performAction(
         surface: RuntimeSurface,
         taskID: String?,
@@ -231,6 +250,7 @@ extension RuntimeOrchestrator {
         return MainActor.assumeIsolated { action() }
     }
 
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent. This bridge bypasses VerifiedExecutor.")
     public nonisolated func performAction(
         surface: RuntimeSurface,
         toolName: String?,
