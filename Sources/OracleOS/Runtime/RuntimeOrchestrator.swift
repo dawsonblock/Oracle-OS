@@ -225,7 +225,7 @@ public actor RuntimeOrchestrator: IntentAPI {
             criticOutcome = .failure
         }
 
-        let needsRecovery = criticOutcome == .failure || criticOutcome == .unknown
+        let needsRecovery = criticOutcome == .failure
 
         return EvaluationResult(
             commandID: outcome.commandID,
