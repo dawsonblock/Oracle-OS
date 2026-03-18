@@ -8,15 +8,22 @@ public actor RuntimeOrchestrator: IntentAPI {
     // The planner used for intent processing in submitIntent
     private let planner: any Planner
     // LEGACY: remove when performAction is eliminated
+    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let preconditionsValidator: PreconditionsValidator
     // LEGACY: remove when performAction is eliminated
+    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let safetyValidator: SafetyValidator
     // LEGACY: remove when performAction is eliminated
+    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let toolDispatcher: ToolDispatcher
     // LEGACY: remove when performAction is eliminated
+    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let postconditionsValidator: PostconditionsValidator
     // LEGACY: remove when performAction is eliminated
+    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let capabilityBinder: CapabilityBinder
+    /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
+    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing _legacyContext directly.")
     nonisolated(unsafe) public var _legacyContext: RuntimeContext?
 
     /// The authoritative execution delegate — only layer allowed to produce side effects.
@@ -74,7 +81,9 @@ public actor RuntimeOrchestrator: IntentAPI {
         )
     }
 
-    /// Backward-compatibility initializer for callers that only have a RuntimeContext.
+    /// **DEPRECATED** — Backward-compatibility initializer for callers that only have a RuntimeContext.
+    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
+    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
     public init(context: RuntimeContext, planner: any Planner) {
         self.eventStore = EventStore()
         self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
@@ -94,7 +103,9 @@ public actor RuntimeOrchestrator: IntentAPI {
         )
     }
 
-    /// Legacy initializer - creates default MainPlanner internally for backward compatibility
+    /// **DEPRECATED** — Legacy initializer - creates default MainPlanner internally for backward compatibility.
+    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
+    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
     public init(context: RuntimeContext) {
         self.eventStore = EventStore()
         self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
@@ -200,8 +211,29 @@ public actor RuntimeOrchestrator: IntentAPI {
         try await commitCoordinator.commit(outcome.events)
     }
 
-    /// PHASE 4: Evaluate — critic review (stub)
-    public func evaluate(_ outcome: ExecutionOutcome) async { /* critic loop stub */ }
+    /// PHASE 4: Evaluate — critic review of execution outcome.
+    /// Classifies outcome status and returns an evaluation summary.
+    /// Used to drive learning, recovery, and metrics recording.
+    public func evaluate(_ outcome: ExecutionOutcome) async -> EvaluationResult {
+        let criticOutcome: CriticOutcome
+        switch outcome.status {
+        case .success:
+            criticOutcome = .success
+        case .partialSuccess:
+            criticOutcome = .partialSuccess
+        case .failed, .preconditionFailed, .postconditionFailed, .policyBlocked:
+            criticOutcome = .failure
+        }
+
+        let needsRecovery = criticOutcome == .failure || criticOutcome == .unknown
+
+        return EvaluationResult(
+            commandID: outcome.commandID,
+            criticOutcome: criticOutcome,
+            needsRecovery: needsRecovery,
+            notes: outcome.verifierReport.notes
+        )
+    }
 }
 
 // MARK: - IntentAPI Conformance

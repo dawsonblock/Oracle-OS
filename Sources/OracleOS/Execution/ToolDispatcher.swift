@@ -151,8 +151,8 @@ public struct ToolDispatcher: @unchecked Sendable {
         let root = workspacePath ?? fallback
         let spec = CommandSpec(
             category: .build,
-            executable: "swift",
-            arguments: ["build"],
+            executable: "/usr/bin/env",
+            arguments: ["swift", "build"],
             workspaceRoot: root,
             summary: "swift build"
         )
@@ -167,12 +167,12 @@ public struct ToolDispatcher: @unchecked Sendable {
             return ([ObservationPayload(kind: "test", content: "no-context: skipped")], [])
         }
         let filter = (command as? RunTestsCommand)?.filter
-        var args = ["test"]
+        var args = ["swift", "test"]
         if let f = filter { args += ["--filter", f] }
         let root = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent().path }
         let spec = CommandSpec(
             category: .test,
-            executable: "swift",
+            executable: "/usr/bin/env",
             arguments: args,
             workspaceRoot: root,
             summary: "swift test\(filter.map { " --filter \($0)" } ?? "")"
