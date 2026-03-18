@@ -17,9 +17,14 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let postconditionsValidator: PostconditionsValidator
     // LEGACY: remove when performAction is eliminated
     private let capabilityBinder: CapabilityBinder
+    // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
+    nonisolated(unsafe) private var _legacyContextStorage: RuntimeContext?
     /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
     @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing _legacyContext directly.")
-    nonisolated(unsafe) public var _legacyContext: RuntimeContext?
+    nonisolated(unsafe) public var _legacyContext: RuntimeContext? {
+        get { _legacyContextStorage }
+        set { _legacyContextStorage = newValue }
+    }
 
     /// The authoritative execution delegate — only layer allowed to produce side effects.
     private let verifiedExecutor: VerifiedExecutor
@@ -43,7 +48,7 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.toolDispatcher = toolDispatcher
         self.postconditionsValidator = postconditionsValidator
         self.capabilityBinder = capabilityBinder
-        self._legacyContext = context
+        self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
             preconditionsValidator: preconditionsValidator,
             safetyValidator: safetyValidator,
@@ -66,7 +71,7 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.toolDispatcher = ToolDispatcher()
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
-        self._legacyContext = context
+        self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
             preconditionsValidator: self.preconditionsValidator,
             safetyValidator: self.safetyValidator,
