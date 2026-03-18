@@ -178,8 +178,7 @@ public final class VerifiedActionExecutor: @unchecked Sendable {
 }
 
 extension RuntimeOrchestrator {
-    /// Legacy context property — provides RuntimeContext for CodeActionGateway compatibility.
-    /// **DEPRECATED**: Migrate to IntentAPI.submitIntent path.
+    /// **DEPRECATED** — Legacy context property for backward compatibility.
     @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing RuntimeContext directly.")
     public nonisolated var context: RuntimeContext { _legacyContext! }
 
