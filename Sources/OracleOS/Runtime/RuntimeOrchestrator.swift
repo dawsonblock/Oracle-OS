@@ -8,19 +8,14 @@ public actor RuntimeOrchestrator: IntentAPI {
     // The planner used for intent processing in submitIntent
     private let planner: any Planner
     // LEGACY: remove when performAction is eliminated
-    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let preconditionsValidator: PreconditionsValidator
     // LEGACY: remove when performAction is eliminated
-    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let safetyValidator: SafetyValidator
     // LEGACY: remove when performAction is eliminated
-    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let toolDispatcher: ToolDispatcher
     // LEGACY: remove when performAction is eliminated
-    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let postconditionsValidator: PostconditionsValidator
     // LEGACY: remove when performAction is eliminated
-    @available(*, deprecated, message: "Legacy field — will be removed when performAction bridges are deleted.")
     private let capabilityBinder: CapabilityBinder
     /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
     @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing _legacyContext directly.")
