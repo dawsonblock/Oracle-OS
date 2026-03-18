@@ -7,15 +7,10 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let commitCoordinator: CommitCoordinator
     // The planner used for intent processing in submitIntent
     private let planner: any Planner
-    // LEGACY: remove when performAction is eliminated
     private let preconditionsValidator: PreconditionsValidator
-    // LEGACY: remove when performAction is eliminated
     private let safetyValidator: SafetyValidator
-    // LEGACY: remove when performAction is eliminated
     private let toolDispatcher: ToolDispatcher
-    // LEGACY: remove when performAction is eliminated
     private let postconditionsValidator: PostconditionsValidator
-    // LEGACY: remove when performAction is eliminated
     private let capabilityBinder: CapabilityBinder
     // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
     nonisolated(unsafe) private var _legacyContextStorage: RuntimeContext?

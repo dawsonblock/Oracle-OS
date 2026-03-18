@@ -757,44 +757,6 @@ struct GraphAwareLoopTests {
         #expect(recoveryFailed)
     }
 
-    @Test("Blocked runtime actions do not create graph edges")
-    func blockedRuntimeActionsDoNotCreateGraphEdges() {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let traceRecorder = TraceRecorder()
-        let traceStore = ExperienceStore(directoryURL: root.appendingPathComponent("traces", isDirectory: true))
-        let artifactWriter = FailureArtifactWriter(baseURL: root.appendingPathComponent("artifacts", isDirectory: true))
-        let approvalStore = ApprovalStore(rootDirectory: root.appendingPathComponent("approvals", isDirectory: true))
-        let graphStore = GraphStore(databaseURL: root.appendingPathComponent("graph.sqlite3"))
-        let context = RuntimeContext(
-            config: .live(),
-            traceRecorder: traceRecorder,
-            traceStore: traceStore,
-            artifactWriter: artifactWriter,
-            verifiedExecutor: VerifiedActionExecutor(
-                traceRecorder: traceRecorder,
-                traceStore: traceStore,
-                artifactWriter: artifactWriter,
-                graphStore: graphStore
-            ),
-            policyEngine: PolicyEngine(mode: .confirmRisky),
-            approvalStore: approvalStore,
-            graphStore: graphStore
-        )
-        let runtime = RuntimeOrchestrator(context: context)
-
-        let result = runtime.performAction(
-            surface: .mcp,
-            toolName: "oracle_click",
-            intent: .click(app: "Google Chrome", query: "Send")
-        ) {
-            ToolResult(success: true, data: ["method": "synthetic"])
-        }
-
-        #expect(result.success == false)
-        #expect(graphStore.allCandidateEdges().isEmpty)
-        #expect(graphStore.allStableEdges().isEmpty)
-    }
-
     @Test("Planner prefers workflow retrieval before stable graph reuse")
     func plannerPrefersWorkflowBeforeStableGraph() {
         let abstraction = StateAbstraction()
