@@ -4,11 +4,10 @@ import Testing
 
 @Suite("Runtime Integrity")
 struct RuntimeIntegrityTests {
-
     @Test("Legacy runtime bypass symbols remain absent")
     func legacyBypassSymbolsRemainAbsent() throws {
         let sourcesRoot = repositoryRoot().appendingPathComponent("Sources/OracleOS", isDirectory: true)
-        let forbidden = ["performAction(", "executeLegacy(", "VerifiedActionExecutor"]
+        let forbidden = ["performAction(", "executeLegacy(", "VerifiedActionExecutor", "ToolDispatcher", "CodeActionGateway"]
         let offenders = try swiftFiles(in: sourcesRoot).filter { fileURL in
             guard let contents = try? String(contentsOf: fileURL, encoding: .utf8) else {
                 return false
@@ -21,28 +20,15 @@ struct RuntimeIntegrityTests {
         )
     }
 
-    @Test("ToolDispatcher construction is confined to routing boundary")
-    func toolDispatcherConstructionIsConstrained() throws {
+    @Test("Legacy RuntimeContext shortcut is removed from orchestrator")
+    func runtimeOrchestratorDoesNotExposeLegacyContext() throws {
         let root = repositoryRoot()
-        let sourcesRoot = root.appendingPathComponent("Sources/OracleOS", isDirectory: true)
-        let allowedFiles: Set<String> = [
-            "Sources/OracleOS/Execution/Routing/CommandRouter.swift",
-            "Sources/OracleOS/Execution/ToolDispatcher.swift",
-        ]
-
-        var offenders: [String] = []
-        for fileURL in try swiftFiles(in: sourcesRoot) {
-            let contents = try String(contentsOf: fileURL, encoding: .utf8)
-            guard contents.contains("ToolDispatcher(") else { continue }
-            let relative = relativePath(of: fileURL, from: root)
-            if !allowedFiles.contains(relative) {
-                offenders.append(relative)
-            }
-        }
+        let orchestratorURL = root.appendingPathComponent("Sources/OracleOS/Runtime/RuntimeOrchestrator.swift")
+        let contents = try String(contentsOf: orchestratorURL, encoding: .utf8)
 
         #expect(
-            offenders.isEmpty,
-            "ToolDispatcher must be constructed only at the routing boundary. Offenders: \(offenders)"
+            !contents.contains("_legacyContext"),
+            "RuntimeOrchestrator should not expose legacy context shortcuts"
         )
     }
 

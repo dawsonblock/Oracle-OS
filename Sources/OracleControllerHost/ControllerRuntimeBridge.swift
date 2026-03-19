@@ -26,7 +26,17 @@ final class ControllerRuntimeBridge {
             artifactWriter: artifactWriter
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
-        self.oracleRuntime = RuntimeOrchestrator(context: runtimeContext) // Initialized property properly
+        let eventStore = EventStore()
+        let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
+        self.oracleRuntime = RuntimeOrchestrator(
+            eventStore: eventStore,
+            commitCoordinator: commitCoordinator,
+            planner: MainPlanner(),
+            policyEngine: runtimeContext.policyEngine,
+            automationHost: runtimeContext.automationHost,
+            workspaceRunner: runtimeContext.workspaceRunner,
+            repositoryIndexer: runtimeContext.repositoryIndexer
+        )
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()

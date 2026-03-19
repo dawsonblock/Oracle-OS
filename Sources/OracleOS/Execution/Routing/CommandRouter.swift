@@ -8,16 +8,14 @@ public struct CommandRouter: @unchecked Sendable {
     public init(
         automationHost: AutomationHost? = nil,
         workspaceRunner: WorkspaceRunner? = nil,
-        context: RuntimeContext? = nil
+        repositoryIndexer: RepositoryIndexer = RepositoryIndexer()
     ) {
-        let dispatcher = ToolDispatcher(
-            automationHost: automationHost,
+        self.systemRouter = SystemRouter(workspaceRunner: workspaceRunner)
+        self.uiRouter = UIRouter(automationHost: automationHost)
+        self.codeRouter = CodeRouter(
             workspaceRunner: workspaceRunner,
-            context: context
+            repositoryIndexer: repositoryIndexer
         )
-        self.systemRouter = SystemRouter(dispatcher: dispatcher)
-        self.uiRouter = UIRouter(dispatcher: dispatcher)
-        self.codeRouter = CodeRouter(dispatcher: dispatcher)
     }
 
     public func execute(
@@ -32,6 +30,10 @@ public struct CommandRouter: @unchecked Sendable {
         case .code:
             return try await codeRouter.execute(command, policyDecision: policyDecision)
         }
+    }
+
+    public static func domain(for command: Command) -> CommandType {
+        command.type
     }
 
     static func successOutcome(

@@ -5,8 +5,8 @@ struct NoOpIntentAPI: IntentAPI {
     func submitIntent(_ intent: Intent) async throws -> IntentResponse {
         IntentResponse(
             intentID: intent.id,
-            outcome: .skipped,
-            summary: "No-op test orchestrator",
+            outcome: .success,
+            summary: "Test orchestrator submitted intent",
             cycleID: UUID()
         )
     }

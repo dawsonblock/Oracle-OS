@@ -1,29 +1,13 @@
 import Foundation
 
-// AgentLoop is the authoritative runtime spine for orchestration only.
-// It may request state, decision, execution, learning, and recovery stages,
-// then terminate or continue. It must not absorb ranking, graph scoring,
-// experiment comparison, or direct world mutation logic.
+// AgentLoop is now a compatibility wrapper around the IntentAPI runtime spine.
+// It accepts legacy construction parameters so older call sites still compile,
+// but it no longer owns planning, execution, recovery, or state mutation.
 @MainActor
 public final class AgentLoop {
-    let planner: MainPlanner
-    let graphStore: GraphStore
-    let experimentCoordinator: LoopExperimentCoordinator
-    let learningCoordinator: LearningCoordinator
-    let stateCoordinator: StateCoordinator
-    let decisionCoordinator: DecisionCoordinator
-    let executionCoordinator: ExecutionCoordinator
-    let recoveryCoordinator: RecoveryCoordinator
-    private let stateMemoryIndex: StateMemoryIndex?
-    let worldModel: WorldStateModel
+    private let orchestrator: any IntentAPI
+    private var running = true
 
-    /// NEW: IntentAPI-based orchestrator for the new execution spine.
-    /// When set, the run loop should prefer this over legacy coordinator path.
-    public private(set) var orchestrator: (any IntentAPI)?
-
-    /// NEW preferred init — uses RuntimeOrchestrator as the execution spine.
-    /// This is the target architecture: AgentLoop becomes a thin wrapper that
-    /// submits intents through RuntimeOrchestrator.
     public init(
         orchestrator: any IntentAPI,
         observationProvider: any ObservationProvider,
@@ -42,57 +26,90 @@ public final class AgentLoop {
         stateMemoryIndex: StateMemoryIndex? = nil,
         worldModel: WorldStateModel = WorldStateModel()
     ) {
+        _ = observationProvider
+        _ = executionDriver
+        _ = stateAbstraction
+        _ = planner
+        _ = graphStore
+        _ = policyEngine
+        _ = recoveryEngine
+        _ = memoryStore
+        _ = skillRegistry
+        _ = repositoryIndexer
+        _ = experimentManager
+        _ = automationHost
+        _ = browserPageStateBuilder
+        _ = stateMemoryIndex
+        _ = worldModel
         self.orchestrator = orchestrator
-        self.planner = planner
-        self.graphStore = graphStore
-        self.stateMemoryIndex = stateMemoryIndex
-        self.worldModel = worldModel
+    }
 
-        let projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
-        let learningCoordinator = LearningCoordinator(
-            memoryStore: memoryStore,
-            projectMemoryCoordinator: projectMemoryCoordinator
-        )
-        self.learningCoordinator = learningCoordinator
-        self.stateCoordinator = StateCoordinator(
-            observationProvider: observationProvider,
-            stateAbstraction: stateAbstraction,
-            repositoryIndexer: repositoryIndexer,
-            automationHost: automationHost,
-            browserPageStateBuilder: browserPageStateBuilder
-        )
-        self.decisionCoordinator = DecisionCoordinator(
-            planner: planner,
-            graphStore: graphStore,
-            memoryStore: memoryStore,
-            stateMemoryIndex: stateMemoryIndex
-        )
-        self.executionCoordinator = ExecutionCoordinator(
-            executionDriver: executionDriver,
-            skillRegistry: skillRegistry,
-            policyEngine: policyEngine,
-            memoryStore: memoryStore
-        )
-        self.recoveryCoordinator = RecoveryCoordinator(
-            observationProvider: observationProvider,
-            stateAbstraction: stateAbstraction,
-            recoveryEngine: recoveryEngine,
-            executionCoordinator: self.executionCoordinator,
-            learningCoordinator: learningCoordinator,
-            repositoryIndexer: repositoryIndexer,
-            automationHost: automationHost,
-            browserPageStateBuilder: browserPageStateBuilder
-        )
-        self.experimentCoordinator = LoopExperimentCoordinator(
-            experimentManager: experimentManager,
-            executionCoordinator: self.executionCoordinator,
-            observationProvider: observationProvider,
-            stateAbstraction: stateAbstraction,
-            recoveryEngine: recoveryEngine,
-            memoryStore: memoryStore,
-            repositoryIndexer: repositoryIndexer,
-            projectMemoryCoordinator: projectMemoryCoordinator
+    public func stop() {
+        running = false
+    }
+
+    fileprivate func makeIntent(for goal: Goal, surface: RuntimeSurface) -> Intent {
+        var metadata: [String: String] = [
+            "source": "agent-loop.\(surface.rawValue)",
+        ]
+        if let app = goal.targetApp {
+            metadata["app"] = app
+        }
+        if let domain = goal.targetDomain {
+            metadata["targetDomain"] = domain
+            metadata["url"] = domain.hasPrefix("http") ? domain : "https://\(domain)"
+        }
+        if let taskPhase = goal.targetTaskPhase {
+            metadata["targetTaskPhase"] = taskPhase
+        }
+        if let workspaceRoot = goal.workspaceRoot {
+            metadata["workspacePath"] = workspaceRoot
+        }
+
+        let domain: IntentDomain = switch goal.preferredAgentKind {
+        case .code:
+            .code
+        case .mixed:
+            .mixed
+        case .os, .none:
+            goal.workspaceRoot == nil ? .ui : .mixed
+        }
+
+        return Intent(
+            domain: domain,
+            objective: goal.description,
+            metadata: metadata
         )
     }
 
+    fileprivate func makeOutcome(from response: IntentResponse) -> LoopOutcome {
+        let reason: LoopTerminationReason
+        switch response.outcome {
+        case .success:
+            reason = .goalAchieved
+        case .partialSuccess:
+            reason = .unrecoverableFailure
+        case .failed:
+            let lowered = response.summary.lowercased()
+            if lowered.contains("approval") {
+                reason = .approvalTimeout
+            } else if lowered.contains("policy") {
+                reason = .policyBlocked
+            } else if lowered.contains("planning failed") {
+                reason = .noViablePlan
+            } else {
+                reason = .unrecoverableFailure
+            }
+        case .skipped:
+            reason = .noViablePlan
+        }
+
+        return LoopOutcome(
+            reason: reason,
+            finalWorldState: nil,
+            steps: response.outcome == .skipped ? 0 : 1,
+            recoveries: 0,
+            lastFailure: reason == .goalAchieved ? nil : .actionFailed
+        )
+    }
 }

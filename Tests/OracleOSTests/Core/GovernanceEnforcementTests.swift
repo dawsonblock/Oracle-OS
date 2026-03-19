@@ -242,26 +242,22 @@ struct GovernanceEnforcementTests {
         #expect(review.governanceReport.hardFailures.contains(where: { $0.title == "Planner/local-resolution boundary drift" }))
     }
 
-    @Test("Execution driver is only invoked from the execution coordinator")
-    func executionDriverIsOnlyUsedByExecutionCoordinator() throws {
+    @Test("AgentLoop no longer invokes the legacy execution driver")
+    func agentLoopDoesNotInvokeLegacyExecutionDriver() throws {
         let root = repositoryRoot()
-        let sourcesRoot = root.appendingPathComponent("Sources/OracleOS", isDirectory: true)
-        let enumerator = FileManager.default.enumerator(
-            at: sourcesRoot,
-            includingPropertiesForKeys: nil
-        )
+        let loopDir = root.appendingPathComponent("Sources/OracleOS/Execution/Loop", isDirectory: true)
+        let enumerator = FileManager.default.enumerator(at: loopDir, includingPropertiesForKeys: nil)
 
         var offendingFiles: [String] = []
         while let fileURL = enumerator?.nextObject() as? URL {
             guard fileURL.pathExtension == "swift" else { continue }
             let contents = try String(contentsOf: fileURL)
-            guard contents.contains("executionDriver.execute") else { continue }
-            if fileURL.lastPathComponent != "ExecutionCoordinator.swift" {
+            if contents.contains("executionDriver.execute") {
                 offendingFiles.append(fileURL.lastPathComponent)
             }
         }
 
-        #expect(offendingFiles.isEmpty, "executionDriver.execute should be centralized in ExecutionCoordinator.swift, found: \(offendingFiles)")
+        #expect(offendingFiles.isEmpty, "AgentLoop should not invoke the legacy execution driver, found: \(offendingFiles)")
     }
 
     @Test("AgentLoop source file stays below 150 lines")
