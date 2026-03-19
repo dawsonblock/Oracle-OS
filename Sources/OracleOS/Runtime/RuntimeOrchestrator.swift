@@ -119,7 +119,6 @@ extension RuntimeOrchestrator {
             )
         }
 
-        let snapshotID = UUID()
         _ = await commitCoordinator.snapshot()
         let evaluation = await evaluate(executionOutcome)
 
@@ -140,7 +139,7 @@ extension RuntimeOrchestrator {
             outcome: outcome,
             summary: "Intent completed: \(intent.objective) - \(executionOutcome.status.rawValue), critic=\(evaluation.criticOutcome.rawValue)",
             cycleID: cycleID,
-            snapshotID: snapshotID,
+            snapshotID: nil,
             timestamp: Date()
         )
     }
