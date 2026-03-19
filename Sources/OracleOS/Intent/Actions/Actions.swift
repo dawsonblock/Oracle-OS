@@ -93,25 +93,17 @@ public enum Actions {
             postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performClick(
-                    query: query,
-                    role: role,
-                    domId: domId,
-                    appName: appName,
-                    x: x,
-                    y: y,
-                    button: button,
-                    count: count
-                )
-            }
+        if runtime != nil {
+            return performClick(
+                query: query,
+                role: role,
+                domId: domId,
+                appName: appName,
+                x: x,
+                y: y,
+                button: button,
+                count: count
+            )
         }
 
         let actionExecutor = executor ?? VerifiedActionExecutor()
@@ -350,22 +342,14 @@ public enum Actions {
             postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performTypeText(
-                    text: text,
-                    into: into,
-                    domId: domId,
-                    appName: appName,
-                    clear: clear
-                )
-            }
+        if runtime != nil {
+            return performTypeText(
+                text: text,
+                into: into,
+                domId: domId,
+                appName: appName,
+                clear: clear
+            )
         }
 
         let actionExecutor = executor ?? VerifiedActionExecutor()
@@ -566,20 +550,12 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performPressKey(
-                    key: key,
-                    modifiers: modifiers,
-                    appName: appName
-                )
-            }
+        if runtime != nil {
+            return performPressKey(
+                key: key,
+                modifiers: modifiers,
+                appName: appName
+            )
         }
 
         let actionExecutor = executor ?? VerifiedActionExecutor()
@@ -642,16 +618,8 @@ public enum Actions {
             postconditions: postconditions
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                FocusManager.focus(appName: appName, windowTitle: windowTitle)
-            }
+        if runtime != nil {
+            return FocusManager.focus(appName: appName, windowTitle: windowTitle)
         }
 
         let actionExecutor = executor ?? VerifiedActionExecutor()
@@ -685,16 +653,8 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performHotkey(keys: keys, appName: appName)
-            }
+        if runtime != nil {
+            return performHotkey(keys: keys, appName: appName)
         }
 
         return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
@@ -756,22 +716,14 @@ public enum Actions {
             y: y
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performScroll(
-                    direction: direction,
-                    amount: amount,
-                    appName: appName,
-                    x: x,
-                    y: y
-                )
-            }
+        if runtime != nil {
+            return performScroll(
+                direction: direction,
+                amount: amount,
+                appName: appName,
+                x: x,
+                y: y
+            )
         }
 
         return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
@@ -921,24 +873,16 @@ public enum Actions {
             y: y
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performWindowAction(
-                    action: action,
-                    appName: appName,
-                    windowTitle: windowTitle,
-                    x: x,
-                    y: y,
-                    width: width,
-                    height: height
-                )
-            }
+        if runtime != nil {
+            return performWindowAction(
+                action: action,
+                appName: appName,
+                windowTitle: windowTitle,
+                x: x,
+                y: y,
+                width: width,
+                height: height
+            )
         }
 
         return performWindowAction(

@@ -123,7 +123,7 @@ extension ControllerStore {
         switch draft.kind {
         case .action:
             guard let actionRequest = draft.actionRequest else { return }
-            await performAction(actionRequest)
+            await executeAction(actionRequest)
 
         case .recipe:
             guard let recipeName = draft.recipeName else { return }

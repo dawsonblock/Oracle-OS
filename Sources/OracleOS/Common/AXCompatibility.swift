@@ -337,9 +337,11 @@ public extension Element {
         return generatePathString(upTo: ancestor, isDebugLoggingEnabled: false, currentDebugLogs: &logs)
     }
 
-    func performAction(_ actionName: String) throws {
-        var logs: [String] = []
-        _ = try performAction(actionName, isDebugLoggingEnabled: false, currentDebugLogs: &logs)
+    func invokeAction(_ actionName: String) throws {
+        let result = AXUIElementPerformAction(underlyingElement, actionName as CFString)
+        guard result == .success else {
+            throw AXCompatibilityError.actionFailed(actionName, result.rawValue)
+        }
     }
 
     func isActionSupported(_ actionName: String) -> Bool {
@@ -459,7 +461,7 @@ public extension Element {
 
     func click(button: MouseButton = .left, clickCount: Int = 1) throws {
         if button == .left, clickCount == 1, isActionSupported("AXPress") {
-            try performAction("AXPress")
+            try invokeAction("AXPress")
             return
         }
         guard let frame = frame() else {
@@ -471,7 +473,7 @@ public extension Element {
     @discardableResult
     func focusWindow() -> Bool {
         do {
-            try performAction("AXRaise")
+            try invokeAction("AXRaise")
             _ = setValue(true, forAttribute: "AXMain")
             return true
         } catch {
@@ -962,6 +964,7 @@ private enum AXCompatibilityError: LocalizedError {
     case eventCreationFailed(String)
     case missingFrame
     case unsupportedKey(String)
+    case actionFailed(String, Int32)
 
     var errorDescription: String? {
         switch self {
@@ -971,6 +974,8 @@ private enum AXCompatibilityError: LocalizedError {
             return "Element has no screen frame"
         case .unsupportedKey(let key):
             return "Unsupported key '\(key)'"
+        case .actionFailed(let action, let code):
+            return "AX action '\(action)' failed with code \(code)"
         }
     }
 }
