@@ -12,7 +12,11 @@ public struct UIRouter: @unchecked Sendable {
         _ command: Command,
         policyDecision: PolicyDecision
     ) async throws -> ExecutionOutcome {
-        _ = automationHost
+        #if DEBUG
+        if let automationHost = automationHost {
+            NSLog("UIRouter executing with automation host: \(automationHost)")
+        }
+        #endif
 
         guard case .ui(let action) = command.payload else {
             return CommandRouter.failureOutcome(
