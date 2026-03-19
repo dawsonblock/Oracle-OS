@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 /// Bridges the AgentLoop execution path to the IntentAPI spine.
 ///
@@ -25,7 +24,12 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
         plannerDecision: PlannerDecision,
         selectedCandidate: ElementCandidate?
     ) -> ToolResult {
-        return executeViaIntentAPI(intentAPI, intent: intent, plannerDecision: plannerDecision)
+        executeViaIntentAPI(
+            intentAPI,
+            intent: intent,
+            plannerDecision: plannerDecision,
+            selectedCandidate: selectedCandidate
+        )
     }
 
     // MARK: - IntentAPI translation path
@@ -35,35 +39,61 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
     private func executeViaIntentAPI(
         _ api: any IntentAPI,
         intent: ActionIntent,
-        plannerDecision: PlannerDecision
+        plannerDecision: PlannerDecision,
+        selectedCandidate: ElementCandidate?
     ) -> ToolResult {
         let domain: IntentDomain = intent.agentKind == .code ? .code :
             (intent.agentKind == .mixed ? .system : .ui)
 
+        var metadata = [
+            "query": intent.query ?? intent.text ?? intent.name,
+            "source": "runtime-execution-driver",
+            "plannerSource": plannerDecision.source.rawValue,
+            "plannerFamily": plannerDecision.plannerFamily.rawValue,
+        ]
+        if let selectedCandidate {
+            metadata["selectedElementID"] = selectedCandidate.element.id
+            metadata["selectedElementLabel"] = selectedCandidate.element.label
+        }
+        if let encodedIntent = Self.encodeActionIntent(intent) {
+            metadata["action_intent_base64"] = encodedIntent
+        }
+
         let typedIntent = Intent(
             domain: domain,
             objective: intent.name,
-            metadata: ["query": intent.query ?? intent.text ?? intent.name]
+            metadata: metadata
         )
 
         // Submit intent via API — the sole approved execution gateway
         var result: ToolResult = ToolResult(success: false, error: "IntentAPI submission pending")
-        let group = DispatchGroup()
-        group.enter()
-        Task { @MainActor in
+        let resultLock = NSLock()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached(priority: .userInitiated) {
             do {
                 let response = try await api.submitIntent(typedIntent)
+                resultLock.lock()
                 result = ToolResult(
                     success: response.outcome == .success || response.outcome == .skipped,
                     data: ["summary": response.summary, "cycleID": response.cycleID.uuidString],
                     error: response.outcome == .failed ? response.summary : nil
                 )
+                resultLock.unlock()
             } catch {
+                resultLock.lock()
                 result = ToolResult(success: false, error: error.localizedDescription)
+                resultLock.unlock()
             }
-            group.leave()
+            semaphore.signal()
         }
-        group.wait()
+        semaphore.wait()
         return result
+    }
+
+    private static func encodeActionIntent(_ intent: ActionIntent) -> String? {
+        guard let data = try? JSONEncoder().encode(intent) else {
+            return nil
+        }
+        return data.base64EncodedString()
     }
 }
