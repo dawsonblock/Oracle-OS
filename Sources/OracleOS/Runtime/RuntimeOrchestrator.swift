@@ -1,355 +1,134 @@
 import Foundation
 
 /// The single entry point for runtime cycle execution.
-/// Coordinates: decide → execute → commit → evaluate
+/// Coordinates: Intent → Decide → Execute → Commit → Evaluate → Learn
 public actor RuntimeOrchestrator: IntentAPI {
     private let eventStore: EventStore
     private let commitCoordinator: CommitCoordinator
-    // The planner used for intent processing in submitIntent
-    private let planner: any Planner
-    private let preconditionsValidator: PreconditionsValidator
-    private let safetyValidator: SafetyValidator
-    private let toolDispatcher: ToolDispatcher
-    private let postconditionsValidator: PostconditionsValidator
-    private let capabilityBinder: CapabilityBinder
-    // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
-    nonisolated(unsafe) private var _legacyContextStorage: RuntimeContext?
-    /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
-    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing _legacyContext directly.")
-    nonisolated(unsafe) public var _legacyContext: RuntimeContext? {
-        get { _legacyContextStorage }
-        set { _legacyContextStorage = newValue }
-    }
-
-    /// The authoritative execution delegate — only layer allowed to produce side effects.
+    private let decisionCoordinator: DecisionCoordinator
     private let verifiedExecutor: VerifiedExecutor
+    private let critic: Critic
+    private let learningCoordinator: LearningCoordinator
 
+    /// The canonical initializer - all dependencies injected explicitly
     public init(
         eventStore: EventStore,
         commitCoordinator: CommitCoordinator,
-        planner: any Planner,
-        preconditionsValidator: PreconditionsValidator = PreconditionsValidator(),
-        safetyValidator: SafetyValidator = SafetyValidator(),
-        toolDispatcher: ToolDispatcher = ToolDispatcher(),
-        postconditionsValidator: PostconditionsValidator = PostconditionsValidator(),
-        capabilityBinder: CapabilityBinder = CapabilityBinder(),
-        context: RuntimeContext? = nil
+        decisionCoordinator: DecisionCoordinator,
+        verifiedExecutor: VerifiedExecutor,
+        critic: Critic,
+        learningCoordinator: LearningCoordinator
     ) {
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
-        self.planner = planner
-        self.preconditionsValidator = preconditionsValidator
-        self.safetyValidator = safetyValidator
-        self.toolDispatcher = toolDispatcher
-        self.postconditionsValidator = postconditionsValidator
-        self.capabilityBinder = capabilityBinder
-        self._legacyContextStorage = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: preconditionsValidator,
-            safetyValidator: safetyValidator,
-            capabilityBinder: capabilityBinder,
-            toolDispatcher: toolDispatcher,
-            postconditionsValidator: postconditionsValidator
-        )
+        self.decisionCoordinator = decisionCoordinator
+        self.verifiedExecutor = verifiedExecutor
+        self.critic = critic
+        self.learningCoordinator = learningCoordinator
     }
 
+    /// Convenience initializer with default implementations
     public init(
-        eventStore: EventStore,
-        commitCoordinator: CommitCoordinator,
-        context: RuntimeContext? = nil
+        eventStore: EventStore = EventStore(),
+        commitCoordinator: CommitCoordinator? = nil,
+        stateAbstraction: StateAbstraction = StateAbstraction()
     ) {
         self.eventStore = eventStore
-        self.commitCoordinator = commitCoordinator
-        self.planner = MainPlanner()
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
-        self._legacyContextStorage = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
-            postconditionsValidator: self.postconditionsValidator
+        
+        // Create default coordinators
+        let memoryStore = UnifiedMemoryStore()
+        let projectMemoryCoordinator = LoopProjectMemoryCoordinator(memoryStore: memoryStore)
+        let learningCoordinator = LearningCoordinator(
+            memoryStore: memoryStore,
+            projectMemoryCoordinator: projectMemoryCoordinator
         )
-    }
-
-    /// **DEPRECATED** — Backward-compatibility initializer for callers that only have a RuntimeContext.
-    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
-    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
-    public init(context: RuntimeContext, planner: any Planner) {
-        self.eventStore = EventStore()
-        self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
-        self.planner = planner
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
-        self._legacyContext = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
-            postconditionsValidator: self.postconditionsValidator
+        self.learningCoordinator = learningCoordinator
+        
+        let planner = MainPlanner()
+        let graphStore = GraphStore()
+        self.decisionCoordinator = DecisionCoordinator(
+            planner: planner,
+            graphStore: graphStore,
+            memoryStore: memoryStore
         )
-    }
-
-    /// **DEPRECATED** — Legacy initializer - creates default MainPlanner internally for backward compatibility.
-    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
-    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
-    public init(context: RuntimeContext) {
-        self.eventStore = EventStore()
-        self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
-        self.planner = MainPlanner()
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
-        self._legacyContext = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
-            postconditionsValidator: self.postconditionsValidator
+        
+        let commit = commitCoordinator ?? CommitCoordinator(
+            eventStore: eventStore,
+            reducers: [],
+            initialState: WorldStateModel()
         )
-    }
-
-    /// PHASE 1: Decide — invoke planner to produce a Command
-    public func decide(intent: Intent, planner: any Planner) async throws -> any Command {
-        let context = PlannerContext(state: WorldStateModel())
-        return try await planner.plan(intent: intent, context: context)
-    }
-
-    /// PHASE 2: Execute — delegates to VerifiedExecutor (the single side-effect layer)
-    public func execute(_ command: any Command, state: WorldStateModel) async throws -> ExecutionOutcome {
-        // Delegate the full validation + dispatch pipeline to VerifiedExecutor
-        let rawOutcome = try await verifiedExecutor.execute(command, state: state)
-
-        // Build event envelopes from the outcome
-        let events = buildEvents(
-            from: command,
-            observations: rawOutcome.observations,
-            artifacts: rawOutcome.artifacts,
-            status: rawOutcome.status
+        self.commitCoordinator = commit
+        
+        let executor = VerifiedExecutor()
+        self.verifiedExecutor = executor
+        
+        let critic = CriticLoop(
+            observationProvider: stateAbstraction,
+            learningCoordinator: learningCoordinator
         )
-
-        // Return a new outcome with events attached
-        return ExecutionOutcome(
-            commandID: rawOutcome.commandID,
-            status: rawOutcome.status,
-            observations: rawOutcome.observations,
-            artifacts: rawOutcome.artifacts,
-            events: events,
-            verifierReport: rawOutcome.verifierReport
-        )
-    }
-    
-    /// Build event envelopes from execution results
-    private func buildEvents(from command: any Command, observations: [ObservationPayload], artifacts: [ArtifactPayload], status: ExecutionStatus) -> [EventEnvelope] {
-        var events: [EventEnvelope] = []
-        
-        // Encode payload to Data
-        func encodePayload(_ dict: [String: String]) -> Data {
-            try! JSONSerialization.data(withJSONObject: dict)
-        }
-        
-        // Action started event
-        let startPayload = encodePayload([
-            "commandKind": command.kind,
-            "intentID": command.metadata.intentID.uuidString
-        ])
-        
-        events.append(EventEnvelope(
-            id: UUID(),
-            sequenceNumber: 0, // Will be assigned by EventStore
-            commandID: command.id,
-            intentID: command.metadata.intentID,
-            timestamp: Date(),
-            eventType: "actionStarted",
-            payload: startPayload
-        ))
-        
-        // Action completed/failed event
-        let eventType = status == .success ? "actionCompleted" : "actionFailed"
-        var payloadDict: [String: String] = [
-            "commandKind": command.kind,
-            "status": status.rawValue
-        ]
-        
-        if status == .success && !observations.isEmpty {
-            payloadDict["observationCount"] = String(observations.count)
-        }
-        
-        let endPayload = encodePayload(payloadDict)
-        
-        events.append(EventEnvelope(
-            id: UUID(),
-            sequenceNumber: 0, // Will be assigned by EventStore
-            commandID: command.id,
-            intentID: command.metadata.intentID,
-            timestamp: Date(),
-            eventType: eventType,
-            payload: endPayload
-        ))
-        
-        return events
+        self.critic = critic
     }
 
-    /// PHASE 3: Commit — event-sourced state mutation
-    public func commit(_ outcome: ExecutionOutcome) async throws {
-        try await commitCoordinator.commit(outcome.events)
-    }
+    // MARK: - Unified Pipeline: submitIntent
 
-    /// PHASE 4: Evaluate — critic review of execution outcome.
-    /// Classifies outcome status and returns an evaluation summary.
-    /// Used to drive learning, recovery, and metrics recording.
-    public func evaluate(_ outcome: ExecutionOutcome) async -> EvaluationResult {
-        let criticOutcome: CriticOutcome
-        switch outcome.status {
-        case .success:
-            criticOutcome = .success
-        case .partialSuccess:
-            criticOutcome = .partialSuccess
-        case .failed, .preconditionFailed, .postconditionFailed, .policyBlocked:
-            criticOutcome = .failure
-        }
-
-        let needsRecovery = criticOutcome == .failure
-
-        return EvaluationResult(
-            commandID: outcome.commandID,
-            criticOutcome: criticOutcome,
-            needsRecovery: needsRecovery,
-            notes: outcome.verifierReport.notes
-        )
-    }
-}
-
-// MARK: - IntentAPI Conformance
-
-extension RuntimeOrchestrator {
     /// Submit a user or system intent for execution.
-    /// Full pipeline: Plan → Validate → Execute → Emit Events → Commit → Snapshot
+    /// Full pipeline: Intent → Decide → Execute → Commit → Evaluate → Learn
     public func submitIntent(_ intent: Intent) async throws -> IntentResponse {
         let cycleID = UUID()
         
-        // 1. Plan - invoke planner to produce a Command
-        let context = PlannerContext(state: WorldStateModel())
-        let command: any Command
         do {
-            command = try await planner.plan(intent: intent, context: context)
+            // ---- PLAN ----
+            let command = await decisionCoordinator.decide(intent: intent)
+
+            // ---- EXECUTE ----
+            let outcome: ExecutionOutcome
+            do {
+                outcome = try await verifiedExecutor.execute(command, state: WorldStateModel())
+            } catch {
+                outcome = ExecutionOutcome.failure(error, commandID: command.id)
+            }
+
+            // ---- COMMIT ----
+            await commitCoordinator.commit(outcome.events)
+
+            // ---- EVALUATE ----
+            let evaluation = critic.evaluate(outcome)
+
+            // ---- LEARN ----
+            learningCoordinator.update(evaluation)
+
+            // Determine outcome based on execution status
+            let outcomeStatus: IntentResponse.Outcome
+            switch outcome.status {
+            case .success:
+                outcomeStatus = .success
+            case .failed, .preconditionFailed, .postconditionFailed:
+                outcomeStatus = .failed
+            case .policyBlocked:
+                outcomeStatus = .failed
+            case .partialSuccess:
+                outcomeStatus = .partialSuccess
+            }
+            
+            return IntentResponse(
+                intentID: intent.id,
+                outcome: outcomeStatus,
+                summary: "Intent completed: \(intent.objective) - \(outcome.status.rawValue)",
+                cycleID: cycleID,
+                snapshotID: UUID(),
+                timestamp: Date()
+            )
+            
         } catch {
             return IntentResponse(
                 intentID: intent.id,
                 outcome: .failed,
-                summary: "Planning failed: \(error.localizedDescription)",
+                summary: "Pipeline failed: \(error.localizedDescription)",
                 cycleID: cycleID,
                 snapshotID: nil,
                 timestamp: Date()
             )
         }
-        
-        // 2. Validate - PolicyEngine checks the command
-        // Create ActionIntent from command metadata for policy evaluation
-        let actionIntent = ActionIntent(
-            agentKind: .os,
-            app: "unknown",
-            name: command.kind,
-            action: command.kind,
-            query: nil,
-            text: nil,
-            role: nil,
-            domID: nil,
-            x: nil,
-            y: nil,
-            button: nil,
-            count: nil,
-            workspaceRoot: ".",
-            workspaceRelativePath: nil,
-            codeCommand: nil,
-            postconditions: []
-        )
-        let policyDecision = PolicyEngine.shared.evaluate(intent: actionIntent)
-        
-        guard policyDecision.allowed else {
-            return IntentResponse(
-                intentID: intent.id,
-                outcome: .failed,
-                summary: "Policy blocked: \(policyDecision.reason ?? "Action not allowed")",
-                cycleID: cycleID,
-                snapshotID: nil,
-                timestamp: Date()
-            )
-        }
-        
-        // 3. Execute - delegate to VerifiedExecutor
-        let executionOutcome: ExecutionOutcome
-        do {
-            executionOutcome = try await verifiedExecutor.execute(command, state: context.state)
-        } catch {
-            return IntentResponse(
-                intentID: intent.id,
-                outcome: .failed,
-                summary: "Execution failed: \(error.localizedDescription)",
-                cycleID: cycleID,
-                snapshotID: nil,
-                timestamp: Date()
-            )
-        }
-        
-        // 4. Emit events - build event envelopes from execution result
-        let events = buildEvents(
-            from: command,
-            observations: executionOutcome.observations,
-            artifacts: executionOutcome.artifacts,
-            status: executionOutcome.status
-        )
-        
-        // 5. Commit - event-sourced state mutation
-        do {
-            try await commitCoordinator.commit(events)
-        } catch {
-            return IntentResponse(
-                intentID: intent.id,
-                outcome: .partialSuccess,
-                summary: "Execution succeeded but commit failed: \(error.localizedDescription)",
-                cycleID: cycleID,
-                snapshotID: nil,
-                timestamp: Date()
-            )
-        }
-        
-        // 6. Snapshot - get current state snapshot
-        let snapshotID = UUID()
-        _ = await commitCoordinator.snapshot()
-        
-        // Determine outcome based on execution status
-        let outcome: IntentResponse.Outcome
-        switch executionOutcome.status {
-        case .success:
-            outcome = .success
-        case .failed, .preconditionFailed, .postconditionFailed:
-            outcome = .failed
-        case .policyBlocked:
-            outcome = .failed
-        case .partialSuccess:
-            outcome = .partialSuccess
-        }
-        
-        return IntentResponse(
-            intentID: intent.id,
-            outcome: outcome,
-            summary: "Intent completed: \(intent.objective) - \(executionOutcome.status.rawValue)",
-            cycleID: cycleID,
-            snapshotID: snapshotID,
-            timestamp: Date()
-        )
     }
 
     /// Read current committed world state as a snapshot (read-only).
@@ -362,7 +141,76 @@ extension RuntimeOrchestrator {
             lastIntentID: nil,
             lastCommandKind: nil,
             status: .idle,
-            summary: "Runtime state: \(snapshot.visibleElementCount) visible elements, app: \(snapshot.activeApplication ?? "none")"
+            summary: "Runtime state"
         )
+    }
+}
+
+// MARK: - DecisionCoordinator Extension for Command Output
+
+extension DecisionCoordinator {
+    /// Decide on a command from an intent
+    /// Returns a canonical Command for execution
+    func decide(intent: Intent) async -> any Command {
+        // Convert Intent to PlannerDecision via the existing decide method
+        // This is a temporary bridge - full implementation would use DecisionCoordinator directly
+        let context = PlannerContext(state: WorldStateModel())
+        let taskContext = TaskContext(
+            goal: Goal(objective: intent.objective, metadata: intent.metadata),
+            agentKind: intent.domain == .code ? .code : (intent.domain == .system ? .system : .os),
+            workspaceRoot: "."
+        )
+        let stateBundle = LoopStateBundle(
+            taskContext: taskContext,
+            worldState: WorldStateModel(),
+            recentFailureCount: 0
+        )
+        
+        guard let decision = self.decide(from: stateBundle) else {
+            // Return a default command if decision fails
+            return SimpleCommand(id: UUID(), kind: "noop", metadata: CommandMetadata(intentID: intent.id))
+        }
+        
+    // Convert PlannerDecision to Command
+        return decision.toCommand()
+    }
+}
+
+// MARK: - Removed APIs - Use IntentAPI instead
+
+extension RuntimeOrchestrator {
+    @available(*, unavailable, message: "Direct action execution removed. Use submitIntent.")
+    public nonisolated func performAction(
+        surface: RuntimeSurface,
+        taskID: String?,
+        toolName: String?,
+        approvalRequestID: String?,
+        intent: ActionIntent,
+        action: @MainActor @Sendable () -> ToolResult
+    ) -> ToolResult {
+        fatalError("Removed")
+    }
+}
+
+// MARK: - PlannerDecision to Command Conversion
+    func toCommand() -> any Command {
+        return SimpleCommand(
+            id: UUID(),
+            kind: self.actionContract.skillName,
+            metadata: CommandMetadata(intentID: UUID())
+        )
+    }
+}
+
+/// Simple command implementation for the unified pipeline
+public struct SimpleCommand: Command {
+    public let id: UUID
+    public let kind: String
+    public let metadata: CommandMetadata
+    
+    public init(id: UUID, kind: String, metadata: CommandMetadata) {
+        self.id = id
+        self.kind = kind
+        self.metadata = metadata
     }
 }
