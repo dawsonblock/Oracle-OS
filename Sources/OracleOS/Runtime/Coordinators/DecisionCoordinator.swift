@@ -13,7 +13,7 @@ import Foundation
 public final class DecisionCoordinator {
     private static let defaultExplorationFallbackReason = "planner returned bounded exploration after stronger workflow and graph options were unavailable"
 
-    private let planner: MainPlanner
+    let planner: MainPlanner
     private let graphStore: GraphStore
     private let memoryStore: UnifiedMemoryStore
     private let strategySelector: StrategySelector
