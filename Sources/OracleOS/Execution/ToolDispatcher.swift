@@ -28,8 +28,23 @@ public struct ToolDispatcher: @unchecked Sendable {
         _ command: any Command,
         capabilities: [String]
     ) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        let domain = CommandRouter.domain(for: command)
+        switch domain {
+        case .ui:
+            return try await dispatchUI(command)
+        case .code:
+            return try await dispatchCode(command)
+        case .system:
+            return try await dispatchSystem(command)
+        case .unknown:
+            throw ToolDispatcherError.unsupportedCommandKind(command.kind)
+        }
+    }
+
+    // MARK: - Domain Dispatch
+
+    private func dispatchUI(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         switch command.kind {
-        // MARK: UI Commands
         case "clickElement":
             return try await dispatchClickElement(command)
         case "typeText":
@@ -39,9 +54,14 @@ public struct ToolDispatcher: @unchecked Sendable {
         case "readElement":
             return try await dispatchReadElement(command)
         case "scrollElement":
-            return ([ObservationPayload(kind: "scroll", content: "scrolled")], [])
+            return try await dispatchScrollElement(command)
+        default:
+            throw ToolDispatcherError.unsupportedCommandKind(command.kind)
+        }
+    }
 
-        // MARK: Code Commands
+    private func dispatchCode(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        switch command.kind {
         case "searchRepository":
             return try await dispatchSearchRepository(command)
         case "readFile":
@@ -52,13 +72,17 @@ public struct ToolDispatcher: @unchecked Sendable {
             return try await dispatchRunBuild(command)
         case "runTests":
             return try await dispatchRunTests(command)
+        default:
+            throw ToolDispatcherError.unsupportedCommandKind(command.kind)
+        }
+    }
 
-        // MARK: System Commands
+    private func dispatchSystem(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        switch command.kind {
         case "launchApp":
             return try await dispatchLaunchApp(command)
         case "openURL":
             return try await dispatchOpenURL(command)
-
         default:
             throw ToolDispatcherError.unsupportedCommandKind(command.kind)
         }
@@ -68,18 +92,18 @@ public struct ToolDispatcher: @unchecked Sendable {
 
     private func dispatchClickElement(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let host = automationHost else {
-            return ([ObservationPayload(kind: "click", content: "no-host: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for clickElement")
         }
         let targetID = (command as? ClickElementCommand)?.targetID ?? "unknown"
         let app = (command as? ClickElementCommand)?.applicationBundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: app) }
-        let obs = ObservationPayload(kind: "click", content: "activated \(app) for targetID=\(targetID)")
+        let activated = await MainActor.run { host.applications.activateApplication(named: app) }
+        let obs = ObservationPayload(kind: "click", content: "activated=\(activated) app=\(app) targetID=\(targetID)")
         return ([obs], [])
     }
 
     private func dispatchTypeText(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard automationHost != nil else {
-            return ([ObservationPayload(kind: "type", content: "no-host: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for typeText")
         }
         let text = (command as? TypeTextCommand)?.text ?? ""
         return ([ObservationPayload(kind: "type", content: "typed \(text.count) chars")], [])
@@ -87,26 +111,33 @@ public struct ToolDispatcher: @unchecked Sendable {
 
     private func dispatchFocusWindow(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let host = automationHost else {
-            return ([ObservationPayload(kind: "focus", content: "no-host: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for focusWindow")
         }
         let app = (command as? FocusWindowCommand)?.applicationBundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: app) }
-        return ([ObservationPayload(kind: "focus", content: "focused \(app)")], [])
+        let activated = await MainActor.run { host.applications.activateApplication(named: app) }
+        return ([ObservationPayload(kind: "focus", content: "focused=\(activated) app=\(app)")], [])
     }
 
     private func dispatchReadElement(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard automationHost != nil else {
-            return ([ObservationPayload(kind: "read", content: "no-host: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for readElement")
         }
         let targetID = (command as? ReadElementCommand)?.targetID ?? "unknown"
         return ([ObservationPayload(kind: "read", content: "read element \(targetID)")], [])
+    }
+
+    private func dispatchScrollElement(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        guard automationHost != nil else {
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for scrollElement")
+        }
+        return ([ObservationPayload(kind: "scroll", content: "scroll dispatched")], [])
     }
 
     // MARK: - Code Command Dispatchers
 
     private func dispatchSearchRepository(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let ctx = context else {
-            return ([ObservationPayload(kind: "search", content: "no-context: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("RuntimeContext required for searchRepository")
         }
         let query = (command as? SearchRepositoryCommand)?.query ?? ""
         let root = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent() }
@@ -144,7 +175,7 @@ public struct ToolDispatcher: @unchecked Sendable {
 
     private func dispatchRunBuild(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let ctx = context else {
-            return ([ObservationPayload(kind: "build", content: "no-context: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("RuntimeContext required for runBuild")
         }
         let workspacePath = (command as? RunBuildCommand)?.workspacePath
         let fallback = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent().path }
@@ -164,7 +195,7 @@ public struct ToolDispatcher: @unchecked Sendable {
 
     private func dispatchRunTests(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let ctx = context else {
-            return ([ObservationPayload(kind: "test", content: "no-context: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("RuntimeContext required for runTests")
         }
         let filter = (command as? RunTestsCommand)?.filter
         var args = ["swift", "test"]
@@ -187,16 +218,19 @@ public struct ToolDispatcher: @unchecked Sendable {
 
     private func dispatchLaunchApp(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
         guard let host = automationHost else {
-            return ([ObservationPayload(kind: "launch", content: "no-host: skipped")], [])
+            throw ToolDispatcherError.capabilityNotAvailable("automationHost required for launchApp")
         }
         let bundleID = (command as? LaunchAppCommand)?.bundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: bundleID) }
-        return ([ObservationPayload(kind: "launch", content: "launched \(bundleID)")], [])
+        let activated = await MainActor.run { host.applications.activateApplication(named: bundleID) }
+        return ([ObservationPayload(kind: "launch", content: "activated=\(activated) bundleID=\(bundleID)")], [])
     }
 
     private func dispatchOpenURL(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        let url = (command as? OpenURLCommand)?.url.absoluteString ?? ""
-        return ([ObservationPayload(kind: "openURL", content: "opened \(url)")], [])
+        let urlString = (command as? OpenURLCommand)?.url.absoluteString ?? ""
+        guard !urlString.isEmpty else {
+            throw ToolDispatcherError.missingParameter("url")
+        }
+        return ([ObservationPayload(kind: "openURL", content: "url=\(urlString)")], [])
     }
 }
 

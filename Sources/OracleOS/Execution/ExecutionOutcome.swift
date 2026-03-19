@@ -15,6 +15,23 @@ public struct ExecutionOutcome: Sendable {
         self.commandID = commandID; self.status = status; self.observations = observations
         self.artifacts = artifacts; self.events = events; self.verifierReport = verifierReport
     }
+
+    /// Create a failure outcome from a thrown error.
+    public static func failure(from error: Error, command: any Command) -> ExecutionOutcome {
+        let report = VerifierReport(
+            commandID: command.id,
+            preconditionsPassed: true,
+            policyDecision: "approved",
+            postconditionsPassed: false,
+            notes: ["execution threw: \(error.localizedDescription)"]
+        )
+        return ExecutionOutcome(
+            commandID: command.id,
+            status: .failed,
+            events: [],
+            verifierReport: report
+        )
+    }
 }
 
 public enum ExecutionStatus: String, Sendable, Codable {
