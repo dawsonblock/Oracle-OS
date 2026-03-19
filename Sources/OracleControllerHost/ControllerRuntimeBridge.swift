@@ -30,8 +30,7 @@ final class ControllerRuntimeBridge {
         let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
         self.oracleRuntime = RuntimeOrchestrator(
             eventStore: eventStore,
-let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
-            planner: MainPlanner(),
+            commitCoordinator: commitCoordinator,
             policyEngine: runtimeContext.policyEngine,
             automationHost: runtimeContext.automationHost,
             workspaceRunner: runtimeContext.workspaceRunner,

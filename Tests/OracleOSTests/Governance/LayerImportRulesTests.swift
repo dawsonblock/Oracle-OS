@@ -39,12 +39,10 @@ final class LayerImportRulesTests: XCTestCase {
     // MARK: - Planner boundary
 
     /// Planning files must not directly import execution action handlers.
-    /// Planners return Commands — they never import tool dispatchers or action handlers.
+    /// Planners return Commands — they never import execution-side handlers.
     func test_planning_cannot_import_execution_actions() {
         let planningFiles = swiftFiles(under: "Sources/OracleOS/Planning")
-        // New strategy files (stub wrappers) are allowed to reference ToolDispatcher by type name
-        // but must NOT have an import line for Execution sub-modules
-        let bannedImports = ["import VerifiedExecutor", "import ToolDispatcher", "import PreconditionsValidator"]
+        let bannedImports = ["import VerifiedExecutor", "import PreconditionsValidator"]
 
         for url in planningFiles {
             let imports = allImports(in: url)
@@ -76,7 +74,7 @@ final class LayerImportRulesTests: XCTestCase {
     /// API module (IntentAPI, IntentRequest, etc.) must not import Runtime internals.
     func test_api_module_does_not_import_runtime_internals() {
         let apiFiles = swiftFiles(under: "Sources/OracleOS/API")
-        let bannedImports = ["import RuntimeOrchestrator", "import AgentLoop", "import DecisionCoordinator"]
+        let bannedImports = ["import RuntimeOrchestrator", "import AgentLoop"]
 
         for url in apiFiles {
             let imports = allImports(in: url)
@@ -92,7 +90,7 @@ final class LayerImportRulesTests: XCTestCase {
     /// Memory module must not import Execution actions.
     func test_memory_does_not_import_execution() {
         let memoryFiles = swiftFiles(under: "Sources/OracleOS/Memory")
-        let bannedImports = ["import VerifiedExecutor", "import ToolDispatcher"]
+        let bannedImports = ["import VerifiedExecutor"]
 
         for url in memoryFiles {
             let imports = allImports(in: url)

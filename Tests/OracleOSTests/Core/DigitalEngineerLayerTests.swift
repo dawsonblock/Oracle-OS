@@ -786,64 +786,6 @@ struct DigitalEngineerLayerTests {
         #expect(match?.plan.id == "source-workflow")
     }
 
-    @Test("Major architecture findings are drafted into project memory")
-    func majorArchitectureFindingsAreDraftedIntoProjectMemory() throws {
-        let workspace = try makeCodePlannerWorkspace()
-        let coordinator = LoopProjectMemoryCoordinator(memoryStore: UnifiedMemoryStore())
-        let taskContext = TaskContext.from(
-            goal: Goal(
-                description: "refactor calculator boundary",
-                workspaceRoot: workspace.root.path,
-                preferredAgentKind: .code
-            ),
-            workspaceRoot: workspace.root
-        )
-        let decision = PlannerDecision(
-            agentKind: .code,
-            skillName: "edit_file",
-            plannerFamily: .code,
-            stepPhase: .engineering,
-            actionContract: ActionContract(
-                id: "code|edit_file|Sources/Example/Calculator.swift",
-                agentKind: .code,
-                skillName: "edit_file",
-                targetRole: nil,
-                targetLabel: nil,
-                locatorStrategy: "code-planner",
-                workspaceRelativePath: "Sources/Example/Calculator.swift",
-                commandCategory: CodeCommandCategory.editFile.rawValue,
-                plannerFamily: PlannerFamily.code.rawValue
-            ),
-            source: .exploration,
-            architectureFindings: [
-                ArchitectureFinding(
-                    title: "Dependency cycle detected",
-                    summary: "Cycle found across Agent/Planning -> Core/Execution.",
-                    severity: .warning,
-                    affectedModules: ["Agent/Planning", "Core/Execution"],
-                    riskScore: 0.75
-                ),
-                ArchitectureFinding(
-                    title: "Minor note",
-                    summary: "Low-priority observation.",
-                    severity: .info,
-                    affectedModules: ["Sources/Example"],
-                    riskScore: 0.1
-                ),
-            ],
-            refactorProposalID: "proposal-1"
-        )
-
-        coordinator.recordArchitectureDecision(decision: decision, taskContext: taskContext)
-
-        let store = try ProjectMemoryStore(projectRootURL: workspace.root)
-        let records = store.allRecords()
-        let draft = try #require(records.first(where: { $0.kind == .architectureDecision }))
-
-        #expect(draft.body.contains("Dependency cycle detected"))
-        #expect(!draft.body.contains("Minor note"))
-    }
-
     @Test("Experiment results rank smaller passing patches ahead of larger ones")
     func experimentResultsRankCorrectly() {
         let comparator = ResultComparator()

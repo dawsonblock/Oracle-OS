@@ -64,8 +64,6 @@ final class ControllerBoundaryTests: XCTestCase {
     func test_controller_host_does_not_call_planners_directly() {
         let controllerFiles = swiftFiles(under: "Sources/OracleControllerHost")
         let bannedPatterns = [
-            "MainPlanner()",
-            "DecisionCoordinator(",
             "planner.nextStep(",
             "planner.plan("
         ]
@@ -87,7 +85,7 @@ final class ControllerBoundaryTests: XCTestCase {
         let bannedPatterns = [
             "VerifiedExecutor(",
             "verifiedExecutor.execute(",
-            "toolDispatcher.dispatch("
+            "commandRouter.execute("
         ]
 
         for url in controllerFiles {

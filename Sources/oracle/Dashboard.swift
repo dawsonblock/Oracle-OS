@@ -318,8 +318,8 @@ public struct Dashboard {
         print(ANSI.header("RUNTIME METRICS"))
 
         print(ANSI.subheader("Benchmark baseline"))
-        print(ANSI.kv("Source", "Tests/OracleOSEvals/EvalBaseline.swift"))
-        print(ANSI.kv("Data model", "EvalMetrics from real run snapshots"))
+        print(ANSI.kv("Source", "EvalRunner task reports"))
+        print(ANSI.kv("Data model", "EvalMetrics aggregated from run snapshots"))
         print(ANSI.kv("Placeholder JSON", "removed from Diagnostics/"))
 
         // Strategy baseline

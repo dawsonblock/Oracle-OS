@@ -314,7 +314,7 @@ struct GovernanceEnforcementTests {
         let contents = try agentLoopContents()
         let forbidden = ["graphStore.recordTransition", "graphStore.promote", "graphStore.insert"]
         for term in forbidden {
-            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - graph updates belong in LearningCoordinator")
+            #expect(!contents.contains(term), "AgentLoop.swift must not contain '\(term)' - graph updates belong outside the loop boundary")
         }
     }
 
