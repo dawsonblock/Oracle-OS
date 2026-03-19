@@ -67,11 +67,11 @@ public final class AgentLoop {
         }
 
         let domain: IntentDomain = switch goal.preferredAgentKind {
-        case .code:
+        case .some(.code):
             .code
-        case .mixed:
+        case .some(.mixed):
             .mixed
-        case .os, .none:
+        case .some(.os), .none:
             goal.workspaceRoot == nil ? .ui : .mixed
         }
 
