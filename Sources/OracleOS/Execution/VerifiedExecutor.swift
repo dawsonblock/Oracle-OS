@@ -8,16 +8,16 @@ import Foundation
 ///   - CommitCoordinator is the ONLY entity that writes committed state
 public actor VerifiedExecutor {
     private let policyEngine: PolicyEngine
-    private let toolDispatcher: ToolDispatcher
+    private let commandRouter: CommandRouter
     private let postconditionsValidator: PostconditionsValidator
 
     public init(
         policyEngine: PolicyEngine = .shared,
-        toolDispatcher: ToolDispatcher = ToolDispatcher(),
+        commandRouter: CommandRouter = CommandRouter(),
         postconditionsValidator: PostconditionsValidator = PostconditionsValidator()
     ) {
         self.policyEngine = policyEngine
-        self.toolDispatcher = toolDispatcher
+        self.commandRouter = commandRouter
         self.postconditionsValidator = postconditionsValidator
     }
 
@@ -39,23 +39,7 @@ public actor VerifiedExecutor {
         }
 
         do {
-            let (observations, artifacts) = try await toolDispatcher.dispatch(command, capabilities: [command.kind])
-            var outcome = ExecutionOutcome(
-                commandID: command.id,
-                status: .success,
-                observations: observations,
-                artifacts: artifacts,
-                events: [
-                    started,
-                    makeEvent(command: command, eventType: "CommandSucceeded", payload: ["status": "success"]),
-                ],
-                verifierReport: VerifierReport(
-                    commandID: command.id,
-                    preconditionsPassed: true,
-                    policyDecision: "approved",
-                    postconditionsPassed: true
-                )
-            )
+            var outcome = try await commandRouter.execute(command, policyDecision: policyDecision)
 
             guard try postconditionsValidator.validate(command, outcome: outcome) else {
                 return failOutcome(

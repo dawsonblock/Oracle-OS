@@ -9,7 +9,6 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let planner: any Planner
     private let preconditionsValidator: PreconditionsValidator
     private let safetyValidator: SafetyValidator
-    private let toolDispatcher: ToolDispatcher
     private let postconditionsValidator: PostconditionsValidator
     private let capabilityBinder: CapabilityBinder
     // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
@@ -30,7 +29,6 @@ public actor RuntimeOrchestrator: IntentAPI {
         planner: any Planner,
         preconditionsValidator: PreconditionsValidator = PreconditionsValidator(),
         safetyValidator: SafetyValidator = SafetyValidator(),
-        toolDispatcher: ToolDispatcher = ToolDispatcher(),
         postconditionsValidator: PostconditionsValidator = PostconditionsValidator(),
         capabilityBinder: CapabilityBinder = CapabilityBinder(),
         context: RuntimeContext? = nil
@@ -40,15 +38,16 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.planner = planner
         self.preconditionsValidator = preconditionsValidator
         self.safetyValidator = safetyValidator
-        self.toolDispatcher = toolDispatcher
         self.postconditionsValidator = postconditionsValidator
         self.capabilityBinder = capabilityBinder
         self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: preconditionsValidator,
-            safetyValidator: safetyValidator,
-            capabilityBinder: capabilityBinder,
-            toolDispatcher: toolDispatcher,
+            policyEngine: context?.policyEngine ?? .shared,
+            commandRouter: CommandRouter(
+                automationHost: context?.automationHost,
+                workspaceRunner: context?.workspaceRunner,
+                context: context
+            ),
             postconditionsValidator: postconditionsValidator
         )
     }
@@ -63,15 +62,16 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.planner = MainPlanner()
         self.preconditionsValidator = PreconditionsValidator()
         self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
         self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
+            policyEngine: context?.policyEngine ?? .shared,
+            commandRouter: CommandRouter(
+                automationHost: context?.automationHost,
+                workspaceRunner: context?.workspaceRunner,
+                context: context
+            ),
             postconditionsValidator: self.postconditionsValidator
         )
     }
@@ -85,15 +85,16 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.planner = planner
         self.preconditionsValidator = PreconditionsValidator()
         self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
         self._legacyContext = context
         self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
+            policyEngine: context.policyEngine,
+            commandRouter: CommandRouter(
+                automationHost: context.automationHost,
+                workspaceRunner: context.workspaceRunner,
+                context: context
+            ),
             postconditionsValidator: self.postconditionsValidator
         )
     }
@@ -107,15 +108,16 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.planner = MainPlanner()
         self.preconditionsValidator = PreconditionsValidator()
         self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
         self._legacyContext = context
         self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
+            policyEngine: context.policyEngine,
+            commandRouter: CommandRouter(
+                automationHost: context.automationHost,
+                workspaceRunner: context.workspaceRunner,
+                context: context
+            ),
             postconditionsValidator: self.postconditionsValidator
         )
     }

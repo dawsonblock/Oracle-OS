@@ -1,7 +1,7 @@
 import Foundation
 
 /// DEPRECATED: Direct code execution bypass.
-/// All code actions must route through VerifiedExecutor → ToolDispatcher.
+/// All code actions must route through VerifiedExecutor → CommandRouter.
 /// This type will be removed once RuntimeExecutionDriver is fully converted to the IntentAPI path.
 @MainActor
 public struct CodeActionGateway {
