@@ -98,7 +98,7 @@ graph TD
     Loop --> Planner["OS Planner / Code Planner / Mixed Planner"]
     Planner --> PG["PlanningGraphEngine"]
     Planner --> Skills["OS Skills + Code Skills"]
-    Skills --> Exec["VerifiedActionExecutor"]
+    Skills --> Exec["VerifiedExecutor"]
     Exec --> Critic["CriticLoop (verdict)"]
     Critic --> Graph["SQLite GraphStore + TaskGraph"]
     Critic --> SM["StateMemoryIndex"]
@@ -123,7 +123,7 @@ This makes the system slower to overclaim and harder to poison with weak evidenc
 
 #### Verified Execution
 
-`VerifiedActionExecutor` is the core trust boundary. Each step includes pre/post observation capture, hashing, action execution, postcondition verification, failure classification, and trace recording.
+`VerifiedExecutor` is the core execution trust boundary. It validates commands, coordinates grounded dispatch, and returns structured outcomes/events for commit and evaluation.
 
 #### Graph Learning
 

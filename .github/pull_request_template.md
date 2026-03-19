@@ -11,7 +11,7 @@ What capability or behavior improves?
 
 ## Execution Boundary
 
-- [ ] All world-changing actions pass through `VerifiedActionExecutor`
+- [ ] All world-changing actions pass through `VerifiedExecutor`
 - [ ] No direct host automation calls bypass executor
 - [ ] No direct browser automation bypass executor
 - [ ] Postcondition verification exists

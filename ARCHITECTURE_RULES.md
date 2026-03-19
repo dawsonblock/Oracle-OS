@@ -90,9 +90,8 @@ browser navigation, git operation) must flow through `VerifiedExecutor`.
 The executor returns `ExecutionOutcome` with events and artifacts;
 `CommitCoordinator` is the only entity that writes committed state.
 
-> **Note:** The legacy `VerifiedActionExecutor` shim is deprecated and performs
-> no actual verification. All new code must use `VerifiedExecutor` via
-> `RuntimeOrchestrator`.
+> **Note:** The old compatibility shim has been removed. All new code must use
+> `VerifiedExecutor` via `RuntimeOrchestrator`.
 
 Forbidden outside the executor and its commit flow:
 - Direct writes to `worldState`, `taskGraph`, or runtime memory stores

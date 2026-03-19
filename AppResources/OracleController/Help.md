@@ -23,6 +23,6 @@ Vision is optional and experimental. The app can install the packaged vision boo
 
 Oracle Controller keeps the existing Oracle OS execution truth path:
 
-`UI -> bundled host -> OracleRuntime -> Policy -> VerifiedActionExecutor -> Trace/Graph/Memory`
+`UI -> bundled host -> RuntimeOrchestrator -> Policy -> VerifiedExecutor -> Trace/Graph/Memory`
 
 Risky actions remain approval-gated.

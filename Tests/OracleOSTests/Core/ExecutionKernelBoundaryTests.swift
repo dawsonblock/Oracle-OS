@@ -2,50 +2,8 @@ import Foundation
 import Testing
 @testable import OracleOS
 
-/// Verifies the execution kernel trust boundary:
-/// every action must pass through VerifiedActionExecutor,
-/// and the resulting ToolResult must carry action_result.executed_through_executor = true.
 @Suite("Execution Kernel Boundary")
-@MainActor
 struct ExecutionKernelBoundaryTests {
-
-    // MARK: - executor stamp is present after run()
-
-    @Test("VerifiedActionExecutor.run stamps executedThroughExecutor on ActionResult")
-    func executorStampsFlag() {
-        let intent = ActionIntent(action: "click", app: "TestApp")
-        let result = VerifiedActionExecutor.run(intent: intent) {
-            ToolResult(
-                success: true,
-                data: [
-                    "action_result": ActionResult(success: true, executedThroughExecutor: true).toDict()
-                ]
-            )
-        }
-        let dict = result.data?["action_result"] as? [String: Any]
-        #expect(dict?["executed_through_executor"] as? Bool == true)
-    }
-
-    // MARK: - trust boundary contract on ActionResult
-
-    @Test("ActionResult with executedThroughExecutor=true passes boundary contract")
-    func stampedResultPassesBoundary() {
-        let result = ActionResult(
-            success: true,
-            verified: true,
-            executedThroughExecutor: true
-        )
-        #expect(result.executedThroughExecutor == true)
-    }
-
-    @Test("ActionResult with executedThroughExecutor=false fails boundary contract")
-    func unstampedResultFailsBoundary() {
-        let result = ActionResult(success: true, executedThroughExecutor: false)
-        #expect(result.executedThroughExecutor == false)
-    }
-
-    // MARK: - round-trip through toDict / from(dict:)
-
     @Test("ActionResult executed_through_executor round-trips through toDict")
     func stampedRoundTripDict() {
         let original = ActionResult(success: true, executedThroughExecutor: true)
@@ -61,24 +19,31 @@ struct ExecutionKernelBoundaryTests {
         #expect(result?.executedThroughExecutor == false)
     }
 
-    // MARK: - ToolResult data contract
+    @Test("ActionIntent converts to typed Intent metadata")
+    func actionIntentConvertsToTypedIntent() {
+        let actionIntent = ActionIntent.click(
+            app: "Mail",
+            query: "Compose",
+            role: "AXButton",
+            domID: "compose-button",
+            x: 10,
+            y: 20,
+            button: "left",
+            count: 1
+        )
+
+        let intent = actionIntent.asIntent(additionalMetadata: ["toolName": "oracle_click"])
+        #expect(intent.domain == .ui)
+        #expect(intent.metadata["actionKind"] == "click")
+        #expect(intent.metadata["toolName"] == "oracle_click")
+        #expect(intent.metadata["domID"] == "compose-button")
+    }
 
     @Test("ToolResult missing action_result key is detectable as bypass")
     func bareToolResultIsDetectable() {
-        // A bare ToolResult without action_result is what a bypass would produce.
-        // Verify the detection logic used by OracleRuntime works.
         let bareResult = ToolResult(success: true, data: [:])
         let actionResultDict = bareResult.data?["action_result"] as? [String: Any]
         let stamped = actionResultDict != nil && actionResultDict?["executed_through_executor"] as? Bool == true
-        #expect(stamped == false, "Bare ToolResult must be detected as an unstamped bypass")
-    }
-
-    @Test("ToolResult with stamped action_result passes detection")
-    func stampedToolResultPassesDetection() {
-        let actionResult = ActionResult(success: true, executedThroughExecutor: true)
-        let result = ToolResult(success: true, data: ["action_result": actionResult.toDict()])
-        let actionResultDict = result.data?["action_result"] as? [String: Any]
-        let stamped = actionResultDict != nil && actionResultDict?["executed_through_executor"] as? Bool == true
-        #expect(stamped == true)
+        #expect(stamped == false)
     }
 }
