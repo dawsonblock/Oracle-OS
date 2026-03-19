@@ -171,11 +171,10 @@ Primary files:
 
 Responsibilities:
 
-- precondition/postcondition validation
-- safety and policy validation
-- capability binding
+- policy validation for executable intents
+- postcondition validation of execution results
 - structured command routing via `CommandRouter`/`ToolDispatcher`
-- event emission for CommitCoordinator
+- event emission for `CommitCoordinator`
 - comprehensive failure classification for recovery
 
 This is the execution truth boundary. Every side effect must flow through
