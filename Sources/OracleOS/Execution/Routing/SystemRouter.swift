@@ -7,6 +7,19 @@ public struct SystemRouter: @unchecked Sendable {
         self.workspaceRunner = workspaceRunner
     }
 
+    /// Truncate potentially large command output before including it in observations.
+    /// - Parameters:
+    ///   - text: The original output string.
+    ///   - maxLength: Maximum number of characters to retain.
+    /// - Returns: The original text if within the limit, otherwise a truncated version with a marker.
+    private func truncated(_ text: String, maxLength: Int) -> String {
+        guard text.count > maxLength else {
+            return text
+        }
+        let endIndex = text.index(text.startIndex, offsetBy: maxLength)
+        return String(text[..<endIndex]) + "\n... [output truncated]"
+    }
+
     public func execute(
         _ command: Command,
         policyDecision: PolicyDecision
@@ -26,7 +39,13 @@ public struct SystemRouter: @unchecked Sendable {
             let observations = [
                 ObservationPayload(
                     kind: "system.shell",
-                    content: "\(result.summary)\nstdout:\n\(result.stdout)\nstderr:\n\(result.stderr)"
+                    content: """
+                    \(result.summary)
+                    stdout:
+                    \(truncated(result.stdout, maxLength: 2000))
+                    stderr:
+                    \(truncated(result.stderr, maxLength: 2000))
+                    """
                 ),
             ]
             if result.succeeded {
