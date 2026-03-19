@@ -193,15 +193,35 @@ extension MainPlanner: Planner {
     }
 
     private func commandFrom(actionIntent: ActionIntent, fallbackIntent: Intent) -> Command {
+        let source = fallbackIntent.metadata["source"] ?? "planner.action-intent"
         let metadata = CommandMetadata(
             intentID: fallbackIntent.id,
-            source: "planner.action-intent",
+            source: source,
             traceTags: [actionIntent.agentKind.rawValue, actionIntent.action]
         )
 
         if let codeCommand = actionIntent.codeCommand {
             return Command(type: .code, payload: .shell(codeCommand), metadata: metadata)
         }
+
+        let modifiers: [String]? = {
+            if let explicit = actionIntent.modifiers {
+                return explicit
+            }
+            guard (actionIntent.action == "press" || actionIntent.action == "hotkey"),
+                  let encoded = actionIntent.role
+            else {
+                return nil
+            }
+            return encoded.split(separator: "+").map(String.init)
+        }()
+
+        let inferredAmount: Int? = {
+            if let amount = actionIntent.amount {
+                return amount
+            }
+            return actionIntent.action == "scroll" ? actionIntent.count : nil
+        }()
 
         let uiAction = UIAction(
             name: actionIntent.action,
@@ -213,7 +233,13 @@ extension MainPlanner: Planner {
             x: actionIntent.x,
             y: actionIntent.y,
             button: actionIntent.button,
-            count: actionIntent.count
+            count: actionIntent.count,
+            windowTitle: actionIntent.windowTitle,
+            clear: actionIntent.clear,
+            modifiers: modifiers,
+            amount: inferredAmount,
+            width: actionIntent.width,
+            height: actionIntent.height
         )
         let type: CommandType = actionIntent.agentKind == .code ? .code : .ui
         return Command(type: type, payload: .ui(uiAction), metadata: metadata)

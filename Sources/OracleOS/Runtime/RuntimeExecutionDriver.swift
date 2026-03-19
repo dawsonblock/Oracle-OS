@@ -47,7 +47,8 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
 
         var metadata = [
             "query": intent.query ?? intent.text ?? intent.name,
-            "source": "runtime-execution-driver",
+            "source": "runtime-execution-driver.\(surface.rawValue)",
+            "surface": surface.rawValue,
             "plannerSource": plannerDecision.source.rawValue,
             "plannerFamily": plannerDecision.plannerFamily.rawValue,
         ]

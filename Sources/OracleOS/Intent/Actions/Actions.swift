@@ -60,6 +60,54 @@ private func extractBool(_ params: [String: Any], _ key: String) -> Bool? {
 /// if the Swift concurrency story for UI automation matures.
 @MainActor
 public enum Actions {
+    private static func plannerFamily(for agentKind: AgentKind) -> PlannerFamily {
+        switch agentKind {
+        case .os: .os
+        case .code: .code
+        case .mixed: .mixed
+        }
+    }
+
+    private static func stepPhase(for agentKind: AgentKind) -> TaskStepPhase {
+        switch agentKind {
+        case .code: .engineering
+        case .os, .mixed: .operatingSystem
+        }
+    }
+
+    private static func executeThroughRuntimeIfAvailable(
+        runtime: RuntimeOrchestrator?,
+        surface: RuntimeSurface,
+        actionIntent: @autoclosure () -> ActionIntent,
+        fallback: () -> ToolResult
+    ) -> ToolResult {
+        guard let runtime else {
+            return fallback()
+        }
+
+        let intent = actionIntent()
+        let family = plannerFamily(for: intent.agentKind)
+        let actionContract = ActionContract.from(
+            intent: intent,
+            method: "intent-api-forwarder",
+            selectedElementLabel: intent.targetQuery,
+            plannerFamily: family.rawValue
+        )
+        let plannerDecision = PlannerDecision(
+            agentKind: intent.agentKind,
+            plannerFamily: family,
+            stepPhase: stepPhase(for: intent.agentKind),
+            actionContract: actionContract,
+            source: .strategy,
+            notes: ["actions.intent-api-forwarder", "surface=\(surface.rawValue)"]
+        )
+        let driver = RuntimeExecutionDriver(intentAPI: runtime, surface: surface)
+        return driver.execute(
+            intent: intent,
+            plannerDecision: plannerDecision,
+            selectedCandidate: nil
+        )
+    }
 
     // MARK: - oracle_click
 
@@ -80,21 +128,35 @@ public enum Actions {
         taskID: String? = nil,
         toolName: String? = "oracle_click"
     ) -> ToolResult {
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return performClick(
-            query: query,
-            role: role,
-            domId: domId,
-            appName: appName,
-            x: x,
-            y: y,
-            button: button,
-            count: count
-        )
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.click(
+                app: appName,
+                query: query,
+                role: role,
+                domID: domId,
+                x: x,
+                y: y,
+                button: button,
+                count: count,
+                postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
+            )
+        ) {
+            performClick(
+                query: query,
+                role: role,
+                domId: domId,
+                appName: appName,
+                x: x,
+                y: y,
+                button: button,
+                count: count
+            )
+        }
     }
 
     private static func performClick(
@@ -308,18 +370,29 @@ public enum Actions {
         taskID: String? = nil,
         toolName: String? = "oracle_type"
     ) -> ToolResult {
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return performTypeText(
-            text: text,
-            into: into,
-            domId: domId,
-            appName: appName,
-            clear: clear
-        )
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.type(
+                app: appName,
+                into: into,
+                domID: domId,
+                text: text,
+                clear: clear,
+                postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
+            )
+        ) {
+            performTypeText(
+                text: text,
+                into: into,
+                domId: domId,
+                appName: appName,
+                clear: clear
+            )
+        }
     }
 
     private static func performTypeText(
@@ -500,16 +573,25 @@ public enum Actions {
         taskID: String? = nil,
         toolName: String? = "oracle_press"
     ) -> ToolResult {
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return performPressKey(
-            key: key,
-            modifiers: modifiers,
-            appName: appName
-        )
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.press(
+                app: appName,
+                key: key,
+                modifiers: modifiers,
+                postconditions: inferredPressPostconditions(appName: appName)
+            )
+        ) {
+            performPressKey(
+                key: key,
+                modifiers: modifiers,
+                appName: appName
+            )
+        }
     }
 
     private static func performPressKey(
@@ -554,12 +636,20 @@ public enum Actions {
         taskID: String? = nil,
         toolName: String? = "oracle_focus"
     ) -> ToolResult {
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return FocusManager.focus(appName: appName, windowTitle: windowTitle)
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.focus(
+                app: appName,
+                windowTitle: windowTitle,
+                postconditions: inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
+            )
+        ) {
+            FocusManager.focus(appName: appName, windowTitle: windowTitle)
+        }
     }
 
     // MARK: - oracle_hotkey
@@ -578,12 +668,20 @@ public enum Actions {
             return ToolResult(success: false, error: "Keys array cannot be empty")
         }
 
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return performHotkey(keys: keys, appName: appName)
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.hotkey(
+                app: appName,
+                keys: keys,
+                postconditions: inferredPressPostconditions(appName: appName)
+            )
+        ) {
+            performHotkey(keys: keys, appName: appName)
+        }
     }
 
     private static func performHotkey(
@@ -630,18 +728,29 @@ public enum Actions {
         taskID: String? = nil,
         toolName: String? = "oracle_scroll"
     ) -> ToolResult {
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return performScroll(
-            direction: direction,
-            amount: amount,
-            appName: appName,
-            x: x,
-            y: y
-        )
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.scroll(
+                app: appName,
+                direction: direction,
+                amount: amount,
+                x: x,
+                y: y,
+                postconditions: inferredPressPostconditions(appName: appName)
+            )
+        ) {
+            performScroll(
+                direction: direction,
+                amount: amount,
+                appName: appName,
+                x: x,
+                y: y
+            )
+        }
     }
 
     private static func performScroll(
@@ -770,21 +879,34 @@ public enum Actions {
             )
         }
 
-        _ = runtime
-        _ = surface
         _ = approvalRequestID
         _ = taskID
         _ = toolName
 
-        return performWindowAction(
-            action: action,
-            appName: appName,
-            windowTitle: windowTitle,
-            x: x,
-            y: y,
-            width: width,
-            height: height
-        )
+        return executeThroughRuntimeIfAvailable(
+            runtime: runtime,
+            surface: surface,
+            actionIntent: ActionIntent.manageWindow(
+                app: appName,
+                action: action,
+                windowTitle: windowTitle,
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                postconditions: inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
+            )
+        ) {
+            performWindowAction(
+                action: action,
+                appName: appName,
+                windowTitle: windowTitle,
+                x: x,
+                y: y,
+                width: width,
+                height: height
+            )
+        }
     }
 
     private static func performWindowAction(

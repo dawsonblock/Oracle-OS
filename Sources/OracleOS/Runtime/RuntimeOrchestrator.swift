@@ -7,10 +7,6 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let commitCoordinator: CommitCoordinator
     // The planner used for intent processing in submitIntent
     private let planner: any Planner
-    private let preconditionsValidator: PreconditionsValidator
-    private let safetyValidator: SafetyValidator
-    private let postconditionsValidator: PostconditionsValidator
-    private let capabilityBinder: CapabilityBinder
     // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
     nonisolated(unsafe) private var _legacyContextStorage: RuntimeContext?
     /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
@@ -27,19 +23,12 @@ public actor RuntimeOrchestrator: IntentAPI {
         eventStore: EventStore,
         commitCoordinator: CommitCoordinator,
         planner: any Planner,
-        preconditionsValidator: PreconditionsValidator = PreconditionsValidator(),
-        safetyValidator: SafetyValidator = SafetyValidator(),
         postconditionsValidator: PostconditionsValidator = PostconditionsValidator(),
-        capabilityBinder: CapabilityBinder = CapabilityBinder(),
         context: RuntimeContext? = nil
     ) {
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
         self.planner = planner
-        self.preconditionsValidator = preconditionsValidator
-        self.safetyValidator = safetyValidator
-        self.postconditionsValidator = postconditionsValidator
-        self.capabilityBinder = capabilityBinder
         self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
             policyEngine: context?.policyEngine ?? .shared,
@@ -57,13 +46,10 @@ public actor RuntimeOrchestrator: IntentAPI {
         commitCoordinator: CommitCoordinator,
         context: RuntimeContext? = nil
     ) {
+        let postconditionsValidator = PostconditionsValidator()
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
         self.planner = MainPlanner()
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
         self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
             policyEngine: context?.policyEngine ?? .shared,
@@ -72,7 +58,7 @@ public actor RuntimeOrchestrator: IntentAPI {
                 workspaceRunner: context?.workspaceRunner,
                 context: context
             ),
-            postconditionsValidator: self.postconditionsValidator
+            postconditionsValidator: postconditionsValidator
         )
     }
 
@@ -80,13 +66,10 @@ public actor RuntimeOrchestrator: IntentAPI {
     /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
     @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
     public init(context: RuntimeContext, planner: any Planner) {
+        let postconditionsValidator = PostconditionsValidator()
         self.eventStore = EventStore()
         self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
         self.planner = planner
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
         self._legacyContext = context
         self.verifiedExecutor = VerifiedExecutor(
             policyEngine: context.policyEngine,
@@ -95,7 +78,7 @@ public actor RuntimeOrchestrator: IntentAPI {
                 workspaceRunner: context.workspaceRunner,
                 context: context
             ),
-            postconditionsValidator: self.postconditionsValidator
+            postconditionsValidator: postconditionsValidator
         )
     }
 
@@ -103,13 +86,10 @@ public actor RuntimeOrchestrator: IntentAPI {
     /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
     @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
     public init(context: RuntimeContext) {
+        let postconditionsValidator = PostconditionsValidator()
         self.eventStore = EventStore()
         self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
         self.planner = MainPlanner()
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
         self._legacyContext = context
         self.verifiedExecutor = VerifiedExecutor(
             policyEngine: context.policyEngine,
@@ -118,7 +98,7 @@ public actor RuntimeOrchestrator: IntentAPI {
                 workspaceRunner: context.workspaceRunner,
                 context: context
             ),
-            postconditionsValidator: self.postconditionsValidator
+            postconditionsValidator: postconditionsValidator
         )
     }
 
@@ -131,77 +111,8 @@ public actor RuntimeOrchestrator: IntentAPI {
     /// PHASE 2: Execute — delegates to VerifiedExecutor (the single side-effect layer)
     public func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
         _ = state
-        // Delegate the full validation + dispatch pipeline to VerifiedExecutor
-        let rawOutcome = try await verifiedExecutor.execute(command)
-
-        // Build event envelopes from the outcome
-        let events = buildEvents(
-            from: command,
-            observations: rawOutcome.observations,
-            artifacts: rawOutcome.artifacts,
-            status: rawOutcome.status
-        )
-
-        // Return a new outcome with events attached
-        return ExecutionOutcome(
-            commandID: rawOutcome.commandID,
-            status: rawOutcome.status,
-            observations: rawOutcome.observations,
-            artifacts: rawOutcome.artifacts,
-            events: events,
-            verifierReport: rawOutcome.verifierReport
-        )
-    }
-    
-    /// Build event envelopes from execution results
-    private func buildEvents(from command: Command, observations: [ObservationPayload], artifacts: [ArtifactPayload], status: ExecutionStatus) -> [EventEnvelope] {
-        var events: [EventEnvelope] = []
-        
-        // Encode payload to Data
-        func encodePayload(_ dict: [String: String]) -> Data {
-            try! JSONSerialization.data(withJSONObject: dict)
-        }
-        
-        // Action started event
-        let startPayload = encodePayload([
-            "commandKind": command.kind,
-            "intentID": command.metadata.intentID.uuidString
-        ])
-        
-        events.append(EventEnvelope(
-            id: UUID(),
-            sequenceNumber: 0, // Will be assigned by EventStore
-            commandID: command.id,
-            intentID: command.metadata.intentID,
-            timestamp: Date(),
-            eventType: "actionStarted",
-            payload: startPayload
-        ))
-        
-        // Action completed/failed event
-        let eventType = status == .success ? "actionCompleted" : "actionFailed"
-        var payloadDict: [String: String] = [
-            "commandKind": command.kind,
-            "status": status.rawValue
-        ]
-        
-        if status == .success && !observations.isEmpty {
-            payloadDict["observationCount"] = String(observations.count)
-        }
-        
-        let endPayload = encodePayload(payloadDict)
-        
-        events.append(EventEnvelope(
-            id: UUID(),
-            sequenceNumber: 0, // Will be assigned by EventStore
-            commandID: command.id,
-            intentID: command.metadata.intentID,
-            timestamp: Date(),
-            eventType: eventType,
-            payload: endPayload
-        ))
-        
-        return events
+        // VerifiedExecutor is the only side-effect boundary and returns canonical events.
+        return try await verifiedExecutor.execute(command)
     }
 
     /// PHASE 3: Commit — event-sourced state mutation
@@ -243,10 +154,9 @@ extension RuntimeOrchestrator {
         let cycleID = UUID()
         
         // 1. Plan - invoke planner to produce a Command
-        let context = PlannerContext(state: WorldStateModel())
         let command: Command
         do {
-            command = try await planner.plan(intent: intent, context: context)
+            command = try await decide(intent: intent, planner: planner)
         } catch {
             return IntentResponse(
                 intentID: intent.id,
@@ -283,6 +193,7 @@ extension RuntimeOrchestrator {
         // 4. Snapshot - get current state snapshot
         let snapshotID = UUID()
         _ = await commitCoordinator.snapshot()
+        let evaluation = await evaluate(executionOutcome)
         
         // Determine outcome based on execution status
         let outcome: IntentResponse.Outcome
@@ -300,7 +211,7 @@ extension RuntimeOrchestrator {
         return IntentResponse(
             intentID: intent.id,
             outcome: outcome,
-            summary: "Intent completed: \(intent.objective) - \(executionOutcome.status.rawValue)",
+            summary: "Intent completed: \(intent.objective) - \(executionOutcome.status.rawValue), critic=\(evaluation.criticOutcome.rawValue)",
             cycleID: cycleID,
             snapshotID: snapshotID,
             timestamp: Date()

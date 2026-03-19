@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Routes a bound command to the appropriate action handler.
@@ -66,19 +67,41 @@ public struct ToolDispatcher: @unchecked Sendable {
             case "focus", "focusWindow", "launchApp":
                 return Actions.focusApp(appName: action.app ?? "unknown", windowTitle: action.windowTitle)
             case "press":
-                return Actions.pressKey(key: action.query ?? "", modifiers: action.modifiers, appName: action.app)
+                let modifiers = action.modifiers ?? action.role?.split(separator: "+").map(String.init)
+                return Actions.pressKey(key: action.query ?? "", modifiers: modifiers, appName: action.app)
             case "hotkey":
-                return Actions.hotkey(keys: action.modifiers ?? [], appName: action.app)
+                let keys = action.modifiers
+                    ?? action.query?.split(separator: "+").map { String($0).trimmingCharacters(in: .whitespaces) }
+                    ?? []
+                return Actions.hotkey(keys: keys, appName: action.app)
             case "scroll", "scrollElement":
                 return Actions.scroll(
                     direction: action.query ?? "down",
-                    amount: action.amount,
+                    amount: action.amount ?? action.count,
                     appName: action.app,
                     x: action.x,
                     y: action.y
                 )
             case "openURL":
-                return ToolResult(success: true, data: ["url": action.query as Any])
+                guard let rawURL = action.query, let url = URL(string: rawURL) else {
+                    return ToolResult(success: false, error: "Invalid URL: \(action.query ?? "nil")")
+                }
+                let opened = NSWorkspace.shared.open(url)
+                return ToolResult(
+                    success: opened,
+                    data: opened ? ["url": rawURL] : nil,
+                    error: opened ? nil : "Failed to open URL '\(rawURL)'"
+                )
+            case "window", "manageWindow":
+                return Actions.manageWindow(
+                    action: action.query ?? "list",
+                    appName: action.app ?? "unknown",
+                    windowTitle: action.windowTitle,
+                    x: action.x,
+                    y: action.y,
+                    width: action.width,
+                    height: action.height
+                )
             case "read", "readElement":
                 return AXScanner.readContent(appName: action.app, query: action.query, depth: nil)
             default:

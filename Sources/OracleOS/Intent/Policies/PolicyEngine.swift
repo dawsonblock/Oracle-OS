@@ -124,6 +124,12 @@ public final class PolicyEngine: @unchecked Sendable {
                 y: action.y,
                 button: action.button,
                 count: action.count,
+                modifiers: action.modifiers,
+                amount: action.amount,
+                windowTitle: action.windowTitle,
+                clear: action.clear,
+                width: action.width,
+                height: action.height,
                 postconditions: []
             )
         case .code(let action):
