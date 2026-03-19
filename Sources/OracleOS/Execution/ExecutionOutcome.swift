@@ -67,7 +67,7 @@ public struct ExecutionOutcome: Sendable {
             verifierReport: VerifierReport(
                 commandID: command.id,
                 preconditionsPassed: false,
-                policyDecision: "approved",
+                policyDecision: "error",
                 postconditionsPassed: false,
                 notes: [reason]
             )
