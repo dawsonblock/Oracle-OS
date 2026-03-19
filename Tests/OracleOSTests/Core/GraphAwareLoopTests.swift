@@ -280,7 +280,6 @@ struct GraphAwareLoopTests {
         )
 
         let task = Task { await loop.run() }
-        try? await Task.sleep(nanoseconds: 50_000_000)
         loop.stop()
         _ = await task.result
 
