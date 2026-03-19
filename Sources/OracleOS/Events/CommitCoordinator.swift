@@ -1,7 +1,13 @@
 import Foundation
 
-/// Orchestrates the commit flow: appends events → runs reducers → emits new snapshot.
-/// INVARIANT: No state write may bypass CommitCoordinator.
+/// The ONLY entity that may write committed state in Oracle-OS.
+///
+/// Pipeline: wrap events in numbered envelopes → append to event store → apply reducers → publish snapshot.
+///
+/// INVARIANTS:
+///   - No state write may bypass CommitCoordinator
+///   - Reducers are the only entities that derive state from events
+///   - CommitCoordinator does NOT perform planning, recovery, learning, or business logic
 public actor CommitCoordinator {
     private let eventStore: EventStore
     private var reducers: [any EventReducer]
@@ -13,14 +19,14 @@ public actor CommitCoordinator {
         self.currentState = initialState
     }
 
+    /// Commit events to the event store and apply reducers to derive new state.
+    /// This is the single legal state mutation path in the runtime.
     public func commit(_ envelopes: [EventEnvelope]) async throws {
         guard !envelopes.isEmpty else { return }
 
-        // Assign sequence numbers to envelopes before appending
         var numberedEnvelopes = envelopes
         for i in 0..<numberedEnvelopes.count {
             let seq = await eventStore.nextSequenceNumber()
-            // Create new envelope with sequence number (struct is immutable)
             let old = numberedEnvelopes[i]
             numberedEnvelopes[i] = EventEnvelope(
                 id: old.id,
@@ -39,11 +45,13 @@ public actor CommitCoordinator {
         }
     }
 
-    /// Returns a copy of the current state to prevent direct mutation.
-    /// Returns WorldModelSnapshot (value type) from the model's snapshot property.
+    /// Returns a read-only copy of the current state to prevent direct mutation.
     public func snapshot() -> WorldModelSnapshot {
-        // WorldStateModel.snapshot returns WorldModelSnapshot (a struct/value type)
-        // This is the safe way to expose state without giving mutable access
         return currentState.snapshot
+    }
+
+    /// Register additional reducers (e.g. during runtime setup).
+    public func addReducer(_ reducer: any EventReducer) {
+        reducers.append(reducer)
     }
 }
