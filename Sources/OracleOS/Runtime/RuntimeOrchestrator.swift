@@ -49,8 +49,7 @@ public actor RuntimeOrchestrator: IntentAPI {
     }
 
     private func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
-        _ = state
-        return try await verifiedExecutor.execute(command)
+        return try await verifiedExecutor.execute(command, state: state)
     }
 
     private func commit(_ outcome: ExecutionOutcome) async throws {
