@@ -3,25 +3,22 @@ import Testing
 @testable import OracleOS
 
 /// Verifies the execution kernel trust boundary:
-/// every action must pass through VerifiedActionExecutor,
+/// every action must pass through VerifiedExecutor.execute(_:)
 /// and the resulting ToolResult must carry action_result.executed_through_executor = true.
 @Suite("Execution Kernel Boundary")
 @MainActor
 struct ExecutionKernelBoundaryTests {
 
-    // MARK: - executor stamp is present after run()
+    // MARK: - executor stamp contract
 
-    @Test("VerifiedActionExecutor.run stamps executedThroughExecutor on ActionResult")
+    @Test("ActionResult can carry executedThroughExecutor stamp")
     func executorStampsFlag() {
-        let intent = ActionIntent(action: "click", app: "TestApp")
-        let result = VerifiedActionExecutor.run(intent: intent) {
-            ToolResult(
-                success: true,
-                data: [
-                    "action_result": ActionResult(success: true, executedThroughExecutor: true).toDict()
-                ]
-            )
-        }
+        let result = ToolResult(
+            success: true,
+            data: [
+                "action_result": ActionResult(success: true, executedThroughExecutor: true).toDict()
+            ]
+        )
         let dict = result.data?["action_result"] as? [String: Any]
         #expect(dict?["executed_through_executor"] as? Bool == true)
     }

@@ -14,7 +14,7 @@ public struct ActionResult: Sendable, Codable {
     public let appProtectionProfile: String?
     public let blockedByPolicy: Bool
 
-    /// True when the action was executed through ``VerifiedActionExecutor``.
+    /// True when the action was executed through ``VerifiedExecutor``.
     /// Every action in the runtime loop must pass through the executor;
     /// consuming code can assert this flag to enforce the trust boundary.
     public let executedThroughExecutor: Bool
@@ -124,55 +124,6 @@ public struct ActionResult: Sendable, Codable {
             appProtectionProfile: dict["app_protection_profile"] as? String,
             blockedByPolicy: dict["blocked_by_policy"] as? Bool ?? false,
             executedThroughExecutor: dict["executed_through_executor"] as? Bool ?? false
-        )
-    }
-}
-
-// MARK: - Legacy Compatibility Shim (Deprecated)
-
-/// **DEPRECATED** — This shim provides NO actual verification. It simply calls
-/// the action closure directly and returns the result.
-///
-/// All new code **must** use ``VerifiedExecutor`` actor (the real typed execution
-/// layer) routed through ``RuntimeOrchestrator``. The ``VerifiedExecutor`` path
-/// performs precondition/postcondition validation, safety checks, capability
-/// binding, and structured event emission — none of which this shim does.
-///
-/// Migrate callers to submit typed ``Intent`` through ``IntentAPI.submitIntent``
-/// which flows through: Intent → Planner → Command → VerifiedExecutor → Events.
-@available(*, deprecated, message: "Use VerifiedExecutor actor via RuntimeOrchestrator/IntentAPI. This shim performs no verification.")
-public final class VerifiedActionExecutor: @unchecked Sendable {
-    public init(
-        traceRecorder: TraceRecorder? = nil,
-        traceStore: ExperienceStore? = nil,
-        artifactWriter: FailureArtifactWriter? = nil,
-        graphStore: GraphStore? = nil,
-        stateMemoryIndex: StateMemoryIndex? = nil
-    ) {}
-
-    public init() {}
-
-    public func run(
-        taskID: String?,
-        toolName: String?,
-        intent: ActionIntent,
-        surface: RuntimeSurface,
-        action: () -> ToolResult
-    ) -> ToolResult {
-        return action()
-    }
-
-    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead.")
-    public static func run(
-        intent: ActionIntent,
-        action: () -> ToolResult
-    ) -> ToolResult {
-        VerifiedActionExecutor().run(
-            taskID: nil,
-            toolName: nil,
-            intent: intent,
-            surface: .mcp,
-            action: action
         )
     }
 }

@@ -26,7 +26,7 @@ FORBIDDEN_REFERENCES = {
     "Planner.swift": [
         "WorkflowSynthesizer",
         "DOMFlattener",
-        "VerifiedActionExecutor",
+        "VerifiedExecutor",
         "PatchImpactPredictor",
     ],
 }
