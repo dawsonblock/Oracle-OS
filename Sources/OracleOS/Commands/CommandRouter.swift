@@ -1,13 +1,15 @@
 import Foundation
+
 /// Routes a Command to the correct executor domain.
+/// This is the single dispatch point between VerifiedExecutor and domain routers.
 public enum CommandRouter {
-    public enum Domain { case ui, code, system, unknown }
+    public enum Domain: String, Sendable { case ui, code, system, unknown }
+
     public static func domain(for command: any Command) -> Domain {
-        switch command.kind {
-        case "clickElement","typeText","focusWindow","readElement": return .ui
-        case "searchRepository","modifyFile","runBuild","runTests","readFile": return .code
-        case "launchApp","openURL": return .system
-        default: return .unknown
+        switch command.commandType {
+        case .ui: return .ui
+        case .code: return .code
+        case .system: return .system
         }
     }
 }

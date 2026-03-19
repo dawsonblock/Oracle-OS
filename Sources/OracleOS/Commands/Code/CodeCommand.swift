@@ -1,5 +1,8 @@
 import Foundation
 public protocol CodeCommand: Command {}
+extension CodeCommand {
+    public var commandType: CommandType { .code }
+}
 public struct SearchRepositoryCommand: CodeCommand {
     public let id: CommandID; public let kind = "searchRepository"; public let metadata: CommandMetadata
     public let query: String; public let maxResults: Int

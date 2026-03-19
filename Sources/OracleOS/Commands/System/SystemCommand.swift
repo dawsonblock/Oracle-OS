@@ -1,5 +1,8 @@
 import Foundation
 public protocol SystemCommand: Command {}
+extension SystemCommand {
+    public var commandType: CommandType { .system }
+}
 public struct LaunchAppCommand: SystemCommand {
     public let id: CommandID; public let kind = "launchApp"; public let metadata: CommandMetadata
     public let bundleID: String
