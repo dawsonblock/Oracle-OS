@@ -4,6 +4,13 @@ public struct CodeRouter: @unchecked Sendable {
     private let workspaceRunner: WorkspaceRunner?
     private let repositoryIndexer: RepositoryIndexer
 
+    /// Truncate potentially large outputs before embedding them in observations
+    private func truncated(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let endIndex = text.index(text.startIndex, offsetBy: limit)
+        return String(text[..<endIndex]) + "\n...[truncated]"
+    }
+
     init(
         workspaceRunner: WorkspaceRunner?,
         repositoryIndexer: RepositoryIndexer
@@ -28,10 +35,13 @@ public struct CodeRouter: @unchecked Sendable {
             }
 
             let result = try workspaceRunner.execute(spec: spec)
+            let maxLogLength = 2000
+            let truncatedStdout = truncated(result.stdout, limit: maxLogLength)
+            let truncatedStderr = truncated(result.stderr, limit: maxLogLength)
             let observations = [
                 ObservationPayload(
                     kind: "code.shell",
-                    content: "\(result.summary)\nstdout:\n\(result.stdout)\nstderr:\n\(result.stderr)"
+                    content: "\(result.summary)\nstdout:\n\(truncatedStdout)\nstderr:\n\(truncatedStderr)"
                 ),
             ]
             if result.succeeded {
@@ -44,9 +54,11 @@ public struct CodeRouter: @unchecked Sendable {
                 )
             }
 
+            let failureOutput = result.stderr.isEmpty ? result.stdout : result.stderr
+            let truncatedFailureOutput = truncated(failureOutput, limit: maxLogLength)
             return CommandRouter.failureOutcome(
                 command: command,
-                reason: result.stderr.isEmpty ? result.stdout : result.stderr,
+                reason: truncatedFailureOutput,
                 policyDecision: policyDecision,
                 router: "code"
             )
