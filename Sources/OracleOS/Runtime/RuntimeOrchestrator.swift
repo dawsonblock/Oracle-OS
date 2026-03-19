@@ -258,65 +258,17 @@ extension RuntimeOrchestrator {
             )
         }
         
-        // 2. Validate - PolicyEngine checks the command
-        // Create ActionIntent from command metadata for policy evaluation
-        let actionIntent = ActionIntent(
-            agentKind: .os,
-            app: "unknown",
-            name: command.kind,
-            action: command.kind,
-            query: nil,
-            text: nil,
-            role: nil,
-            domID: nil,
-            x: nil,
-            y: nil,
-            button: nil,
-            count: nil,
-            workspaceRoot: ".",
-            workspaceRelativePath: nil,
-            codeCommand: nil,
-            postconditions: []
-        )
-        let policyDecision = PolicyEngine.shared.evaluate(intent: actionIntent)
-        
-        guard policyDecision.allowed else {
-            return IntentResponse(
-                intentID: intent.id,
-                outcome: .failed,
-                summary: "Policy blocked: \(policyDecision.reason ?? "Action not allowed")",
-                cycleID: cycleID,
-                snapshotID: nil,
-                timestamp: Date()
-            )
-        }
-        
-        // 3. Execute - delegate to VerifiedExecutor
+        // 2. Execute - delegate to VerifiedExecutor
         let executionOutcome: ExecutionOutcome
         do {
             executionOutcome = try await verifiedExecutor.execute(command)
         } catch {
-            return IntentResponse(
-                intentID: intent.id,
-                outcome: .failed,
-                summary: "Execution failed: \(error.localizedDescription)",
-                cycleID: cycleID,
-                snapshotID: nil,
-                timestamp: Date()
-            )
+            executionOutcome = ExecutionOutcome.failure(from: error, command: command)
         }
-        
-        // 4. Emit events - build event envelopes from execution result
-        let events = buildEvents(
-            from: command,
-            observations: executionOutcome.observations,
-            artifacts: executionOutcome.artifacts,
-            status: executionOutcome.status
-        )
-        
-        // 5. Commit - event-sourced state mutation
+
+        // 3. Commit - event-sourced state mutation
         do {
-            try await commitCoordinator.commit(events)
+            try await commitCoordinator.commit(executionOutcome.events)
         } catch {
             return IntentResponse(
                 intentID: intent.id,
@@ -328,7 +280,7 @@ extension RuntimeOrchestrator {
             )
         }
         
-        // 6. Snapshot - get current state snapshot
+        // 4. Snapshot - get current state snapshot
         let snapshotID = UUID()
         _ = await commitCoordinator.snapshot()
         
