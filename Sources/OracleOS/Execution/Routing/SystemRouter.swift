@@ -46,10 +46,12 @@ public struct SystemRouter: @unchecked Sendable {
                 router: "system"
             )
 
-        case .ui(let action):
-            return try await UIRouter(automationHost: nil).execute(
-                Command(type: .ui, payload: .ui(action), metadata: command.metadata),
-                policyDecision: policyDecision
+        case .ui:
+            return CommandRouter.failureOutcome(
+                command: command,
+                reason: "Invalid system payload: received UI action for system command",
+                policyDecision: policyDecision,
+                router: "system"
             )
 
         case .code:
