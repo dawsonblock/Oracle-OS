@@ -1,9 +1,17 @@
 import Foundation
 
-// AgentLoop is the authoritative runtime spine for orchestration only.
-// It may request state, decision, execution, learning, and recovery stages,
-// then terminate or continue. It must not absorb ranking, graph scoring,
-// experiment comparison, or direct world mutation logic.
+/// AgentLoop is the runtime scheduler.
+///
+/// TARGET ARCHITECTURE:
+///   AgentLoop only forwards intents to RuntimeOrchestrator.
+///   It does not plan, execute, coordinate recovery, or mutate state.
+///
+///   IntentSource → AgentLoop → IntentAPI.submitIntent
+///
+/// CURRENT STATE:
+///   The existing `run(goal:)` method in AgentLoop+Run.swift still
+///   contains legacy coordination logic for backward compatibility
+///   with the eval harness. Migration to pure scheduler mode is in progress.
 @MainActor
 public final class AgentLoop {
     let planner: MainPlanner
@@ -17,13 +25,12 @@ public final class AgentLoop {
     private let stateMemoryIndex: StateMemoryIndex?
     let worldModel: WorldStateModel
 
-    /// NEW: IntentAPI-based orchestrator for the new execution spine.
-    /// When set, the run loop should prefer this over legacy coordinator path.
+    /// The IntentAPI orchestrator — all execution flows through this.
     public private(set) var orchestrator: (any IntentAPI)?
 
-    /// NEW preferred init — uses RuntimeOrchestrator as the execution spine.
-    /// This is the target architecture: AgentLoop becomes a thin wrapper that
-    /// submits intents through RuntimeOrchestrator.
+    private var running = true
+
+    /// Required init — all AgentLoop instances must have an IntentAPI orchestrator.
     public init(
         orchestrator: any IntentAPI,
         observationProvider: any ObservationProvider,
@@ -95,4 +102,24 @@ public final class AgentLoop {
         )
     }
 
+    // MARK: - Scheduler Mode (Target Architecture)
+
+    /// Run as a pure scheduler: pull intents from source, forward to orchestrator.
+    /// This is the target architecture where AgentLoop has no runtime logic.
+    public func runAsScheduler(intake: any IntentSource) async {
+        guard let orchestrator else { return }
+        running = true
+        while running {
+            guard let intent = await intake.next() else {
+                running = false
+                break
+            }
+            _ = try? await orchestrator.submitIntent(intent)
+        }
+    }
+
+    /// Stop the scheduler loop.
+    public func stop() {
+        running = false
+    }
 }
