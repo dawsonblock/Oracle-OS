@@ -42,7 +42,7 @@ public final class SearchController {
     ///   - llmSchemas: Optional LLM fallback schemas.
     ///   - evaluate: Closure that executes a candidate and returns its
     ///     verified result. The caller is responsible for running the
-    ///     candidate through ``VerifiedActionExecutor`` and ``CriticLoop``.
+    ///     candidate through ``VerifiedExecutor`` and ``CriticLoop``.
     /// - Returns: The best verified ``CandidateResult``, or `nil` if no
     ///   candidates could be generated or executed.
     public func search(

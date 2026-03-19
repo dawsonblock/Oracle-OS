@@ -190,7 +190,7 @@ public struct CriticLoop: Sendable {
                 postStateHash: hash,
                 actionName: actionName,
                 stateChanged: false,
-                notes: ["trust boundary violation: action did not pass through VerifiedActionExecutor"]
+                notes: ["trust boundary violation: action did not pass through VerifiedExecutor"]
             ))
         }
         let outcome: CriticOutcome = result.verified ? .success : (result.success ? .partialSuccess : .failure)

@@ -12,15 +12,6 @@ public actor RuntimeOrchestrator: IntentAPI {
     private let toolDispatcher: ToolDispatcher
     private let postconditionsValidator: PostconditionsValidator
     private let capabilityBinder: CapabilityBinder
-    // Backing storage for legacy context access. Not deprecated so internal use doesn't trigger warnings.
-    nonisolated(unsafe) private var _legacyContextStorage: RuntimeContext?
-    /// **DEPRECATED** — Direct context access bypasses the Intent pipeline.
-    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing _legacyContext directly.")
-    nonisolated(unsafe) public var _legacyContext: RuntimeContext? {
-        get { _legacyContextStorage }
-        set { _legacyContextStorage = newValue }
-    }
-
     /// The authoritative execution delegate — only layer allowed to produce side effects.
     private let verifiedExecutor: VerifiedExecutor
 
@@ -32,8 +23,7 @@ public actor RuntimeOrchestrator: IntentAPI {
         safetyValidator: SafetyValidator = SafetyValidator(),
         toolDispatcher: ToolDispatcher = ToolDispatcher(),
         postconditionsValidator: PostconditionsValidator = PostconditionsValidator(),
-        capabilityBinder: CapabilityBinder = CapabilityBinder(),
-        context: RuntimeContext? = nil
+        capabilityBinder: CapabilityBinder = CapabilityBinder()
     ) {
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
@@ -43,7 +33,6 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.toolDispatcher = toolDispatcher
         self.postconditionsValidator = postconditionsValidator
         self.capabilityBinder = capabilityBinder
-        self._legacyContextStorage = context
         self.verifiedExecutor = VerifiedExecutor(
             preconditionsValidator: preconditionsValidator,
             safetyValidator: safetyValidator,
@@ -55,8 +44,7 @@ public actor RuntimeOrchestrator: IntentAPI {
 
     public init(
         eventStore: EventStore,
-        commitCoordinator: CommitCoordinator,
-        context: RuntimeContext? = nil
+        commitCoordinator: CommitCoordinator
     ) {
         self.eventStore = eventStore
         self.commitCoordinator = commitCoordinator
@@ -66,51 +54,6 @@ public actor RuntimeOrchestrator: IntentAPI {
         self.toolDispatcher = ToolDispatcher()
         self.postconditionsValidator = PostconditionsValidator()
         self.capabilityBinder = CapabilityBinder()
-        self._legacyContextStorage = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
-            postconditionsValidator: self.postconditionsValidator
-        )
-    }
-
-    /// **DEPRECATED** — Backward-compatibility initializer for callers that only have a RuntimeContext.
-    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
-    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
-    public init(context: RuntimeContext, planner: any Planner) {
-        self.eventStore = EventStore()
-        self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
-        self.planner = planner
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
-        self._legacyContext = context
-        self.verifiedExecutor = VerifiedExecutor(
-            preconditionsValidator: self.preconditionsValidator,
-            safetyValidator: self.safetyValidator,
-            capabilityBinder: self.capabilityBinder,
-            toolDispatcher: self.toolDispatcher,
-            postconditionsValidator: self.postconditionsValidator
-        )
-    }
-
-    /// **DEPRECATED** — Legacy initializer - creates default MainPlanner internally for backward compatibility.
-    /// Migrate to the primary init(eventStore:commitCoordinator:planner:) and use IntentAPI.
-    @available(*, deprecated, message: "Use init(eventStore:commitCoordinator:planner:) — RuntimeContext path bypasses typed execution.")
-    public init(context: RuntimeContext) {
-        self.eventStore = EventStore()
-        self.commitCoordinator = CommitCoordinator(eventStore: self.eventStore, reducers: [])
-        self.planner = MainPlanner()
-        self.preconditionsValidator = PreconditionsValidator()
-        self.safetyValidator = SafetyValidator()
-        self.toolDispatcher = ToolDispatcher()
-        self.postconditionsValidator = PostconditionsValidator()
-        self.capabilityBinder = CapabilityBinder()
-        self._legacyContext = context
         self.verifiedExecutor = VerifiedExecutor(
             preconditionsValidator: self.preconditionsValidator,
             safetyValidator: self.safetyValidator,

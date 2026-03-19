@@ -6,7 +6,6 @@ public final class RuntimeContext {
     public let traceRecorder: TraceRecorder
     public let traceStore: ExperienceStore
     public let artifactWriter: FailureArtifactWriter
-    public let verifiedExecutor: VerifiedActionExecutor
     public let policyEngine: PolicyEngine
     public let approvalStore: ApprovalStore
     public let graphStore: GraphStore
@@ -32,7 +31,6 @@ public final class RuntimeContext {
         traceRecorder: TraceRecorder,
         traceStore: ExperienceStore,
         artifactWriter: FailureArtifactWriter,
-        verifiedExecutor: VerifiedActionExecutor,
         policyEngine: PolicyEngine,
         approvalStore: ApprovalStore,
         graphStore: GraphStore = GraphStore(),
@@ -54,7 +52,6 @@ public final class RuntimeContext {
         self.traceRecorder = traceRecorder
         self.traceStore = traceStore
         self.artifactWriter = artifactWriter
-        self.verifiedExecutor = verifiedExecutor
         self.policyEngine = policyEngine
         self.approvalStore = approvalStore
         self.graphStore = graphStore
@@ -90,20 +87,12 @@ public final class RuntimeContext {
         let approvalStore = ApprovalStore(rootDirectory: config.approvalsDirectory)
         let graphStore = GraphStore()
         let stateMemoryIndex = StateMemoryIndex()
-        let verifiedExecutor = VerifiedActionExecutor(
-            traceRecorder: traceRecorder,
-            traceStore: traceStore,
-            artifactWriter: artifactWriter,
-            graphStore: graphStore,
-            stateMemoryIndex: stateMemoryIndex
-        )
 
         return RuntimeContext(
             config: config,
             traceRecorder: traceRecorder,
             traceStore: traceStore,
             artifactWriter: artifactWriter,
-            verifiedExecutor: verifiedExecutor,
             policyEngine: policyEngine,
             approvalStore: approvalStore,
             graphStore: graphStore,

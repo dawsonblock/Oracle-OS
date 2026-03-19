@@ -3,30 +3,13 @@ import Testing
 @testable import OracleOS
 
 /// Verifies the execution kernel trust boundary:
-/// every action must pass through VerifiedActionExecutor,
-/// and the resulting ToolResult must carry action_result.executed_through_executor = true.
+/// all execution must flow through VerifiedExecutor via RuntimeOrchestrator,
+/// and legacy bypass paths (VerifiedActionExecutor, performAction) are removed.
 @Suite("Execution Kernel Boundary")
 @MainActor
 struct ExecutionKernelBoundaryTests {
 
-    // MARK: - executor stamp is present after run()
-
-    @Test("VerifiedActionExecutor.run stamps executedThroughExecutor on ActionResult")
-    func executorStampsFlag() {
-        let intent = ActionIntent(action: "click", app: "TestApp")
-        let result = VerifiedActionExecutor.run(intent: intent) {
-            ToolResult(
-                success: true,
-                data: [
-                    "action_result": ActionResult(success: true, executedThroughExecutor: true).toDict()
-                ]
-            )
-        }
-        let dict = result.data?["action_result"] as? [String: Any]
-        #expect(dict?["executed_through_executor"] as? Bool == true)
-    }
-
-    // MARK: - trust boundary contract on ActionResult
+    // MARK: - ActionResult trust boundary contract
 
     @Test("ActionResult with executedThroughExecutor=true passes boundary contract")
     func stampedResultPassesBoundary() {
@@ -65,8 +48,6 @@ struct ExecutionKernelBoundaryTests {
 
     @Test("ToolResult missing action_result key is detectable as bypass")
     func bareToolResultIsDetectable() {
-        // A bare ToolResult without action_result is what a bypass would produce.
-        // Verify the detection logic used by OracleRuntime works.
         let bareResult = ToolResult(success: true, data: [:])
         let actionResultDict = bareResult.data?["action_result"] as? [String: Any]
         let stamped = actionResultDict != nil && actionResultDict?["executed_through_executor"] as? Bool == true
@@ -80,5 +61,70 @@ struct ExecutionKernelBoundaryTests {
         let actionResultDict = result.data?["action_result"] as? [String: Any]
         let stamped = actionResultDict != nil && actionResultDict?["executed_through_executor"] as? Bool == true
         #expect(stamped == true)
+    }
+
+    // MARK: - Legacy removal verification
+
+    @Test("VerifiedActionExecutor class is removed from ActionResult.swift")
+    func verifiedActionExecutorRemoved() throws {
+        let url = sourcesRoot().appendingPathComponent(
+            "Execution/ActionResult.swift",
+            isDirectory: false
+        )
+        let content = try String(contentsOf: url, encoding: .utf8)
+        let codeWithoutComments = strippingComments(from: content)
+        #expect(
+            !codeWithoutComments.contains("class VerifiedActionExecutor"),
+            "VerifiedActionExecutor class must be removed"
+        )
+    }
+
+    @Test("performAction bridge is removed from ActionResult.swift")
+    func performActionRemoved() throws {
+        let url = sourcesRoot().appendingPathComponent(
+            "Execution/ActionResult.swift",
+            isDirectory: false
+        )
+        let content = try String(contentsOf: url, encoding: .utf8)
+        let codeWithoutComments = strippingComments(from: content)
+        #expect(
+            !codeWithoutComments.contains("func performAction("),
+            "performAction bridge must be removed"
+        )
+    }
+
+    // MARK: - Helpers
+
+    private func strippingComments(from source: String) -> String {
+        let pattern = #"//.*|/\*[\s\S]*?\*/"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return source
+        }
+        let range = NSRange(source.startIndex..., in: source)
+        return regex.stringByReplacingMatches(
+            in: source,
+            options: [],
+            range: range,
+            withTemplate: ""
+        )
+    }
+
+    private func sourcesRoot() -> URL {
+        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let fileManager = FileManager.default
+
+        while true {
+            let packageManifestURL = url.appendingPathComponent("Package.swift")
+            if fileManager.fileExists(atPath: packageManifestURL.path) {
+                return url.appendingPathComponent("Sources/OracleOS", isDirectory: true)
+            }
+
+            let parent = url.deletingLastPathComponent()
+            if parent.path == url.path {
+                return url.appendingPathComponent("Sources/OracleOS", isDirectory: true)
+            }
+
+            url = parent
+        }
     }
 }

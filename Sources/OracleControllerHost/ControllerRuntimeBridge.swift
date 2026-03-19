@@ -26,7 +26,10 @@ final class ControllerRuntimeBridge {
             artifactWriter: artifactWriter
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
-        self.oracleRuntime = RuntimeOrchestrator(context: runtimeContext) // Initialized property properly
+        self.oracleRuntime = RuntimeOrchestrator(
+            eventStore: EventStore(),
+            commitCoordinator: CommitCoordinator(eventStore: EventStore(), reducers: [])
+        )
         self.runtimeLifecycle = RuntimeLifecycle(approvalStore: runtimeContext.approvalStore)
         self.sessionID = traceRecorder.sessionID
         self.sessionStartedAt = Date()
@@ -119,7 +122,6 @@ final class ControllerRuntimeBridge {
             Actions.focusApp(
                 appName: request.appName ?? "",
                 windowTitle: request.windowTitle,
-                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -136,7 +138,6 @@ final class ControllerRuntimeBridge {
                 y: request.y,
                 button: request.button,
                 count: request.count,
-                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -150,7 +151,6 @@ final class ControllerRuntimeBridge {
                 domId: request.domID,
                 appName: request.appName,
                 clear: request.clearExisting,
-                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -162,7 +162,6 @@ final class ControllerRuntimeBridge {
                 key: request.key ?? "",
                 modifiers: request.modifiers,
                 appName: request.appName,
-                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,
@@ -176,7 +175,6 @@ final class ControllerRuntimeBridge {
                 appName: request.appName,
                 x: request.x,
                 y: request.y,
-                runtime: oracleRuntime,
                 surface: .controller,
                 approvalRequestID: request.approvalRequestID,
                 taskID: sessionID,

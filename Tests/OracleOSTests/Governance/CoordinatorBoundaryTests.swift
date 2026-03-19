@@ -24,8 +24,8 @@ struct CoordinatorBoundaryTests {
             "DecisionCoordinator must not spawn processes"
         )
         #expect(
-            !codeWithoutComments.contains("VerifiedActionExecutor"),
-            "DecisionCoordinator must not reference VerifiedActionExecutor"
+            !codeWithoutComments.contains("VerifiedExecutor"),
+            "DecisionCoordinator must not reference VerifiedExecutor directly"
         )
     }
 
