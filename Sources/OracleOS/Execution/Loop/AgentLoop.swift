@@ -90,16 +90,8 @@ public final class AgentLoop {
         case .partialSuccess:
             reason = .unrecoverableFailure
         case .failed:
-            let lowered = response.summary.lowercased()
-            if lowered.contains("approval") {
-                reason = .approvalTimeout
-            } else if lowered.contains("policy") {
-                reason = .policyBlocked
-            } else if lowered.contains("planning failed") {
-                reason = .noViablePlan
-            } else {
-                reason = .unrecoverableFailure
-            }
+            // Avoid deriving semantics from free-text summaries; treat all failures uniformly.
+            reason = .unrecoverableFailure
         case .skipped:
             reason = .noViablePlan
         }
