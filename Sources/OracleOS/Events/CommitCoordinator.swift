@@ -4,7 +4,7 @@ import Foundation
 /// INVARIANT: No state write may bypass CommitCoordinator.
 public actor CommitCoordinator {
     private let eventStore: EventStore
-    private var reducers: [any EventReducer]
+    private let reducers: [any EventReducer]
     private(set) var currentState: WorldStateModel
 
     public init(eventStore: EventStore, reducers: [any EventReducer], initialState: WorldStateModel = WorldStateModel()) {
