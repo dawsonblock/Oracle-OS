@@ -45,14 +45,12 @@ public enum RecipeEngine {
     public static func run(
         recipe: Recipe,
         params: [String: String],
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         taskID: String? = nil
     ) -> ToolResult {
         runInternal(
             recipe: recipe,
             params: params,
-            executor: executor,
             runtime: runtime,
             taskID: taskID,
             startTime: Date(),
@@ -67,7 +65,6 @@ public enum RecipeEngine {
     public static func resume(
         resumeToken: String,
         approvalRequestID: String?,
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         taskID: String? = nil
     ) -> ToolResult {
@@ -84,7 +81,6 @@ public enum RecipeEngine {
         return runInternal(
             recipe: paused.recipe,
             params: paused.params,
-            executor: executor,
             runtime: runtime,
             taskID: taskID ?? paused.taskID,
             startTime: paused.startedAt,
@@ -99,7 +95,6 @@ public enum RecipeEngine {
     private static func runInternal(
         recipe: Recipe,
         params: [String: String],
-        executor: VerifiedActionExecutor?,
         runtime: RuntimeOrchestrator?,
         taskID: String?,
         startTime: Date,
@@ -169,7 +164,6 @@ public enum RecipeEngine {
                 step: step,
                 resolvedParams: resolvedParams,
                 appName: recipe.app,
-                executor: executor,
                 runtime: runtime,
                 taskID: taskID,
                 approvalRequestID: currentApprovalRequestID
@@ -450,7 +444,6 @@ public enum RecipeEngine {
         step: RecipeStep,
         resolvedParams: [String: String]?,
         appName: String?,
-        executor: VerifiedActionExecutor?,
         runtime: RuntimeOrchestrator?,
         taskID: String?,
         approvalRequestID: String?
@@ -472,7 +465,6 @@ public enum RecipeEngine {
                 y: params["y"].flatMap(Double.init),
                 button: params["button"],
                 count: params["count"].flatMap(Int.init),
-                executor: executor,
                 runtime: runtime,
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
@@ -491,7 +483,6 @@ public enum RecipeEngine {
             return Actions.typeText(
                 text: text, into: into, domId: domId,
                 appName: stepApp, clear: clear,
-                executor: executor,
                 runtime: runtime,
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
@@ -508,7 +499,6 @@ public enum RecipeEngine {
                 key: key,
                 modifiers: modifiers,
                 appName: stepApp,
-                executor: executor,
                 runtime: runtime,
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,
@@ -536,7 +526,6 @@ public enum RecipeEngine {
             return Actions.focusApp(
                 appName: app,
                 windowTitle: params["window"],
-                executor: executor,
                 runtime: runtime,
                 surface: .recipe,
                 approvalRequestID: approvalRequestID,

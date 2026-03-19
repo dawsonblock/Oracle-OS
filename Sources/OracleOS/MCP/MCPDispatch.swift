@@ -22,11 +22,24 @@ public enum MCPDispatch {
         artifactWriter: failureArtifactWriter
     )
     private static let eventStore = EventStore()
-    private static let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
+    private static let commitCoordinator = CommitCoordinator(
+        eventStore: eventStore,
+        reducers: [
+            RuntimeStateReducer(),
+            UIStateReducer(),
+            ProjectStateReducer(),
+            MemoryStateReducer(),
+        ]
+    )
     private static let runtime = RuntimeOrchestrator(
         eventStore: eventStore,
         commitCoordinator: commitCoordinator,
-        planner: MainPlanner()
+        planner: MainPlanner(),
+        toolDispatcher: ToolDispatcher(
+            automationHost: runtimeContext.automationHost,
+            workspaceRunner: runtimeContext.workspaceRunner,
+            context: runtimeContext
+        )
     )
 
     /// Handle a tools/call request. Returns MCP-formatted result.

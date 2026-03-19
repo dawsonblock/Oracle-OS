@@ -177,4 +177,58 @@ public struct ActionIntent: Sendable, Codable, Equatable {
             text: schema.name
         )
     }
+
+    public func asIntent(additionalMetadata: [String: String] = [:]) -> Intent {
+        let mappedDomain: IntentDomain = switch agentKind {
+        case .os: .ui
+        case .code: .code
+        case .mixed: .mixed
+        }
+
+        var metadata: [String: String] = [
+            "actionKind": action,
+            "app": app,
+            "actionName": name,
+        ]
+
+        if let query, !query.isEmpty { metadata["query"] = query }
+        if let text, !text.isEmpty { metadata["text"] = text }
+        if let role, !role.isEmpty { metadata["role"] = role }
+        if let domID, !domID.isEmpty {
+            metadata["domID"] = domID
+            metadata["targetID"] = domID
+        } else if let query, !query.isEmpty {
+            metadata["targetID"] = query
+        }
+        if let x { metadata["x"] = String(x) }
+        if let y { metadata["y"] = String(y) }
+        if let button, !button.isEmpty { metadata["button"] = button }
+        if let count { metadata["count"] = String(count) }
+        if let workspaceRoot, !workspaceRoot.isEmpty { metadata["workspacePath"] = workspaceRoot }
+        if let workspaceRelativePath, !workspaceRelativePath.isEmpty {
+            metadata["workspaceRelativePath"] = workspaceRelativePath
+            metadata["filePath"] = workspaceRelativePath
+        }
+
+        if let codeCommand {
+            metadata["commandCategory"] = codeCommand.category.rawValue
+            metadata["commandSummary"] = codeCommand.summary
+            metadata["workspacePath"] = codeCommand.workspaceRoot
+            metadata["commandExecutable"] = codeCommand.executable
+            if let relativePath = codeCommand.workspaceRelativePath {
+                metadata["workspaceRelativePath"] = relativePath
+                metadata["filePath"] = relativePath
+            }
+        }
+
+        for (key, value) in additionalMetadata where !value.isEmpty {
+            metadata[key] = value
+        }
+
+        return Intent(
+            domain: mappedDomain,
+            objective: name,
+            metadata: metadata
+        )
+    }
 }

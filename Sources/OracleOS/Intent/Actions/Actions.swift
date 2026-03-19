@@ -16,6 +16,24 @@ import AppKit
 import AXorcist
 import Foundation
 
+private final class LockedIntentResponseBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<IntentResponse, Error>?
+
+    func store(_ result: Result<IntentResponse, Error>) {
+        lock.lock()
+        self.result = result
+        lock.unlock()
+    }
+
+    func load() -> Result<IntentResponse, Error>? {
+        lock.lock()
+        let current = result
+        lock.unlock()
+        return current
+    }
+}
+
 /// Errors that can occur during action execution
 public enum ActionError: Error, Sendable {
     case invalidParameter(String)
@@ -60,6 +78,75 @@ private func extractBool(_ params: [String: Any], _ key: String) -> Bool? {
 /// if the Swift concurrency story for UI automation matures.
 @MainActor
 public enum Actions {
+    private static func runtimeRequiredFailure(toolName: String?) -> ToolResult {
+        ToolResult(
+            success: false,
+            error: "\(toolName ?? "action") requires RuntimeOrchestrator"
+        )
+    }
+
+    private static func submit(
+        _ actionIntent: ActionIntent,
+        runtime: RuntimeOrchestrator?,
+        surface: RuntimeSurface,
+        approvalRequestID: String?,
+        taskID: String?,
+        toolName: String?,
+        additionalMetadata: [String: String] = [:]
+    ) -> ToolResult {
+        guard let runtime else {
+            return runtimeRequiredFailure(toolName: toolName)
+        }
+
+        var metadata = additionalMetadata
+        metadata["surface"] = surface.rawValue
+        if let approvalRequestID { metadata["approvalRequestID"] = approvalRequestID }
+        if let taskID { metadata["taskID"] = taskID }
+        if let toolName { metadata["toolName"] = toolName }
+
+        let intent = actionIntent.asIntent(additionalMetadata: metadata)
+        let box = LockedIntentResponseBox()
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task.detached {
+            do {
+                let response = try await runtime.submitIntent(intent)
+                box.store(.success(response))
+            } catch {
+                box.store(.failure(error))
+            }
+            semaphore.signal()
+        }
+
+        while semaphore.wait(timeout: .now()) != .success {
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+        }
+
+        switch box.load() {
+        case .success(let response):
+            let actionResult = ActionResult(
+                success: response.outcome == .success || response.outcome == .partialSuccess,
+                verified: response.outcome == .success,
+                message: response.summary,
+                approvalRequestID: approvalRequestID,
+                surface: surface.rawValue,
+                executedThroughExecutor: true
+            )
+            return ToolResult(
+                success: actionResult.success,
+                data: [
+                    "action_result": actionResult.toDict(),
+                    "summary": response.summary,
+                    "cycle_id": response.cycleID.uuidString,
+                ],
+                error: actionResult.success ? nil : response.summary
+            )
+        case .failure(let error):
+            return ToolResult(success: false, error: error.localizedDescription)
+        case .none:
+            return ToolResult(success: false, error: "Runtime submission finished without a response")
+        }
+    }
 
     // MARK: - oracle_click
 
@@ -74,7 +161,6 @@ public enum Actions {
         y: Double?,
         button: String?,
         count: Int?,
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
@@ -93,43 +179,27 @@ public enum Actions {
             postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performClick(
-                    query: query,
-                    role: role,
-                    domId: domId,
-                    appName: appName,
-                    x: x,
-                    y: y,
-                    button: button,
-                    count: count
-                )
-            }
-        }
-
-        let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            performClick(
-                query: query,
-                role: role,
-                domId: domId,
-                appName: appName,
-                x: x,
-                y: y,
-                button: button,
-                count: count
-            )
-        }
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "query": query ?? "",
+                "role": role ?? "",
+                "domID": domId ?? "",
+                "app": appName ?? "",
+                "x": x.map(String.init) ?? "",
+                "y": y.map(String.init) ?? "",
+                "button": button ?? "",
+                "count": count.map(String.init) ?? "",
+            ]
+        )
     }
 
-    private static func performClick(
+    static func performClick(
         query: String?,
         role: String?,
         domId: String?,
@@ -334,7 +404,6 @@ public enum Actions {
         domId: String?,
         appName: String?,
         clear: Bool,
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
@@ -350,37 +419,24 @@ public enum Actions {
             postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performTypeText(
-                    text: text,
-                    into: into,
-                    domId: domId,
-                    appName: appName,
-                    clear: clear
-                )
-            }
-        }
-
-        let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            performTypeText(
-                text: text,
-                into: into,
-                domId: domId,
-                appName: appName,
-                clear: clear
-            )
-        }
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "text": text,
+                "query": into ?? "",
+                "domID": domId ?? "",
+                "app": appName ?? "",
+                "clear": clear ? "true" : "false",
+            ]
+        )
     }
 
-    private static func performTypeText(
+    static func performTypeText(
         text: String,
         into: String?,
         domId: String?,
@@ -552,7 +608,6 @@ public enum Actions {
         key: String,
         modifiers: [String]?,
         appName: String?,
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
@@ -566,33 +621,22 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performPressKey(
-                    key: key,
-                    modifiers: modifiers,
-                    appName: appName
-                )
-            }
-        }
-
-        let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            performPressKey(
-                key: key,
-                modifiers: modifiers,
-                appName: appName
-            )
-        }
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "key": key,
+                "modifiers": modifiers?.joined(separator: ",") ?? "",
+                "app": appName ?? "",
+            ]
+        )
     }
 
-    private static func performPressKey(
+    static func performPressKey(
         key: String,
         modifiers: [String]?,
         appName: String?
@@ -628,7 +672,6 @@ public enum Actions {
     public static func focusApp(
         appName: String,
         windowTitle: String? = nil,
-        executor: VerifiedActionExecutor? = nil,
         runtime: RuntimeOrchestrator? = nil,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
@@ -642,22 +685,18 @@ public enum Actions {
             postconditions: postconditions
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                FocusManager.focus(appName: appName, windowTitle: windowTitle)
-            }
-        }
-
-        let actionExecutor = executor ?? VerifiedActionExecutor()
-        return actionExecutor.run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            FocusManager.focus(appName: appName, windowTitle: windowTitle)
-        }
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "app": appName,
+                "windowTitle": windowTitle ?? "",
+            ]
+        )
     }
 
     // MARK: - oracle_hotkey
@@ -685,25 +724,21 @@ public enum Actions {
             postconditions: inferredPressPostconditions(appName: appName)
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performHotkey(keys: keys, appName: appName)
-            }
-        }
-
-        return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            performHotkey(keys: keys, appName: appName)
-        }
-
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "app": appName ?? "",
+                "keys": keys.joined(separator: ","),
+            ]
+        )
     }
 
-    private static func performHotkey(
+    static func performHotkey(
         keys: [String],
         appName: String?
     ) -> ToolResult {
@@ -756,37 +791,24 @@ public enum Actions {
             y: y
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performScroll(
-                    direction: direction,
-                    amount: amount,
-                    appName: appName,
-                    x: x,
-                    y: y
-                )
-            }
-        }
-
-        return VerifiedActionExecutor().run(taskID: taskID, toolName: toolName, intent: intent, surface: surface) {
-            performScroll(
-                direction: direction,
-                amount: amount,
-                appName: appName,
-                x: x,
-                y: y
-            )
-        }
-
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "direction": direction,
+                "amount": amount.map(String.init) ?? "",
+                "app": appName ?? "",
+                "x": x.map(String.init) ?? "",
+                "y": y.map(String.init) ?? "",
+            ]
+        )
     }
 
-    private static func performScroll(
+    static func performScroll(
         direction: String,
         amount: Int?,
         appName: String?,
@@ -921,38 +943,25 @@ public enum Actions {
             y: y
         )
 
-        if let runtime {
-            return runtime.performAction(
-                surface: surface,
-                taskID: taskID,
-                toolName: toolName,
-                approvalRequestID: approvalRequestID,
-                intent: intent
-            ) {
-                performWindowAction(
-                    action: action,
-                    appName: appName,
-                    windowTitle: windowTitle,
-                    x: x,
-                    y: y,
-                    width: width,
-                    height: height
-                )
-            }
-        }
-
-        return performWindowAction(
-            action: action,
-            appName: appName,
-            windowTitle: windowTitle,
-            x: x,
-            y: y,
-            width: width,
-            height: height
+        return submit(
+            intent,
+            runtime: runtime,
+            surface: surface,
+            approvalRequestID: approvalRequestID,
+            taskID: taskID,
+            toolName: toolName,
+            additionalMetadata: [
+                "app": appName,
+                "windowTitle": windowTitle ?? "",
+                "x": x.map(String.init) ?? "",
+                "y": y.map(String.init) ?? "",
+                "width": width.map(String.init) ?? "",
+                "height": height.map(String.init) ?? "",
+            ]
         )
     }
 
-    private static func performWindowAction(
+    static func performWindowAction(
         action: String,
         appName: String,
         windowTitle: String?,

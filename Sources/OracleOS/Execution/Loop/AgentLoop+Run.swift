@@ -24,10 +24,6 @@ extension AgentLoop {
             )
             runState.latestWorldState = stateBundle.worldState
 
-            // Commit perceived state to the world model so the planner reasons
-            // over the authoritative committed snapshot, not raw perception data.
-            worldModel.reset(from: stateBundle.worldState)
-
             if decisionCoordinator.goalReached(in: stateBundle) {
                 return finalize(
                     reason: .goalAchieved,
