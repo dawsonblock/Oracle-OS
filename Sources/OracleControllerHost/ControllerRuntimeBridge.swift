@@ -27,7 +27,7 @@ final class ControllerRuntimeBridge {
         )
         self.diagnosticsBuilder = RuntimeDiagnosticsBuilder()
         let eventStore = EventStore()
-        let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [/* your reducers */])
+        let commitCoordinator = CommitCoordinator(eventStore: eventStore, reducers: [])
         self.oracleRuntime = RuntimeOrchestrator(
             eventStore: eventStore,
             commitCoordinator: commitCoordinator,
