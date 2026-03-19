@@ -52,7 +52,7 @@ public struct UIRouter: @unchecked Sendable {
     private func execute(_ action: UIAction) -> ToolResult {
         switch action.name {
         case "click", "clickElement":
-            return Actions.click(
+            return Actions.performClick(
                 query: action.query,
                 role: action.role,
                 domId: action.domID,
@@ -63,7 +63,7 @@ public struct UIRouter: @unchecked Sendable {
                 count: action.count
             )
         case "type", "typeText":
-            return Actions.typeText(
+            return Actions.performTypeText(
                 text: action.text ?? "",
                 into: action.query,
                 domId: action.domID,
@@ -71,17 +71,17 @@ public struct UIRouter: @unchecked Sendable {
                 clear: action.clear ?? false
             )
         case "focus", "focusWindow", "launchApp":
-            return Actions.focusApp(appName: action.app ?? "unknown", windowTitle: action.windowTitle)
+            return Actions.performFocusApp(appName: action.app ?? "unknown", windowTitle: action.windowTitle)
         case "press":
             let modifiers = action.modifiers ?? action.role?.split(separator: "+").map(String.init)
-            return Actions.pressKey(key: action.query ?? "", modifiers: modifiers, appName: action.app)
+            return Actions.performPressKey(key: action.query ?? "", modifiers: modifiers, appName: action.app)
         case "hotkey":
             let keys = action.modifiers
                 ?? action.query?.split(separator: "+").map { String($0).trimmingCharacters(in: .whitespaces) }
                 ?? []
-            return Actions.hotkey(keys: keys, appName: action.app)
+            return Actions.performHotkey(keys: keys, appName: action.app)
         case "scroll", "scrollElement":
-            return Actions.scroll(
+            return Actions.performScroll(
                 direction: action.query ?? "down",
                 amount: action.amount ?? action.count,
                 appName: action.app,
@@ -99,7 +99,7 @@ public struct UIRouter: @unchecked Sendable {
                 error: opened ? nil : "Failed to open URL '\(rawURL)'"
             )
         case "window", "manageWindow":
-            return Actions.manageWindow(
+            return Actions.performWindowAction(
                 action: action.query ?? "list",
                 appName: action.app ?? "unknown",
                 windowTitle: action.windowTitle,

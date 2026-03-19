@@ -45,7 +45,7 @@ public enum RecipeEngine {
     public static func run(
         recipe: Recipe,
         params: [String: String],
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         taskID: String? = nil
     ) -> ToolResult {
         runInternal(
@@ -65,7 +65,7 @@ public enum RecipeEngine {
     public static func resume(
         resumeToken: String,
         approvalRequestID: String?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         taskID: String? = nil
     ) -> ToolResult {
         guard let paused = pausedRuns[resumeToken] else {
@@ -95,7 +95,7 @@ public enum RecipeEngine {
     private static func runInternal(
         recipe: Recipe,
         params: [String: String],
-        runtime: RuntimeOrchestrator?,
+        runtime: RuntimeOrchestrator,
         taskID: String?,
         startTime: Date,
         startStepIndex: Int,
@@ -444,7 +444,7 @@ public enum RecipeEngine {
         step: RecipeStep,
         resolvedParams: [String: String]?,
         appName: String?,
-        runtime: RuntimeOrchestrator?,
+        runtime: RuntimeOrchestrator,
         taskID: String?,
         approvalRequestID: String?
     ) -> ToolResult {
