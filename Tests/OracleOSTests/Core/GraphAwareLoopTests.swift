@@ -224,7 +224,7 @@ struct GraphAwareLoopTests {
         )
 
         let task = Task { await loop.run() }
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await orchestrator.waitForSubmissionCount(1)
         loop.stop()
         _ = await task.result
 
@@ -262,7 +262,7 @@ struct GraphAwareLoopTests {
         )
 
         let task = Task { await loop.run() }
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await orchestrator.waitForSubmissionCount(1)
         loop.stop()
         _ = await task.result
 
@@ -696,5 +696,18 @@ private actor RecordingIntentAPI: IntentAPI {
 
     func submittedIntents() -> [Intent] {
         intents
+    }
+
+    /// Suspends until at least `count` intents have been submitted, with a
+    /// 2-second timeout to prevent tests from hanging indefinitely.
+    func waitForSubmissionCount(_ count: Int) async {
+        var elapsed: UInt64 = 0
+        let intervalNs: UInt64 = 10_000_000 // 10 ms
+        let maxNs: UInt64 = 2_000_000_000 // 2 s
+        while intents.count < count && elapsed < maxNs {
+            // Release the actor so the loop can make progress.
+            try? await Task.sleep(nanoseconds: intervalNs)
+            elapsed += intervalNs
+        }
     }
 }

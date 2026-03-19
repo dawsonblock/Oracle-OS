@@ -4,7 +4,13 @@
 
 - Date: 2026-03-19
 - Branch: `cursor/oracleos-runtime-upgrade-2079`
-- Host OS: Linux
+- Host OS: Linux (unsupported — Oracle-OS targets macOS 14+; see Package.swift `platforms`)
+
+> **Note:** This baseline was captured in a Linux CI sandbox where the Swift
+> toolchain is unavailable.  The package declares `macOS(.v14)` as its only
+> supported platform (Package.swift), so a valid baseline should be re-captured
+> on a macOS 14+ host with the Swift 6.0 toolchain.  The results below reflect
+> the absence of the toolchain, not a build failure in the intended environment.
 
 ## Commands
 
