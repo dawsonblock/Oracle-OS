@@ -88,7 +88,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "click \(query ?? domID ?? "")",
             action: "click",
             query: query,
@@ -113,7 +113,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "type into \(into ?? domID ?? "")",
             action: "type",
             query: into,
@@ -149,7 +149,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "press \(modifiers.map { $0.joined(separator: "+") + "+" } ?? "")\(key)",
             action: "press",
             query: key,
@@ -167,7 +167,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "hotkey \(keys.joined(separator: "+"))",
             action: "hotkey",
             query: keys.joined(separator: "+"),
@@ -186,7 +186,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "scroll \(direction)",
             action: "scroll",
             query: direction,

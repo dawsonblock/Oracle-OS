@@ -8,6 +8,7 @@ import Foundation
 public final class RuntimeExecutionDriver: AgentExecutionDriver {
     private let surface: RuntimeSurface
     private let intentAPI: any IntentAPI
+    private static let submissionTimeoutSeconds: TimeInterval = 60
 
     /// Preferred init — translates ActionIntent to Intent and submits via IntentAPI.
     /// This is a pure translator: it converts external input into Intent and forwards it.
@@ -74,21 +75,103 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
             do {
                 let response = try await api.submitIntent(typedIntent)
                 resultLock.lock()
-                result = ToolResult(
-                    success: response.outcome == .success || response.outcome == .skipped,
-                    data: ["summary": response.summary, "cycleID": response.cycleID.uuidString],
-                    error: response.outcome == .failed ? response.summary : nil
-                )
+                result = Self.makeToolResult(from: response)
                 resultLock.unlock()
             } catch {
                 resultLock.lock()
-                result = ToolResult(success: false, error: error.localizedDescription)
+                result = ToolResult(
+                    success: false,
+                    data: [
+                        "summary": "Intent submission failed",
+                        "method": "intent-api",
+                        "action_result": [
+                            "success": false,
+                            "verified": false,
+                            "executed_through_executor": false,
+                            "failure_class": "intent_submission_failed",
+                            "message": error.localizedDescription,
+                        ] as [String: Any],
+                    ],
+                    error: error.localizedDescription
+                )
                 resultLock.unlock()
             }
             semaphore.signal()
         }
-        semaphore.wait()
+
+        let timedOut: Bool = {
+            if Thread.isMainThread {
+                // Keep the main run loop pumping while we synchronously wait so
+                // MainActor-bound executor work can complete without deadlocking.
+                let deadline = Date().addingTimeInterval(Self.submissionTimeoutSeconds)
+                while Date() < deadline {
+                    if semaphore.wait(timeout: .now()) == .success {
+                        return false
+                    }
+                    _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                }
+                return true
+            }
+            return semaphore.wait(timeout: .now() + Self.submissionTimeoutSeconds) == .timedOut
+        }()
+
+        if timedOut {
+            return ToolResult(
+                success: false,
+                data: [
+                    "summary": "Intent submission timed out",
+                    "method": "intent-api",
+                    "action_result": [
+                        "success": false,
+                        "verified": false,
+                        "executed_through_executor": false,
+                        "failure_class": "intent_submission_timeout",
+                        "message": "Intent submission timed out after \(Int(Self.submissionTimeoutSeconds))s",
+                    ] as [String: Any],
+                ],
+                error: "Intent submission timed out after \(Int(Self.submissionTimeoutSeconds))s"
+            )
+        }
+
         return result
+    }
+
+    private static func makeToolResult(from response: IntentResponse) -> ToolResult {
+        let success = response.outcome == .success || response.outcome == .skipped
+        let isPlanningFailure = response.summary.lowercased().hasPrefix("planning failed")
+
+        var actionResult: [String: Any] = [
+            "success": success,
+            "verified": success,
+            "executed_through_executor": !isPlanningFailure,
+            "message": response.summary,
+            "method": "intent-api",
+        ]
+        if response.outcome == .partialSuccess {
+            actionResult["failure_class"] = "partial_success"
+        } else if response.outcome == .failed {
+            actionResult["failure_class"] = isPlanningFailure ? "planning_failed" : "runtime_failed"
+        }
+
+        var data: [String: Any] = [
+            "summary": response.summary,
+            "cycleID": response.cycleID.uuidString,
+            "method": "intent-api",
+            "action_result": actionResult,
+            "trace": [
+                "cycle_id": response.cycleID.uuidString,
+                "intent_id": response.intentID.uuidString,
+            ] as [String: Any],
+        ]
+        if let snapshotID = response.snapshotID {
+            data["snapshot_id"] = snapshotID.uuidString
+        }
+
+        return ToolResult(
+            success: success,
+            data: data,
+            error: response.outcome == .failed ? response.summary : nil
+        )
     }
 
     private static func encodeActionIntent(_ intent: ActionIntent) -> String? {

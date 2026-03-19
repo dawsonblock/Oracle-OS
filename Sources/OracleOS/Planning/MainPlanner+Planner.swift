@@ -199,6 +199,13 @@ extension MainPlanner: Planner {
             source: source,
             traceTags: [actionIntent.agentKind.rawValue, actionIntent.action]
         )
+        let normalizedApp: String? = {
+            let trimmed = actionIntent.app.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed == "unknown" {
+                return nil
+            }
+            return trimmed
+        }()
 
         if let codeCommand = actionIntent.codeCommand {
             return Command(type: .code, payload: .shell(codeCommand), metadata: metadata)
@@ -225,7 +232,7 @@ extension MainPlanner: Planner {
 
         let uiAction = UIAction(
             name: actionIntent.action,
-            app: actionIntent.app,
+            app: normalizedApp,
             query: actionIntent.query,
             text: actionIntent.text,
             role: actionIntent.role,
