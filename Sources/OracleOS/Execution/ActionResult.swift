@@ -127,9 +127,3 @@ public struct ActionResult: Sendable, Codable {
         )
     }
 }
-
-extension RuntimeOrchestrator {
-    /// **DEPRECATED** — Legacy context property for backward compatibility.
-    @available(*, deprecated, message: "Use IntentAPI.submitIntent instead of accessing RuntimeContext directly.")
-    public nonisolated var context: RuntimeContext { _legacyContext! }
-}

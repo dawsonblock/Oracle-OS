@@ -1,10 +1,9 @@
 import Foundation
 
 /// Estimates a ``WorldState`` from a raw ``Observation`` when the full
-/// state-building pipeline (``StateCoordinator``) is not available.
+/// runtime intake pipeline is not available.
 ///
-/// This is a lightweight fallback — the primary path always goes through
-/// ``StateCoordinator.buildState()`` which produces richer context.
+/// This is a lightweight fallback used for read-only state derivation.
 public struct StateEstimator: Sendable {
     public init() {}
 

@@ -7,7 +7,7 @@ struct ArchitectureFreezeTests {
 
     // MARK: - R1: Single planner entry point
 
-    @Test("Runtime calls Planner only through DecisionCoordinator")
+    @Test("Runtime does not instantiate secondary planners directly")
     func runtimeSinglePlannerEntry() throws {
         let content = try runtimeContents()
         // Runtime must not instantiate secondary planners directly.
@@ -35,20 +35,18 @@ struct ArchitectureFreezeTests {
         )
     }
 
-    @Test("DecisionCoordinator is the sole planner facade in Runtime")
-    func decisionCoordinatorIsSoleFacade() throws {
+    @Test("RuntimeOrchestrator is the sole runtime planner owner")
+    func runtimeOrchestratorIsSolePlannerOwner() throws {
         let runtimeDir = sourcesRoot().appendingPathComponent("Runtime")
         let files = try swiftFiles(in: runtimeDir)
 
         for file in files {
             let content = try String(contentsOf: file, encoding: .utf8)
             let filename = file.lastPathComponent
-            guard filename != "DecisionCoordinator.swift",
-                  filename != "RuntimeOrchestrator.swift"
-            else { continue }
+            guard filename != "RuntimeOrchestrator.swift" else { continue }
             #expect(
                 !content.contains("MainPlanner("),
-                "Runtime file \(filename) should not instantiate Planner directly; use DecisionCoordinator"
+                "Runtime file \(filename) should not instantiate MainPlanner directly"
             )
         }
     }
@@ -137,7 +135,7 @@ struct ArchitectureFreezeTests {
             guard filename != "MainPlanner.swift" else { continue }
             #expect(
                 !content.contains("PlanGenerator("),
-                "Planning file \(filename) must not instantiate PlanGenerator directly; use DecisionCoordinator → Planner"
+                "Planning file \(filename) must not instantiate PlanGenerator directly outside MainPlanner"
             )
             #expect(
                 !content.contains("PlanEvaluator("),
@@ -191,8 +189,6 @@ struct ArchitectureFreezeTests {
         for file in files {
             let content = try String(contentsOf: file, encoding: .utf8)
             let filename = file.lastPathComponent
-            // StateCoordinator is allowed to call reset(from:) as the state owner.
-            guard filename != "StateCoordinator.swift" else { continue }
             #expect(
                 !content.contains(".reset(from:"),
                 "Runtime file \(filename) must not call worldStateModel.reset(from:); state changes should go through StateDiffEngine"

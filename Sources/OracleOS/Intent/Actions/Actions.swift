@@ -75,16 +75,11 @@ public enum Actions {
         }
     }
 
-    private static func executeThroughRuntimeIfAvailable(
-        runtime: RuntimeOrchestrator?,
+    private static func executeThroughRuntime(
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface,
-        actionIntent: @autoclosure () -> ActionIntent,
-        fallback: () -> ToolResult
+        actionIntent: @autoclosure () -> ActionIntent
     ) -> ToolResult {
-        guard let runtime else {
-            return fallback()
-        }
-
         let intent = actionIntent()
         let family = plannerFamily(for: intent.agentKind)
         let actionContract = ActionContract.from(
@@ -122,7 +117,7 @@ public enum Actions {
         y: Double?,
         button: String?,
         count: Int?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -131,7 +126,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.click(
@@ -145,21 +140,10 @@ public enum Actions {
                 count: count,
                 postconditions: inferredClickPostconditions(query: query, role: role, domId: domId)
             )
-        ) {
-            performClick(
-                query: query,
-                role: role,
-                domId: domId,
-                appName: appName,
-                x: x,
-                y: y,
-                button: button,
-                count: count
-            )
-        }
+        )
     }
 
-    private static func performClick(
+    static func performClick(
         query: String?,
         role: String?,
         domId: String?,
@@ -364,7 +348,7 @@ public enum Actions {
         domId: String?,
         appName: String?,
         clear: Bool,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -373,7 +357,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.type(
@@ -384,18 +368,10 @@ public enum Actions {
                 clear: clear,
                 postconditions: inferredTypePostconditions(text: text, into: into, domId: domId)
             )
-        ) {
-            performTypeText(
-                text: text,
-                into: into,
-                domId: domId,
-                appName: appName,
-                clear: clear
-            )
-        }
+        )
     }
 
-    private static func performTypeText(
+    static func performTypeText(
         text: String,
         into: String?,
         domId: String?,
@@ -567,7 +543,7 @@ public enum Actions {
         key: String,
         modifiers: [String]?,
         appName: String?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -576,7 +552,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.press(
@@ -585,16 +561,10 @@ public enum Actions {
                 modifiers: modifiers,
                 postconditions: inferredPressPostconditions(appName: appName)
             )
-        ) {
-            performPressKey(
-                key: key,
-                modifiers: modifiers,
-                appName: appName
-            )
-        }
+        )
     }
 
-    private static func performPressKey(
+    static func performPressKey(
         key: String,
         modifiers: [String]?,
         appName: String?
@@ -630,7 +600,7 @@ public enum Actions {
     public static func focusApp(
         appName: String,
         windowTitle: String? = nil,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -639,7 +609,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.focus(
@@ -647,9 +617,14 @@ public enum Actions {
                 windowTitle: windowTitle,
                 postconditions: inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
             )
-        ) {
-            FocusManager.focus(appName: appName, windowTitle: windowTitle)
-        }
+        )
+    }
+
+    static func performFocusApp(
+        appName: String,
+        windowTitle: String? = nil
+    ) -> ToolResult {
+        FocusManager.focus(appName: appName, windowTitle: windowTitle)
     }
 
     // MARK: - oracle_hotkey
@@ -658,7 +633,7 @@ public enum Actions {
     public static func hotkey(
         keys: [String],
         appName: String?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -671,7 +646,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.hotkey(
@@ -679,12 +654,10 @@ public enum Actions {
                 keys: keys,
                 postconditions: inferredPressPostconditions(appName: appName)
             )
-        ) {
-            performHotkey(keys: keys, appName: appName)
-        }
+        )
     }
 
-    private static func performHotkey(
+    static func performHotkey(
         keys: [String],
         appName: String?
     ) -> ToolResult {
@@ -722,7 +695,7 @@ public enum Actions {
         appName: String?,
         x: Double?,
         y: Double?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -731,7 +704,7 @@ public enum Actions {
         _ = approvalRequestID
         _ = taskID
         _ = toolName
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.scroll(
@@ -742,18 +715,10 @@ public enum Actions {
                 y: y,
                 postconditions: inferredPressPostconditions(appName: appName)
             )
-        ) {
-            performScroll(
-                direction: direction,
-                amount: amount,
-                appName: appName,
-                x: x,
-                y: y
-            )
-        }
+        )
     }
 
-    private static func performScroll(
+    static func performScroll(
         direction: String,
         amount: Int?,
         appName: String?,
@@ -861,7 +826,7 @@ public enum Actions {
         windowTitle: String?,
         x: Double?, y: Double?,
         width: Double?, height: Double?,
-        runtime: RuntimeOrchestrator? = nil,
+        runtime: RuntimeOrchestrator,
         surface: RuntimeSurface = .mcp,
         approvalRequestID: String? = nil,
         taskID: String? = nil,
@@ -883,7 +848,7 @@ public enum Actions {
         _ = taskID
         _ = toolName
 
-        return executeThroughRuntimeIfAvailable(
+        return executeThroughRuntime(
             runtime: runtime,
             surface: surface,
             actionIntent: ActionIntent.manageWindow(
@@ -896,20 +861,10 @@ public enum Actions {
                 height: height,
                 postconditions: inferredFocusPostconditions(appName: appName, windowTitle: windowTitle)
             )
-        ) {
-            performWindowAction(
-                action: action,
-                appName: appName,
-                windowTitle: windowTitle,
-                x: x,
-                y: y,
-                width: width,
-                height: height
-            )
-        }
+        )
     }
 
-    private static func performWindowAction(
+    static func performWindowAction(
         action: String,
         appName: String,
         windowTitle: String?,

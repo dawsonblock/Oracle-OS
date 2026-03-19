@@ -31,6 +31,11 @@ public final class WorldStateModel: @unchecked Sendable {
         self.maxHistory = maxHistory
     }
 
+    public init(snapshot: WorldModelSnapshot, maxHistory: Int = 20) {
+        self.current = snapshot
+        self.maxHistory = maxHistory
+    }
+
     /// The committed world state — the **authoritative** snapshot that planners read.
     ///
     /// This is the only layer that downstream decision-making should depend on.

@@ -2,9 +2,9 @@ import Foundation
 
 /// Aggregated context for strategy selection and plan generation.
 ///
-/// ``PlanningContext`` is built by the ``StateCoordinator`` and passed
-/// to the ``StrategySelector`` before any planning occurs. It captures
-/// every signal needed to choose the right strategy.
+/// ``PlanningContext`` is assembled from runtime state and passed to the
+/// ``StrategySelector`` before any planning occurs. It captures every
+/// signal needed to choose the right strategy.
 public struct PlanningContext: Sendable {
     public let worldState: WorldState
     public let abstractStateSignature: String

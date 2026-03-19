@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import OracleOS
 
-/// Verifies that the AgentLoop commits world state to WorldStateModel
-/// after every perception cycle, so the planner reads from committed
-/// state rather than raw perception bundles.
-@Suite("WorldModel AgentLoop Wiring")
+/// Verifies the world-model diff/reset primitives directly.
+/// These tests cover `WorldStateModel` and `StateDiffEngine`, not AgentLoop.
+@Suite("WorldModel State Wiring")
 struct WorldModelAgentLoopWiringTests {
 
     // MARK: - WorldStateModel incremental update contract
@@ -19,7 +18,7 @@ struct WorldModelAgentLoopWiringTests {
             windowTitle: "Window A",
             url: nil,
             elements: [],
-            focusedElement: nil
+            focusedElementID: nil
         )
         let planningState = PlanningState(
             id: PlanningStateID(rawValue: "state-1"),
@@ -58,7 +57,7 @@ struct WorldModelAgentLoopWiringTests {
                 windowTitle: "W\(i)",
                 url: nil,
                 elements: [],
-                focusedElement: nil
+                focusedElementID: nil
             )
             let planningState = PlanningState(
                 id: PlanningStateID(rawValue: "state-\(i)"),
@@ -90,7 +89,7 @@ struct WorldModelAgentLoopWiringTests {
     @Test("StateDiffEngine produces empty diff when state is unchanged")
     func emptyDiffWhenUnchanged() {
         let model = WorldStateModel()
-        let obs = Observation(app: "A", windowTitle: "T", url: nil, elements: [], focusedElement: nil)
+        let obs = Observation(app: "A", windowTitle: "T", url: nil, focusedElementID: nil, elements: [])
         let ps = PlanningState(
             id: PlanningStateID(rawValue: "s"),
             app: "A",

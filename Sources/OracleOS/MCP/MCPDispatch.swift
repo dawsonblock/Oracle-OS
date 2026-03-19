@@ -26,7 +26,10 @@ public enum MCPDispatch {
     private static let runtime = RuntimeOrchestrator(
         eventStore: eventStore,
         commitCoordinator: commitCoordinator,
-        planner: MainPlanner()
+        policyEngine: runtimeContext.policyEngine,
+        automationHost: runtimeContext.automationHost,
+        workspaceRunner: runtimeContext.workspaceRunner,
+        repositoryIndexer: runtimeContext.repositoryIndexer
     )
 
     /// Handle a tools/call request. Returns MCP-formatted result.

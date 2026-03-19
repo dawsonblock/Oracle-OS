@@ -2,101 +2,89 @@ import Foundation
 import Testing
 @testable import OracleOS
 
-/// Verifies the single execution spine invariant:
-///   Intent → Planner → Command → VerifiedExecutor → Events → CommitCoordinator
-///
-/// These tests scan source files for patterns that would bypass the execution spine.
 @Suite("Execution Spine")
 struct ExecutionSpineTests {
-
-    // MARK: - ToolDispatcher callable only from VerifiedExecutor
-
-    @Test("ToolDispatcher.dispatch is not called outside VerifiedExecutor")
-    func toolDispatcherOnlyCalledFromExecutor() throws {
-        let executionDir = sourcesRoot().appendingPathComponent("Execution")
-        let allSwift = try swiftFilesRecursive(in: executionDir)
-
-        for file in allSwift {
-            let content = try String(contentsOf: file, encoding: .utf8)
-            let filename = file.lastPathComponent
-
-            // Only VerifiedExecutor.swift should call toolDispatcher.dispatch
-            guard filename != "VerifiedExecutor.swift",
-                  filename != "ToolDispatcher.swift"
-            else { continue }
-
-            // Allow test files to reference dispatch for testing purposes
-            guard !file.path.contains("/Tests/") else { continue }
-
-            #expect(
-                !content.contains("toolDispatcher.dispatch("),
-                "\(filename) should not call toolDispatcher.dispatch directly — route through VerifiedExecutor"
-            )
-        }
-    }
-
-    // MARK: - Build/test commands use /usr/bin/env
-
-    @Test("Build and test commands use /usr/bin/env not bare executables")
-    func buildTestCommandsUseEnv() throws {
-        let dispatcherPath = sourcesRoot()
-            .appendingPathComponent("Execution")
-            .appendingPathComponent("ToolDispatcher.swift")
-        let content = try String(contentsOf: dispatcherPath, encoding: .utf8)
-
-        // The dispatcher should route build/test through /usr/bin/env
-        #expect(
-            content.contains("executable: \"/usr/bin/env\""),
-            "ToolDispatcher should use /usr/bin/env for build/test commands"
-        )
-        // It must not use bare "swift" as executable (fails WorkspaceRunner allowlist)
-        let lines = content.split(separator: "\n")
-        for line in lines {
-            if line.contains("executable:") && line.contains("\"swift\"") {
-                // Only allowed inside comments
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                #expect(
-                    trimmed.hasPrefix("//"),
-                    "ToolDispatcher must not use bare 'swift' as executable — use '/usr/bin/env' instead"
-                )
+    @Test("Legacy bypass surfaces are removed")
+    func legacyBypassSurfacesAreRemoved() throws {
+        let sources = repositoryRoot().appendingPathComponent("Sources/OracleOS", isDirectory: true)
+        let forbidden = ["ToolDispatcher", "CodeActionGateway", "performAction("]
+        let offenders = try swiftFilesRecursive(in: sources).filter { file in
+            guard let content = try? String(contentsOf: file, encoding: .utf8) else {
+                return false
             }
+            return forbidden.contains { content.contains($0) }
+        }
+
+        #expect(
+            offenders.isEmpty,
+            "Legacy execution bypass surfaces remain in source: \(offenders.map(\.path))"
+        )
+    }
+
+    @Test("AgentLoop is a thin submitIntent wrapper")
+    func agentLoopIsThin() throws {
+        let loopDir = repositoryRoot()
+            .appendingPathComponent("Sources/OracleOS/Execution/Loop", isDirectory: true)
+        let loopFiles = try swiftFilesRecursive(in: loopDir)
+
+        for file in loopFiles {
+            guard file.lastPathComponent.hasPrefix("AgentLoop") else { continue }
+            let content = try String(contentsOf: file, encoding: .utf8)
+            #expect(!content.contains("decisionCoordinator."), "\(file.lastPathComponent) should not decide directly")
+            #expect(!content.contains("executionCoordinator."), "\(file.lastPathComponent) should not execute directly")
+            #expect(!content.contains("recoveryCoordinator."), "\(file.lastPathComponent) should not perform recovery directly")
+            #expect(!content.contains("learningCoordinator."), "\(file.lastPathComponent) should not update learning directly")
+            #expect(!content.contains("worldModel.reset("), "\(file.lastPathComponent) should not mutate world state")
         }
     }
 
-    // MARK: - RuntimeOrchestrator evaluate is not a stub
-
-    @Test("RuntimeOrchestrator.evaluate is implemented, not a stub")
-    func evaluateIsImplemented() throws {
+    @Test("RuntimeOrchestrator uses committed state for planning")
+    func runtimeOrchestratorPlansFromCommittedState() throws {
         let orchestratorPath = sourcesRoot()
             .appendingPathComponent("Runtime")
             .appendingPathComponent("RuntimeOrchestrator.swift")
         let content = try String(contentsOf: orchestratorPath, encoding: .utf8)
 
         #expect(
-            !content.contains("/* critic loop stub */"),
-            "RuntimeOrchestrator.evaluate should be implemented, not a stub"
+            content.contains("WorldStateModel(snapshot: await commitCoordinator.snapshot())"),
+            "RuntimeOrchestrator should plan from committed state rather than a fresh empty model"
         )
         #expect(
-            content.contains("EvaluationResult"),
-            "RuntimeOrchestrator.evaluate should return EvaluationResult"
+            !content.contains("_legacyContext"),
+            "RuntimeOrchestrator should not retain deprecated legacy context storage"
         )
     }
 
-    // MARK: - Helpers
+    @Test("Build and test commands still use /usr/bin/env")
+    func buildTestCommandsUseEnv() throws {
+        let plannerPath = sourcesRoot()
+            .appendingPathComponent("Planning")
+            .appendingPathComponent("MainPlanner+Planner.swift")
+        let plannerContent = try String(contentsOf: plannerPath, encoding: .utf8)
+
+        #expect(
+            plannerContent.contains("executable: \"/usr/bin/env\""),
+            "MainPlanner should construct build/test commands with /usr/bin/env"
+        )
+    }
 
     private func sourcesRoot() -> URL {
+        repositoryRoot().appendingPathComponent("Sources/OracleOS", isDirectory: true)
+    }
+
+    private func repositoryRoot() -> URL {
         var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default
 
         while true {
             let packageManifestURL = url.appendingPathComponent("Package.swift")
             if fileManager.fileExists(atPath: packageManifestURL.path) {
-                return url.appendingPathComponent("Sources/OracleOS", isDirectory: true)
+                return url
             }
 
             let parent = url.deletingLastPathComponent()
             if parent.path == url.path {
-                return url.appendingPathComponent("Sources/OracleOS", isDirectory: true)
+                return url
             }
 
             url = parent
