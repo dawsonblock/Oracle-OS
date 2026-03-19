@@ -128,8 +128,9 @@ public actor RuntimeOrchestrator: IntentAPI {
 
     /// PHASE 2: Execute — delegates to VerifiedExecutor (the single side-effect layer)
     public func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
+        _ = state
         // Delegate the full validation + dispatch pipeline to VerifiedExecutor
-        let rawOutcome = try await verifiedExecutor.execute(command, state: state)
+        let rawOutcome = try await verifiedExecutor.execute(command)
 
         // Build event envelopes from the outcome
         let events = buildEvents(
@@ -291,7 +292,7 @@ extension RuntimeOrchestrator {
         // 3. Execute - delegate to VerifiedExecutor
         let executionOutcome: ExecutionOutcome
         do {
-            executionOutcome = try await verifiedExecutor.execute(command, state: context.state)
+            executionOutcome = try await verifiedExecutor.execute(command)
         } catch {
             return IntentResponse(
                 intentID: intent.id,
