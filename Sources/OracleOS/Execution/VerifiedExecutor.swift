@@ -29,7 +29,7 @@ public actor VerifiedExecutor {
 
     /// Execute a validated command and return outcome with events.
     /// IMPORTANT: This does NOT commit state — only returns events for CommitCoordinator.
-    public func execute(_ command: any Command, state: WorldStateModel) async throws -> ExecutionOutcome {
+    public func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
         // Phase 1: Preconditions
         guard try preconditionsValidator.validate(command, state: state) else {
             return failOutcome(command: command, status: .preconditionFailed, reason: "Preconditions failed")
@@ -65,7 +65,7 @@ public actor VerifiedExecutor {
         return initialOutcome
     }
 
-    private func failOutcome(command: any Command, status: ExecutionStatus, reason: String) -> ExecutionOutcome {
+    private func failOutcome(command: Command, status: ExecutionStatus, reason: String) -> ExecutionOutcome {
         let report = VerifierReport(
             commandID: command.id,
             preconditionsPassed: status != .preconditionFailed,

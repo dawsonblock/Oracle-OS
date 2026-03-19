@@ -19,7 +19,7 @@ public struct SafetyValidator: Sendable {
     public init() {}
     
     /// Returns true if the command is safe to execute under current policy.
-    public func isSafe(_ command: any Command, state: WorldStateModel) -> (safe: Bool, reason: String) {
+    public func isSafe(_ command: Command, state: WorldStateModel) -> (safe: Bool, reason: String) {
         let snapshot = state.snapshot
         
         // Check for dangerous command kinds
@@ -56,7 +56,7 @@ public struct SafetyValidator: Sendable {
         return dangerous.contains { lowercased.contains($0) }
     }
     
-    private func logSafetyCheck(command: any Command, state: WorldModelSnapshot, result: SafetyResult) {
+    private func logSafetyCheck(command: Command, state: WorldModelSnapshot, result: SafetyResult) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         print("[\(timestamp)] SafetyCheck: \(command.kind) - \(result) - app=\(state.activeApplication ?? "none")")
     }

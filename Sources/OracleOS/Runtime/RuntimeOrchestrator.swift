@@ -121,13 +121,13 @@ public actor RuntimeOrchestrator: IntentAPI {
     }
 
     /// PHASE 1: Decide — invoke planner to produce a Command
-    public func decide(intent: Intent, planner: any Planner) async throws -> any Command {
+    public func decide(intent: Intent, planner: any Planner) async throws -> Command {
         let context = PlannerContext(state: WorldStateModel())
         return try await planner.plan(intent: intent, context: context)
     }
 
     /// PHASE 2: Execute — delegates to VerifiedExecutor (the single side-effect layer)
-    public func execute(_ command: any Command, state: WorldStateModel) async throws -> ExecutionOutcome {
+    public func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
         // Delegate the full validation + dispatch pipeline to VerifiedExecutor
         let rawOutcome = try await verifiedExecutor.execute(command, state: state)
 
@@ -151,7 +151,7 @@ public actor RuntimeOrchestrator: IntentAPI {
     }
     
     /// Build event envelopes from execution results
-    private func buildEvents(from command: any Command, observations: [ObservationPayload], artifacts: [ArtifactPayload], status: ExecutionStatus) -> [EventEnvelope] {
+    private func buildEvents(from command: Command, observations: [ObservationPayload], artifacts: [ArtifactPayload], status: ExecutionStatus) -> [EventEnvelope] {
         var events: [EventEnvelope] = []
         
         // Encode payload to Data
@@ -241,7 +241,7 @@ extension RuntimeOrchestrator {
         
         // 1. Plan - invoke planner to produce a Command
         let context = PlannerContext(state: WorldStateModel())
-        let command: any Command
+        let command: Command
         do {
             command = try await planner.plan(intent: intent, context: context)
         } catch {
