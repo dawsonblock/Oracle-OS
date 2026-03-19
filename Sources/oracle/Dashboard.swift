@@ -317,48 +317,10 @@ public struct Dashboard {
     private func printMetrics() {
         print(ANSI.header("RUNTIME METRICS"))
 
-        // Load baseline
-        let baselinePath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Diagnostics/baseline_metrics.json")
-        if let data = try? Data(contentsOf: baselinePath),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let baseline = json["baseline"] as? [String: Any] {
-            let desc = baseline["description"] as? String ?? "—"
-            let recordedAt = baseline["recorded_at"] as? String ?? "not yet recorded"
-            let notes = baseline["notes"] as? String ?? ""
-
-            print(ANSI.subheader("Benchmark baseline"))
-            print(ANSI.kv("Description", desc))
-            print(ANSI.kv("Recorded at", recordedAt))
-            if !notes.isEmpty {
-                print(ANSI.kv("Notes", notes))
-            }
-
-            if let metrics = baseline["metrics"] as? [String: Any] {
-                print("")
-                print(ANSI.subheader("Baseline metrics"))
-                let fields: [(String, Any?)] = [
-                    ("success_rate",       metrics["success_rate"]),
-                    ("average_steps",      metrics["average_steps"]),
-                    ("wrong_target_rate",  metrics["wrong_target_rate"]),
-                    ("recovery_count",     metrics["recovery_count"]),
-                    ("workflow_reuse_rate",metrics["workflow_reuse_rate"]),
-                    ("patch_success_rate", metrics["patch_success_rate"]),
-                ]
-                for (key, val) in fields {
-                    let display = val.map { "\($0)" } ?? ANSI.gray + "null  (not yet measured)" + ANSI.reset
-                    print(ANSI.kv(key, display))
-                }
-            }
-
-            if let taskSet = baseline["task_set"] as? [String] {
-                print("")
-                print(ANSI.subheader("Benchmark task set"))
-                for task in taskSet {
-                    print("    \(ANSI.gray)•\(ANSI.reset) \(task)")
-                }
-            }
-        }
+        print(ANSI.subheader("Benchmark baseline"))
+        print(ANSI.kv("Source", "Tests/OracleOSEvals/EvalBaseline.swift"))
+        print(ANSI.kv("Data model", "EvalMetrics from real run snapshots"))
+        print(ANSI.kv("Placeholder JSON", "removed from Diagnostics/"))
 
         // Strategy baseline
         print("")

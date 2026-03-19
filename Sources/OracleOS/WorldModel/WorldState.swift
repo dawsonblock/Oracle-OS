@@ -1,12 +1,12 @@
 public struct WorldState: Sendable {
-    public var observationHash: String
-    public var planningState: PlanningState
-    public var beliefStateID: String?
+    public internal(set) var observationHash: String
+    public internal(set) var planningState: PlanningState
+    public internal(set) var beliefStateID: String?
 
-    public var observation: Observation
-    public var repositorySnapshot: RepositorySnapshot?
+    public internal(set) var observation: Observation
+    public internal(set) var repositorySnapshot: RepositorySnapshot?
 
-    public var lastAction: ActionIntent?
+    public internal(set) var lastAction: ActionIntent?
 
     public init(
         observation: Observation,

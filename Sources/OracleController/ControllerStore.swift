@@ -483,7 +483,7 @@ final class ControllerStore {
 
     func submitAction() async {
         let request = actionComposer.makeRequest()
-        await performAction(request)
+        await executeAction(request)
     }
 
     func loadApprovalRequests() async {
@@ -507,7 +507,7 @@ final class ControllerStore {
                pendingAction.approvalStatus == "pending",
                pendingAction.approvalRequestID == approval.id
             {
-                await performAction(requestForApprovedAction(from: pendingAction.request, approvalRequestID: approval.id))
+                await executeAction(requestForApprovedAction(from: pendingAction.request, approvalRequestID: approval.id))
                 return
             }
             if latestRecipeRun?.paused == true,
@@ -733,7 +733,7 @@ final class ControllerStore {
         return try await hostClient.send(request)
     }
 
-    func performAction(_ request: ActionRequest) async {
+    func executeAction(_ request: ActionRequest) async {
         do {
             isBusy = true
             defer { isBusy = false }

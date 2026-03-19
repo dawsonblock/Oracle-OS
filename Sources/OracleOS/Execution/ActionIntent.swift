@@ -11,6 +11,12 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     public let y: Double?
     public let button: String?
     public let count: Int?
+    public let modifiers: [String]?
+    public let amount: Int?
+    public let windowTitle: String?
+    public let clear: Bool?
+    public let width: Double?
+    public let height: Double?
     public let workspaceRoot: String?
     public let workspaceRelativePath: String?
     public let codeCommand: CommandSpec?
@@ -35,6 +41,12 @@ public struct ActionIntent: Sendable, Codable, Equatable {
         y: Double? = nil,
         button: String? = nil,
         count: Int? = nil,
+        modifiers: [String]? = nil,
+        amount: Int? = nil,
+        windowTitle: String? = nil,
+        clear: Bool? = nil,
+        width: Double? = nil,
+        height: Double? = nil,
         workspaceRoot: String? = nil,
         workspaceRelativePath: String? = nil,
         codeCommand: CommandSpec? = nil,
@@ -52,6 +64,12 @@ public struct ActionIntent: Sendable, Codable, Equatable {
         self.y = y
         self.button = button
         self.count = count
+        self.modifiers = modifiers
+        self.amount = amount
+        self.windowTitle = windowTitle
+        self.clear = clear
+        self.width = width
+        self.height = height
         self.workspaceRoot = workspaceRoot ?? codeCommand?.workspaceRoot
         self.workspaceRelativePath = workspaceRelativePath ?? codeCommand?.workspaceRelativePath
         self.codeCommand = codeCommand
@@ -70,7 +88,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "click \(query ?? domID ?? "")",
             action: "click",
             query: query,
@@ -95,12 +113,13 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "type into \(into ?? domID ?? "")",
             action: "type",
             query: into,
             text: text,
             domID: domID,
+            clear: clear,
             postconditions: postconditions
         )
     }
@@ -117,6 +136,7 @@ public struct ActionIntent: Sendable, Codable, Equatable {
             action: "focus",
             query: windowTitle ?? app,
             text: nil,
+            windowTitle: windowTitle,
             postconditions: postconditions
         )
     }
@@ -129,12 +149,75 @@ public struct ActionIntent: Sendable, Codable, Equatable {
     ) -> ActionIntent {
         ActionIntent(
             agentKind: .os,
-            app: app ?? "unknown",
+            app: app ?? "",
             name: "press \(modifiers.map { $0.joined(separator: "+") + "+" } ?? "")\(key)",
             action: "press",
             query: key,
             text: nil,
             role: modifiers?.joined(separator: "+"),
+            modifiers: modifiers,
+            postconditions: postconditions
+        )
+    }
+
+    public static func hotkey(
+        app: String?,
+        keys: [String],
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            agentKind: .os,
+            app: app ?? "",
+            name: "hotkey \(keys.joined(separator: "+"))",
+            action: "hotkey",
+            query: keys.joined(separator: "+"),
+            modifiers: keys,
+            postconditions: postconditions
+        )
+    }
+
+    public static func scroll(
+        app: String?,
+        direction: String,
+        amount: Int?,
+        x: Double? = nil,
+        y: Double? = nil,
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            agentKind: .os,
+            app: app ?? "",
+            name: "scroll \(direction)",
+            action: "scroll",
+            query: direction,
+            x: x,
+            y: y,
+            amount: amount,
+            postconditions: postconditions
+        )
+    }
+
+    public static func manageWindow(
+        app: String,
+        action: String,
+        windowTitle: String?,
+        x: Double?,
+        y: Double?,
+        width: Double?,
+        height: Double?,
+        postconditions: [Postcondition] = []
+    ) -> ActionIntent {
+        ActionIntent(
+            agentKind: .os,
+            app: app,
+            name: "window \(action)",
+            action: "manageWindow",
+            query: action,
+            x: x,
+            y: y,
+            windowTitle: windowTitle,
+            width: width,
+            height: height,
             postconditions: postconditions
         )
     }

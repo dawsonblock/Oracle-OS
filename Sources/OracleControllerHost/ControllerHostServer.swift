@@ -181,7 +181,7 @@ actor ControllerHostServer {
                 bridge.currentSession(autoRefreshEnabled: monitoring.enabled, appName: action.appName)
             }
             await output.send(event: ControllerHostEvent(kind: .actionStarted, session: session, message: action.displayTitle))
-            let actionResult = await MainActor.run { bridge.performAction(action) }
+            let actionResult = await MainActor.run { bridge.executeAction(action) }
             let newSteps = await MainActor.run { bridge.recordedSteps(since: stepCountBefore) }
             let approvals = await MainActor.run { bridge.listApprovalRequests() }
 

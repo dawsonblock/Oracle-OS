@@ -5,7 +5,7 @@ import Foundation
 public struct PreconditionsValidator: Sendable {
     public init() {}
     
-    public func validate(_ command: any Command, state: WorldStateModel) throws -> Bool {
+    public func validate(_ command: Command, state: WorldStateModel) throws -> Bool {
         // Get current state snapshot for validation
         let snapshot = state.snapshot
         

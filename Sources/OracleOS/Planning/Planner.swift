@@ -6,7 +6,7 @@ import Foundation
 ///   - Planners must NOT execute, commit, write memory, or mutate state.
 ///   - Planners must NOT import Execution/Actions.
 public protocol Planner: Sendable {
-    func plan(intent: Intent, context: PlannerContext) async throws -> any Command
+    func plan(intent: Intent, context: PlannerContext) async throws -> Command
 }
 
 /// Lightweight planning context for the Planner protocol.

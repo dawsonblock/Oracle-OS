@@ -113,7 +113,7 @@ final class ControllerRuntimeBridge {
         return map(snapshot)
     }
 
-    func performAction(_ request: ActionRequest) -> ActionRunResult {
+    func executeAction(_ request: ActionRequest) -> ActionRunResult {
         let result: ToolResult = switch request.kind {
         case .focus:
             Actions.focusApp(

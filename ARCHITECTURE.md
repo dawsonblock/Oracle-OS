@@ -171,11 +171,10 @@ Primary files:
 
 Responsibilities:
 
-- precondition/postcondition validation
-- safety and policy validation
-- capability binding
-- structured tool dispatch via ToolDispatcher
-- event emission for CommitCoordinator
+- policy validation for executable intents
+- postcondition validation of execution results
+- structured command routing via `CommandRouter`/`ToolDispatcher`
+- event emission for `CommitCoordinator`
 - comprehensive failure classification for recovery
 
 This is the execution truth boundary. Every side effect must flow through
@@ -183,9 +182,9 @@ This is the execution truth boundary. Every side effect must flow through
 ``VerifiedExecutor`` returns ``ExecutionOutcome`` with events and artifacts;
 ``CommitCoordinator`` is the only entity that writes committed state.
 
-> **Note:** The legacy ``VerifiedActionExecutor`` shim in ``ActionResult.swift``
-> is deprecated. It performs no actual verification. All new code must use
-> ``VerifiedExecutor`` routed through ``RuntimeOrchestrator``.
+> **Note:** ``VerifiedActionExecutor`` is removed from the runtime execution
+> path. All new code must use ``VerifiedExecutor`` routed through
+> ``RuntimeOrchestrator.submitIntent(_:)``.
 
 ### Critic (Self-Evaluation Loop)
 
@@ -513,7 +512,7 @@ Only reusable knowledge is eligible for canonical long-term storage.
 - all side effects flow through `VerifiedExecutor` — the single execution gate
 - `CommitCoordinator` is the only entity that writes committed state
 - `RuntimeOrchestrator` follows four phases: decide → execute → commit → evaluate
-- legacy `performAction` bridges and `VerifiedActionExecutor` shim are deprecated
+- legacy `performAction` bridges and `VerifiedActionExecutor` paths are removed from runtime flow
 - graph promotion blocks experiment and recovery evidence from stable promotion
 - target-bearing OS skills resolve through ranking
 - project-memory episode residue is kept out of canonical `ProjectMemory/`

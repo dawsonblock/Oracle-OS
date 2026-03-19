@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Routes a bound command to the appropriate action handler.
@@ -25,178 +26,157 @@ public struct ToolDispatcher: @unchecked Sendable {
     }
 
     public func dispatch(
-        _ command: any Command,
+        _ command: Command,
         capabilities: [String]
     ) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        switch command.kind {
-        // MARK: UI Commands
-        case "clickElement":
-            return try await dispatchClickElement(command)
-        case "typeText":
-            return try await dispatchTypeText(command)
-        case "focusWindow":
-            return try await dispatchFocusWindow(command)
-        case "readElement":
-            return try await dispatchReadElement(command)
-        case "scrollElement":
-            return ([ObservationPayload(kind: "scroll", content: "scrolled")], [])
+        _ = capabilities
+        switch command.payload {
+        case .ui(let action):
+            return try await dispatchUI(action)
+        case .shell(let spec):
+            return try await dispatchShell(spec)
+        case .code(let action):
+            return try await dispatchCode(action)
+        }
+    }
 
-        // MARK: Code Commands
+    // MARK: - UI dispatch
+
+    private func dispatchUI(_ action: UIAction) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        let result = await MainActor.run { () -> ToolResult in
+            switch action.name {
+            case "click", "clickElement":
+                return Actions.click(
+                    query: action.query,
+                    role: action.role,
+                    domId: action.domID,
+                    appName: action.app,
+                    x: action.x,
+                    y: action.y,
+                    button: action.button,
+                    count: action.count
+                )
+            case "type", "typeText":
+                return Actions.typeText(
+                    text: action.text ?? "",
+                    into: action.query,
+                    domId: action.domID,
+                    appName: action.app,
+                    clear: action.clear ?? false
+                )
+            case "focus", "focusWindow", "launchApp":
+                return Actions.focusApp(appName: action.app ?? "unknown", windowTitle: action.windowTitle)
+            case "press":
+                let modifiers = action.modifiers ?? action.role?.split(separator: "+").map(String.init)
+                return Actions.pressKey(key: action.query ?? "", modifiers: modifiers, appName: action.app)
+            case "hotkey":
+                let keys = action.modifiers
+                    ?? action.query?.split(separator: "+").map { String($0).trimmingCharacters(in: .whitespaces) }
+                    ?? []
+                return Actions.hotkey(keys: keys, appName: action.app)
+            case "scroll", "scrollElement":
+                return Actions.scroll(
+                    direction: action.query ?? "down",
+                    amount: action.amount ?? action.count,
+                    appName: action.app,
+                    x: action.x,
+                    y: action.y
+                )
+            case "openURL":
+                guard let rawURL = action.query, let url = URL(string: rawURL) else {
+                    return ToolResult(success: false, error: "Invalid URL: \(action.query ?? "nil")")
+                }
+                let opened = NSWorkspace.shared.open(url)
+                return ToolResult(
+                    success: opened,
+                    data: opened ? ["url": rawURL] : nil,
+                    error: opened ? nil : "Failed to open URL '\(rawURL)'"
+                )
+            case "window", "manageWindow":
+                return Actions.manageWindow(
+                    action: action.query ?? "list",
+                    appName: action.app ?? "unknown",
+                    windowTitle: action.windowTitle,
+                    x: action.x,
+                    y: action.y,
+                    width: action.width,
+                    height: action.height
+                )
+            case "read", "readElement":
+                return AXScanner.readContent(appName: action.app, query: action.query, depth: nil)
+            default:
+                return ToolResult(success: false, error: "Unsupported UI action: \(action.name)")
+            }
+        }
+        return toolResultToArtifacts(result, kind: "ui:\(action.name)")
+    }
+
+    // MARK: - Shell dispatch
+
+    private func dispatchShell(_ spec: CommandSpec) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        let runner = workspaceRunner ?? context?.workspaceRunner
+        guard let runner else {
+            throw ToolDispatcherError.capabilityNotAvailable("workspaceRunner")
+        }
+        let result = try runner.execute(spec: spec)
+        let summary = result.succeeded ? "PASS" : "FAIL"
+        let obs = ObservationPayload(
+            kind: "shell",
+            content: "\(summary) exit=\(result.exitCode) \(result.summary)"
+        )
+        return ([obs], [])
+    }
+
+    // MARK: - Code dispatch
+
+    private func dispatchCode(_ action: CodeAction) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        switch action.name {
         case "searchRepository":
-            return try await dispatchSearchRepository(command)
-        case "readFile":
-            return try await dispatchReadFile(command)
-        case "modifyFile":
-            return try await dispatchModifyFile(command)
-        case "runBuild":
-            return try await dispatchRunBuild(command)
-        case "runTests":
-            return try await dispatchRunTests(command)
+            guard let ctx = context else {
+                throw ToolDispatcherError.capabilityNotAvailable("repositoryIndexer")
+            }
+            let query = action.query ?? ""
+            let root = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent() }
+            let snapshot = await MainActor.run { ctx.repositoryIndexer.indexIfNeeded(workspaceRoot: root) }
+            let matches = CodeSearch().search(query: query, in: snapshot)
+            let content = matches.prefix(10).map { "\($0.path) (\(String(format: "%.2f", $0.score)))" }.joined(separator: "\n")
+            return ([ObservationPayload(kind: "searchResult", content: content.isEmpty ? "no matches" : content)], [])
 
-        // MARK: System Commands
-        case "launchApp":
-            return try await dispatchLaunchApp(command)
-        case "openURL":
-            return try await dispatchOpenURL(command)
+        case "readFile":
+            let path = action.filePath ?? ""
+            guard !path.isEmpty else { throw ToolDispatcherError.missingParameter("filePath") }
+            guard let data = FileManager.default.contents(atPath: path),
+                  let text = String(data: data, encoding: .utf8)
+            else {
+                throw ToolDispatcherError.fileNotFound(path)
+            }
+            return ([ObservationPayload(kind: "fileContent", content: text)], [ArtifactPayload(kind: "file", identifier: path, data: data)])
+
+        case "modifyFile":
+            let path = action.filePath ?? ""
+            guard !path.isEmpty else { throw ToolDispatcherError.missingParameter("filePath") }
+            let existing = FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let newContent = action.patch ?? existing
+            try newContent.write(toFile: path, atomically: true, encoding: .utf8)
+            return (
+                [ObservationPayload(kind: "fileModified", content: "modified \(path): \(existing.count)→\(newContent.count) chars")],
+                [ArtifactPayload(kind: "patch", identifier: path)]
+            )
 
         default:
-            throw ToolDispatcherError.unsupportedCommandKind(command.kind)
+            throw ToolDispatcherError.unsupportedCommandKind(action.name)
         }
     }
 
-    // MARK: - UI Command Dispatchers
-
-    private func dispatchClickElement(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let host = automationHost else {
-            return ([ObservationPayload(kind: "click", content: "no-host: skipped")], [])
+    private func toolResultToArtifacts(
+        _ result: ToolResult,
+        kind: String
+    ) -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
+        var content = result.success ? "success" : "failed"
+        if let error = result.error, !error.isEmpty {
+            content += ": \(error)"
         }
-        let targetID = (command as? ClickElementCommand)?.targetID ?? "unknown"
-        let app = (command as? ClickElementCommand)?.applicationBundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: app) }
-        let obs = ObservationPayload(kind: "click", content: "activated \(app) for targetID=\(targetID)")
-        return ([obs], [])
-    }
-
-    private func dispatchTypeText(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard automationHost != nil else {
-            return ([ObservationPayload(kind: "type", content: "no-host: skipped")], [])
-        }
-        let text = (command as? TypeTextCommand)?.text ?? ""
-        return ([ObservationPayload(kind: "type", content: "typed \(text.count) chars")], [])
-    }
-
-    private func dispatchFocusWindow(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let host = automationHost else {
-            return ([ObservationPayload(kind: "focus", content: "no-host: skipped")], [])
-        }
-        let app = (command as? FocusWindowCommand)?.applicationBundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: app) }
-        return ([ObservationPayload(kind: "focus", content: "focused \(app)")], [])
-    }
-
-    private func dispatchReadElement(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard automationHost != nil else {
-            return ([ObservationPayload(kind: "read", content: "no-host: skipped")], [])
-        }
-        let targetID = (command as? ReadElementCommand)?.targetID ?? "unknown"
-        return ([ObservationPayload(kind: "read", content: "read element \(targetID)")], [])
-    }
-
-    // MARK: - Code Command Dispatchers
-
-    private func dispatchSearchRepository(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let ctx = context else {
-            return ([ObservationPayload(kind: "search", content: "no-context: skipped")], [])
-        }
-        let query = (command as? SearchRepositoryCommand)?.query ?? ""
-        let root = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent() }
-        let snapshot = await MainActor.run { ctx.repositoryIndexer.indexIfNeeded(workspaceRoot: root) }
-        let matches = CodeSearch().search(query: query, in: snapshot)
-        let content = matches.prefix(10).map { "\($0.path) (\(String(format: "%.2f", $0.score)))" }.joined(separator: "\n")
-        return ([ObservationPayload(kind: "searchResult", content: content.isEmpty ? "no matches" : content)], [])
-    }
-
-    private func dispatchReadFile(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        let path = (command as? ReadFileCommand)?.filePath ?? ""
-        guard !path.isEmpty else { throw ToolDispatcherError.missingParameter("filePath") }
-        guard let data = FileManager.default.contents(atPath: path),
-              let text = String(data: data, encoding: .utf8) else {
-            throw ToolDispatcherError.fileNotFound(path)
-        }
-        let obs = ObservationPayload(kind: "fileContent", content: text)
-        let artifact = ArtifactPayload(kind: "file", identifier: path, data: data)
-        return ([obs], [artifact])
-    }
-
-    private func dispatchModifyFile(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let cmd = command as? ModifyFileCommand else {
-            throw ToolDispatcherError.unsupportedCommandKind(command.kind)
-        }
-        let path = cmd.filePath
-        guard !path.isEmpty else { throw ToolDispatcherError.missingParameter("filePath") }
-        let existing = FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        let newContent = cmd.patch
-        try newContent.write(toFile: path, atomically: true, encoding: .utf8)
-        let obs = ObservationPayload(kind: "fileModified",
-            content: "modified \(path): \(existing.count)→\(newContent.count) chars")
-        return ([obs], [ArtifactPayload(kind: "patch", identifier: path)])
-    }
-
-    private func dispatchRunBuild(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let ctx = context else {
-            return ([ObservationPayload(kind: "build", content: "no-context: skipped")], [])
-        }
-        let workspacePath = (command as? RunBuildCommand)?.workspacePath
-        let fallback = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent().path }
-        let root = workspacePath ?? fallback
-        let spec = CommandSpec(
-            category: .build,
-            executable: "/usr/bin/env",
-            arguments: ["swift", "build"],
-            workspaceRoot: root,
-            summary: "swift build"
-        )
-        let result = try await MainActor.run { try ctx.workspaceRunner.execute(spec: spec) }
-        let obs = ObservationPayload(kind: "buildResult",
-            content: "\(result.succeeded ? "PASS" : "FAIL") exit=\(result.exitCode) \(result.stderr.prefix(200))")
-        return ([obs], [])
-    }
-
-    private func dispatchRunTests(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let ctx = context else {
-            return ([ObservationPayload(kind: "test", content: "no-context: skipped")], [])
-        }
-        let filter = (command as? RunTestsCommand)?.filter
-        var args = ["swift", "test"]
-        if let f = filter { args += ["--filter", f] }
-        let root = await MainActor.run { ctx.config.traceDirectory.deletingLastPathComponent().path }
-        let spec = CommandSpec(
-            category: .test,
-            executable: "/usr/bin/env",
-            arguments: args,
-            workspaceRoot: root,
-            summary: "swift test\(filter.map { " --filter \($0)" } ?? "")"
-        )
-        let result = try await MainActor.run { try ctx.workspaceRunner.execute(spec: spec) }
-        let obs = ObservationPayload(kind: "testResult",
-            content: "\(result.succeeded ? "PASS" : "FAIL") exit=\(result.exitCode) \(result.stdout.prefix(200))")
-        return ([obs], [])
-    }
-
-    // MARK: - System Command Dispatchers
-
-    private func dispatchLaunchApp(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        guard let host = automationHost else {
-            return ([ObservationPayload(kind: "launch", content: "no-host: skipped")], [])
-        }
-        let bundleID = (command as? LaunchAppCommand)?.bundleID ?? ""
-        await MainActor.run { _ = host.applications.activateApplication(named: bundleID) }
-        return ([ObservationPayload(kind: "launch", content: "launched \(bundleID)")], [])
-    }
-
-    private func dispatchOpenURL(_ command: any Command) async throws -> (observations: [ObservationPayload], artifacts: [ArtifactPayload]) {
-        let url = (command as? OpenURLCommand)?.url.absoluteString ?? ""
-        return ([ObservationPayload(kind: "openURL", content: "opened \(url)")], [])
+        return ([ObservationPayload(kind: kind, content: content)], [])
     }
 }
 

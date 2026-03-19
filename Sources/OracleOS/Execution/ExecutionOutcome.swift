@@ -5,15 +5,73 @@ import Foundation
 public struct ExecutionOutcome: Sendable {
     public let commandID: CommandID
     public let status: ExecutionStatus
-    public let observations: [ObservationPayload]
-    public let artifacts: [ArtifactPayload]
     public let events: [EventEnvelope]
     public let verifierReport: VerifierReport
+    public let observations: [ObservationPayload]
+    public let artifacts: [ArtifactPayload]
 
     public init(commandID: CommandID, status: ExecutionStatus, observations: [ObservationPayload] = [],
                 artifacts: [ArtifactPayload] = [], events: [EventEnvelope], verifierReport: VerifierReport) {
-        self.commandID = commandID; self.status = status; self.observations = observations
-        self.artifacts = artifacts; self.events = events; self.verifierReport = verifierReport
+        self.commandID = commandID
+        self.status = status
+        self.observations = observations
+        self.artifacts = artifacts
+        self.verifierReport = verifierReport
+
+        // Runtime invariant: both success and failure paths must produce events.
+        if events.isEmpty {
+            let fallbackEventType: String = (status == .success) ? "CommandSucceeded" : "CommandFailed"
+            let payload = (try? JSONSerialization.data(withJSONObject: ["status": status.rawValue])) ?? Data()
+            self.events = [
+                EventEnvelope(
+                    sequenceNumber: 0,
+                    commandID: commandID,
+                    intentID: nil,
+                    timestamp: Date(),
+                    eventType: fallbackEventType,
+                    payload: payload
+                ),
+            ]
+        } else {
+            self.events = events
+        }
+    }
+
+    public static func failure(from error: Error, command: Command) -> ExecutionOutcome {
+        let reason = error.localizedDescription
+        let payload = (try? JSONSerialization.data(withJSONObject: ["reason": reason])) ?? Data()
+        let events = [
+            EventEnvelope(
+                sequenceNumber: 0,
+                commandID: command.id,
+                intentID: command.metadata.intentID,
+                timestamp: Date(),
+                eventType: "CommandStarted",
+                payload: (try? JSONSerialization.data(withJSONObject: ["status": "started"])) ?? Data()
+            ),
+            EventEnvelope(
+                sequenceNumber: 0,
+                commandID: command.id,
+                intentID: command.metadata.intentID,
+                timestamp: Date(),
+                eventType: "CommandFailed",
+                payload: payload
+            ),
+        ]
+        return ExecutionOutcome(
+            commandID: command.id,
+            status: .failed,
+            observations: [],
+            artifacts: [],
+            events: events,
+            verifierReport: VerifierReport(
+                commandID: command.id,
+                preconditionsPassed: false,
+                policyDecision: "error",
+                postconditionsPassed: false,
+                notes: [reason]
+            )
+        )
     }
 }
 

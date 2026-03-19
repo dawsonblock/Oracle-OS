@@ -1,68 +1,48 @@
 # Oracle-OS Runtime Spine
 
-> Updated: post-Wave-1/2 refactor (Wave 1A, 1B complete; 2E-2H governance tests in place)
+## Enforced execution path
 
-## The Execution Loop
+All side effects are expected to flow through this spine:
 
 ```
-Intent (submitIntent via IntentAPI)
-  → RuntimeOrchestrator.decide(intent, planner)
-      → Planner.plan(intent, context) → Command
-  → RuntimeOrchestrator.execute(command, state)
-      → VerifiedExecutor.execute(command, state) ← ONLY side-effect layer
-          → PreconditionsValidator.validate
-          → SafetyValidator.isSafe
-          → CapabilityBinder.bind
-          → ToolDispatcher.dispatch ← ONLY tool invocation point
-          → PostconditionsValidator.validate
-          → ExecutionOutcome { status, observations, artifacts, events }
-  → RuntimeOrchestrator.commit(outcome)
-      → CommitCoordinator.commit(outcome.events)
-          → EventStore.append(events) ← append-only
-          → Reducers.apply(events, &state)
-          → WorldStateModel updated
-  → RuntimeOrchestrator.evaluate(outcome)
-      → Critic (post-commit review)
+Intent
+  → RuntimeOrchestrator.submitIntent(_:)
+  → Planner.plan(...) -> Command
+  → VerifiedExecutor.execute(_:)
+  → ExecutionOutcome(events)
+  → CommitCoordinator.commit(_:)
+  → Reducers apply events to WorldStateModel
+  → snapshot / evaluation
 ```
 
-## Architecture Rules
+`RuntimeExecutionDriver` is an adapter that translates `ActionIntent` inputs into
+typed `Intent` values and forwards them to `IntentAPI.submitIntent(_:)`.
 
-| Rule | Enforcement |
-|------|------------|
-| Planners never execute | `PlannerBoundaryTests` |
-| VerifiedExecutor is the only side-effect layer | `ExecutionBoundaryTests`, `NoBypassExecutionTests` |
-| Reducers are the only state writers | `StateMutationTests` |
-| Controller is a client via IntentAPI | `ControllerBoundaryTests` |
-| Every committed change has event ancestry | `EventHistoryInvariantTests` |
-| Runtime cycles are replayable | `EventReplayTests` |
+## Runtime invariants
 
-## Key Module Map
+1. `VerifiedExecutor.execute(_:)` is the only execution boundary for side effects.
+2. `CommitCoordinator.commit(_:)` is the only committed-state write path.
+3. Reducers are pure event-to-state derivation functions.
+4. `ExecutionOutcome` must include events on success and failure paths.
+5. `RuntimeOrchestrator` coordinates planning, execution, commit, and evaluation.
+
+## Key modules
 
 | Module | File | Responsibility |
 |--------|------|---------------|
-| **API** | `Sources/OracleOS/API/IntentAPI.swift` | Controller boundary — submitIntent/queryState only |
-| **Runtime** | `Sources/OracleOS/Runtime/RuntimeOrchestrator.swift` | Cycle coordinator — decide/execute/commit/evaluate |
-| **Execution** | `Sources/OracleOS/Execution/VerifiedExecutor.swift` | Only side-effect layer |
-| **Events** | `Sources/OracleOS/Events/EventStore.swift` | Append-only event log |
-| **Commit** | `Sources/OracleOS/Events/CommitCoordinator.swift` | State mutation gate |
-| **State** | `Sources/OracleOS/State/Reducers/` | Pure state derivation from events |
-| **Observability** | `Sources/OracleOS/Observability/` | Timeline, replay, traces from event history |
+| API | `Sources/OracleOS/API/IntentAPI.swift` | Runtime intake boundary |
+| Orchestration | `Sources/OracleOS/Runtime/RuntimeOrchestrator.swift` | Linear runtime coordination |
+| Planning | `Sources/OracleOS/Planning/MainPlanner+Planner.swift` | Intent -> Command planning |
+| Execution | `Sources/OracleOS/Execution/VerifiedExecutor.swift` | Policy + routed command execution |
+| Routing | `Sources/OracleOS/Execution/Routing/*.swift` | Domain command routing |
+| Dispatch | `Sources/OracleOS/Execution/ToolDispatcher.swift` | Low-level command handling |
+| Events | `Sources/OracleOS/Events/EventStore.swift` | Append-only event history |
+| Commit | `Sources/OracleOS/Events/CommitCoordinator.swift` | Number/append/reduce commit flow |
+| Reducers | `Sources/OracleOS/State/Reducers/*.swift` | Pure state derivation |
 
-## Milestone Status
+## Remaining hardening focus
 
-| Milestone | Status | Test |
-|-----------|--------|------|
-| A — One execution path | ✅ RuntimeOrchestrator delegates to VerifiedExecutor | `ExecutionBoundaryTests` |
-| B — One state path | ✅ CommitCoordinator + Reducers | `StateMutationTests`, `EventHistoryInvariantTests` |
-| C — One planner authority | ⏳ MainPlanner still god-object | `PlannerBoundaryTests` |
-| D — One controller boundary | ⏳ ControllerRuntimeBridge needs audit | `ControllerBoundaryTests` |
-| E — Replayable runtime | ✅ EventReplay + TimelineBuilder | `EventReplayTests` |
-
-## Remaining Work (Waves 1C-3D)
-
-- **AgentLoop** (`Execution/Loop/AgentLoop.swift`) — uses legacy spine; needs narrowing to RuntimeOrchestrator
-- **RuntimeExecutionDriver** — still calls `performAction()` (legacy shim); needs conversion to intent translator
-- **CodeActionGateway** — bypass executor; must be deprecated then deleted
-- **ToolDispatcher** — handlers stub; needs bridging to Skills infrastructure
-- **MainPlanner** — needs extraction into route-only façade + Strategies/
-- **ControllerRuntimeBridge** — needs boundary audit against IntentAPI contract
+- Finish narrowing `AgentLoop` into intake/scheduling-only behavior.
+- Keep all user-facing entrypoints (controller/CLI/MCP/recipes) on the same
+  `IntentAPI -> RuntimeOrchestrator` path.
+- Continue expanding architecture integrity tests that guard bypass regressions.

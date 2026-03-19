@@ -12,7 +12,7 @@ but not bypassed, duplicated, or replaced without updating this document:
 
 | Module | Role |
 |--------|------|
-| `VerifiedExecutor` | Only path for environment-changing actions (replaces deprecated `VerifiedActionExecutor`) |
+| `VerifiedExecutor` | Only path for environment-changing actions (`execute(_:)` trust boundary) |
 | `CriticLoop` | Post-action evaluation and failure classification |
 | `PlanSimulator` | Simulates plans before commitment |
 | `ProgramKnowledgeGraph` | Canonical code model (all code graphs are views over it) |
@@ -90,9 +90,9 @@ browser navigation, git operation) must flow through `VerifiedExecutor`.
 The executor returns `ExecutionOutcome` with events and artifacts;
 `CommitCoordinator` is the only entity that writes committed state.
 
-> **Note:** The legacy `VerifiedActionExecutor` shim is deprecated and performs
-> no actual verification. All new code must use `VerifiedExecutor` via
-> `RuntimeOrchestrator`.
+> **Note:** `VerifiedActionExecutor` is removed from the runtime execution path.
+> All side-effect execution must flow through `VerifiedExecutor` via
+> `RuntimeOrchestrator.submitIntent(_:)`.
 
 Forbidden outside the executor and its commit flow:
 - Direct writes to `worldState`, `taskGraph`, or runtime memory stores

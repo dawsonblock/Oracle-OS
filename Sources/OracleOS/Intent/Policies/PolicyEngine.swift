@@ -72,6 +72,90 @@ public final class PolicyEngine: @unchecked Sendable {
         )
     }
 
+    /// Canonical command-level policy validation used by VerifiedExecutor.
+    public func validate(_ command: Command) throws -> PolicyDecision {
+        // Keep shell execution rules and runner policy in sync.
+        if case .shell(let spec) = command.payload, spec.executable != "/usr/bin/env" && spec.executable != "/usr/bin/git" {
+            return PolicyDecision(
+                allowed: false,
+                riskLevel: .blocked,
+                protectedOperation: .workspaceWrite,
+                appProtectionProfile: .lowRiskAllowed,
+                blockedByPolicy: true,
+                surface: surface(from: command.metadata.source),
+                policyMode: mode,
+                requiresApproval: false,
+                reason: "Executable '\(spec.executable)' is not in the allowed executable set"
+            )
+        }
+
+        let intent = actionIntent(from: command)
+        let context = PolicyEvaluationContext(
+            surface: surface(from: command.metadata.source),
+            toolName: command.kind,
+            appName: intent.app,
+            agentKind: intent.agentKind,
+            workspaceRoot: intent.workspaceRoot,
+            workspaceRelativePath: intent.workspaceRelativePath,
+            commandCategory: intent.commandCategory
+        )
+        return evaluate(intent: intent, context: context)
+    }
+
+    private func actionIntent(from command: Command) -> ActionIntent {
+        switch command.payload {
+        case .shell(let spec):
+            return ActionIntent.code(
+                name: command.kind,
+                command: spec,
+                workspaceRelativePath: spec.workspaceRelativePath
+            )
+        case .ui(let action):
+            return ActionIntent(
+                agentKind: .os,
+                app: action.app ?? "unknown",
+                name: action.name,
+                action: action.name,
+                query: action.query,
+                text: action.text,
+                role: action.role,
+                domID: action.domID,
+                x: action.x,
+                y: action.y,
+                button: action.button,
+                count: action.count,
+                modifiers: action.modifiers,
+                amount: action.amount,
+                windowTitle: action.windowTitle,
+                clear: action.clear,
+                width: action.width,
+                height: action.height,
+                postconditions: []
+            )
+        case .code(let action):
+            return ActionIntent(
+                agentKind: .code,
+                app: action.app ?? "Workspace",
+                name: action.name,
+                action: action.name,
+                query: action.query,
+                text: action.patch,
+                workspaceRoot: action.workspacePath,
+                workspaceRelativePath: action.filePath,
+                codeCommand: nil,
+                postconditions: []
+            )
+        }
+    }
+
+    private func surface(from source: String) -> RuntimeSurface {
+        let lowered = source.lowercased()
+        if lowered.contains("controller") { return .controller }
+        if lowered.contains("recipe") { return .recipe }
+        if lowered.contains("cli") { return .cli }
+        return .mcp
+    }
+
     public func evaluate(intent: ActionIntent, context: PolicyEvaluationContext) -> PolicyDecision {
         let appProtectionProfile = PolicyRules.appProtectionProfile(for: context.appName ?? intent.app)
         let classification = PolicyRules.classification(

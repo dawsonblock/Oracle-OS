@@ -8,12 +8,12 @@ import Foundation
 /// (``Planner``), then hardens the result before returning it to the loop.
 ///
 /// - Important: This coordinator **plans** but never **executes**.  Action
-///   execution is the responsibility of `VerifiedActionExecutor`.
+///   execution is the responsibility of `VerifiedExecutor`.
 @MainActor
 public final class DecisionCoordinator {
     private static let defaultExplorationFallbackReason = "planner returned bounded exploration after stronger workflow and graph options were unavailable"
 
-    private let planner: MainPlanner
+    let planner: MainPlanner
     private let graphStore: GraphStore
     private let memoryStore: UnifiedMemoryStore
     private let strategySelector: StrategySelector

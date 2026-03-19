@@ -5,7 +5,7 @@ import Foundation
 public struct PostconditionsValidator: Sendable {
     public init() {}
     
-    public func validate(_ command: any Command, outcome: ExecutionOutcome) throws -> Bool {
+    public func validate(_ command: Command, outcome: ExecutionOutcome) throws -> Bool {
         // Check base execution status
         guard outcome.status != .failed else {
             throw PostconditionError.executionFailed

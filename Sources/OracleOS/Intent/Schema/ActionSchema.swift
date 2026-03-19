@@ -30,7 +30,7 @@ public enum SchemaCondition: Sendable, Codable, Hashable {
 ///
 /// Each schema declares explicit *preconditions* (what must hold before
 /// the action runs) and *expected postconditions* (what should be true
-/// after a successful execution). The ``VerifiedActionExecutor`` already
+/// after a successful execution). The ``VerifiedExecutor`` already
 /// verifies postconditions; the schema makes them first-class for the
 /// planner so it can reason about sequencing and recovery.
 public struct ActionSchema: Sendable, Codable, Identifiable, Hashable {
