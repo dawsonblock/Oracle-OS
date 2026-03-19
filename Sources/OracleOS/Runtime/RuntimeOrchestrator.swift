@@ -43,23 +43,21 @@ public actor RuntimeOrchestrator: IntentAPI {
         )
     }
 
-    public func decide(intent: Intent, planner: any Planner) async throws -> Command {
-        let context = PlannerContext(
-            state: WorldStateModel(snapshot: await commitCoordinator.snapshot())
-        )
-        return try await planner.plan(intent: intent, context: context)
+    private func decide(intent: Intent, planner: any Planner) async throws -> Command {
+        let state = WorldStateModel(snapshot: await commitCoordinator.snapshot())
+        return try await planner.plan(intent: intent, state: state)
     }
 
-    public func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
+    private func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
         _ = state
         return try await verifiedExecutor.execute(command)
     }
 
-    public func commit(_ outcome: ExecutionOutcome) async throws {
+    private func commit(_ outcome: ExecutionOutcome) async throws {
         try await commitCoordinator.commit(outcome.events)
     }
 
-    public func evaluate(_ outcome: ExecutionOutcome) async -> EvaluationResult {
+    private func evaluate(_ outcome: ExecutionOutcome) async -> EvaluationResult {
         let criticOutcome: CriticOutcome
         switch outcome.status {
         case .success:
@@ -101,13 +99,14 @@ extension RuntimeOrchestrator {
 
         let executionOutcome: ExecutionOutcome
         do {
-            executionOutcome = try await verifiedExecutor.execute(command)
+            let state = WorldStateModel(snapshot: await commitCoordinator.snapshot())
+            executionOutcome = try await execute(command, state: state)
         } catch {
             executionOutcome = ExecutionOutcome.failure(from: error, command: command)
         }
 
         do {
-            try await commitCoordinator.commit(executionOutcome.events)
+            try await commit(executionOutcome)
         } catch {
             return IntentResponse(
                 intentID: intent.id,

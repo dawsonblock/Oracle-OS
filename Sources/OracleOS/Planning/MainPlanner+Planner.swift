@@ -158,7 +158,7 @@ extension MainPlanner: Planner {
         if objective.contains("launch") || objective.contains("open app") || objective.contains("start") {
             let bundleID = intent.metadata["bundleID"] ?? intent.objective
             return Command(
-                type: .system,
+                type: .ui,
                 payload: .ui(UIAction(name: "launchApp", app: bundleID)),
                 metadata: metadata
             )
@@ -167,7 +167,7 @@ extension MainPlanner: Planner {
         if objective.contains("url") || objective.contains("http") || objective.contains("website") {
             let urlString = intent.metadata["url"] ?? intent.objective
             return Command(
-                type: .system,
+                type: .ui,
                 payload: .ui(UIAction(name: "openURL", query: urlString)),
                 metadata: metadata
             )
@@ -177,7 +177,7 @@ extension MainPlanner: Planner {
         let bundleID = intent.metadata["bundleID"] ?? intent.objective
         _ = context
         return Command(
-            type: .system,
+            type: .ui,
             payload: .ui(UIAction(name: "launchApp", app: bundleID)),
             metadata: metadata
         )

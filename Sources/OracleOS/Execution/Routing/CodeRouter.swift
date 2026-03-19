@@ -23,6 +23,10 @@ public struct CodeRouter: @unchecked Sendable {
         _ command: Command,
         policyDecision: PolicyDecision
     ) async throws -> ExecutionOutcome {
+        guard command.type == .code else {
+            throw RouterError.invalidRoute(expected: .code, actual: command.type)
+        }
+
         switch command.payload {
         case .shell(let spec):
             guard let workspaceRunner else {

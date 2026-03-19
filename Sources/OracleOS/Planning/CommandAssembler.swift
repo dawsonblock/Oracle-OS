@@ -10,7 +10,7 @@ public struct CommandAssembler {
         case .code:
             return Command(type: .code, payload: .code(CodeAction(name: "searchRepository", query: intent.objective)), metadata: meta)
         case .system:
-            return Command(type: .system, payload: .ui(UIAction(name: "launchApp", app: intent.objective)), metadata: meta)
+            return Command(type: .ui, payload: .ui(UIAction(name: "launchApp", app: intent.objective)), metadata: meta)
         case .mixed:
             _ = context
             return Command(type: .code, payload: .code(CodeAction(name: "searchRepository", query: intent.objective)), metadata: meta)

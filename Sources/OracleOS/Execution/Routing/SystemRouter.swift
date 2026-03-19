@@ -24,6 +24,10 @@ public struct SystemRouter: @unchecked Sendable {
         _ command: Command,
         policyDecision: PolicyDecision
     ) async throws -> ExecutionOutcome {
+        guard command.type == .system else {
+            throw RouterError.invalidRoute(expected: .system, actual: command.type)
+        }
+
         switch command.payload {
         case .shell(let spec):
             guard let workspaceRunner else {

@@ -209,37 +209,34 @@ struct GraphAwareLoopTests {
 
     @Test("AgentLoop submits exactly one intent through orchestrator")
     func agentLoopSubmitsOneIntentThroughOrchestrator() async throws {
+        let intent = Intent(
+            domain: .ui,
+            objective: "open gmail compose",
+            metadata: [
+                "app": "Google Chrome",
+                "targetTaskPhase": "compose",
+            ]
+        )
         let orchestrator = RecordingIntentAPI()
-        let driver = RecordingExecutionDriver { _, _, _ in
-            Issue.record("AgentLoop should not execute through the legacy driver")
-            return ToolResult(success: false)
-        }
         let loop = AgentLoop(
-            orchestrator: orchestrator,
-            observationProvider: StubObservationProvider([]),
-            executionDriver: driver
+            intake: QueueIntentSource([intent]),
+            orchestrator: orchestrator
         )
 
-        let outcome = await loop.run(
-            goal: Goal(
-                description: "open gmail compose",
-                targetApp: "Google Chrome",
-                targetDomain: "mail.google.com",
-                targetTaskPhase: "compose"
-            )
-        )
+        let task = Task { await loop.run() }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        loop.stop()
+        _ = await task.result
 
         let submitted = await orchestrator.submittedIntents()
         #expect(submitted.count == 1)
         #expect(submitted.first?.objective == "open gmail compose")
         #expect(submitted.first?.metadata["app"] == "Google Chrome")
         #expect(submitted.first?.metadata["targetTaskPhase"] == "compose")
-        #expect(outcome.reason == .goalAchieved)
-        #expect(driver.intents.isEmpty)
     }
 
-    @Test("AgentLoop maps failed orchestrator responses without executing directly")
-    func agentLoopMapsFailedOrchestratorResponses() async {
+    @Test("AgentLoop keeps delegating through orchestrator even when responses fail")
+    func agentLoopDelegatesFailedResponsesThroughOrchestrator() async {
         let intentID = UUID()
         let orchestrator = RecordingIntentAPI(
             fixedResponse: IntentResponse(
@@ -249,42 +246,44 @@ struct GraphAwareLoopTests {
                 cycleID: UUID()
             )
         )
-        let driver = RecordingExecutionDriver { _, _, _ in
-            Issue.record("AgentLoop should not execute through the legacy driver")
-            return ToolResult(success: false)
-        }
         let loop = AgentLoop(
-            orchestrator: orchestrator,
-            observationProvider: StubObservationProvider([]),
-            executionDriver: driver
+            intake: QueueIntentSource([
+                Intent(
+                    id: intentID,
+                    domain: .ui,
+                    objective: "continue terminal task",
+                    metadata: [
+                        "app": "Terminal",
+                        "targetTaskPhase": "shell",
+                    ]
+                ),
+            ]),
+            orchestrator: orchestrator
         )
 
-        let outcome = await loop.run(
-            goal: Goal(description: "continue terminal task", targetApp: "Terminal", targetTaskPhase: "shell")
-        )
+        let task = Task { await loop.run() }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        loop.stop()
+        _ = await task.result
 
-        #expect(outcome.reason == .policyBlocked)
-        #expect(driver.intents.isEmpty)
+        let submitted = await orchestrator.submittedIntents()
+        #expect(submitted.count == 1)
+        #expect(submitted.first?.objective == "continue terminal task")
     }
 
-    @Test("AgentLoop respects zero-step budgets before submitting intents")
-    func agentLoopRespectsZeroStepBudgets() async {
+    @Test("AgentLoop idles without submitting when intake is empty")
+    func agentLoopDoesNotSubmitWhenIntakeIsEmpty() async {
         let orchestrator = RecordingIntentAPI()
         let loop = AgentLoop(
-            orchestrator: orchestrator,
-            observationProvider: StubObservationProvider([]),
-            executionDriver: RecordingExecutionDriver { _, _, _ in
-                Issue.record("AgentLoop should not execute through the legacy driver")
-                return ToolResult(success: false)
-            }
+            intake: QueueIntentSource([]),
+            orchestrator: orchestrator
         )
 
-        let outcome = await loop.run(
-            goal: Goal(description: "no-op"),
-            budget: LoopBudget(maxSteps: 0)
-        )
+        let task = Task { await loop.run() }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        loop.stop()
+        _ = await task.result
 
-        #expect(outcome.reason == .maxSteps)
         let submitted = await orchestrator.submittedIntents()
         #expect(submitted.isEmpty)
     }
@@ -658,45 +657,16 @@ struct GraphAwareLoopTests {
     }
 }
 
-@MainActor
-private final class StubObservationProvider: ObservationProvider {
-    private let observations: [Observation]
-    private var index = 0
+private actor QueueIntentSource: IntentSource {
+    private var intents: [Intent]
 
-    init(_ observations: [Observation]) {
-        self.observations = observations
+    init(_ intents: [Intent]) {
+        self.intents = intents
     }
 
-    func observe() -> Observation {
-        guard !observations.isEmpty else {
-            return Observation(app: nil, windowTitle: nil, url: nil, focusedElementID: nil, elements: [])
-        }
-        let observation = observations[min(index, observations.count - 1)]
-        if index < observations.count - 1 {
-            index += 1
-        }
-        return observation
-    }
-}
-
-@MainActor
-private final class RecordingExecutionDriver: AgentExecutionDriver {
-    var intents: [ActionIntent] = []
-    var decisions: [PlannerDecision] = []
-    private let handler: (ActionIntent, PlannerDecision, ElementCandidate?) -> ToolResult
-
-    init(handler: @escaping (ActionIntent, PlannerDecision, ElementCandidate?) -> ToolResult) {
-        self.handler = handler
-    }
-
-    func execute(
-        intent: ActionIntent,
-        plannerDecision: PlannerDecision,
-        selectedCandidate: ElementCandidate?
-    ) -> ToolResult {
-        intents.append(intent)
-        decisions.append(plannerDecision)
-        return handler(intent, plannerDecision, selectedCandidate)
+    func next() async -> Intent? {
+        guard !intents.isEmpty else { return nil }
+        return intents.removeFirst()
     }
 }
 
