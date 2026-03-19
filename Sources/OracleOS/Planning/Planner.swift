@@ -9,6 +9,19 @@ public protocol Planner: Sendable {
     func plan(intent: Intent, context: PlannerContext) async throws -> Command
 }
 
+public extension Planner {
+    func plan(
+        intent: Intent,
+        state: WorldStateModel,
+        repositorySnapshot: RepositorySnapshot? = nil
+    ) async throws -> Command {
+        try await plan(
+            intent: intent,
+            context: PlannerContext(state: state, repositorySnapshot: repositorySnapshot)
+        )
+    }
+}
+
 /// Lightweight planning context for the Planner protocol.
 /// Distinct from Runtime/PlanningContext which serves strategy selection.
 public struct PlannerContext: Sendable {

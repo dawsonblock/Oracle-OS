@@ -109,6 +109,12 @@ graph TD
     Planner --> Exp["Parallel Experiments (Code)"]
 ```
 
+### Execution spine
+
+All runtime effects now flow through a single command spine:
+
+> **Intent -> RuntimeOrchestrator.submitIntent -> Planner -> Command -> VerifiedExecutor -> CommandRouter -> DomainRouter -> Execution -> Events -> CommitCoordinator**
+
 Every action flows through:
 
 > **Observe → Abstract → Plan → Gate → Execute → Trace → Learn**

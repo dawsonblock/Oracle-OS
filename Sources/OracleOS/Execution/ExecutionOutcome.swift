@@ -101,6 +101,33 @@ public struct ObservationPayload: Sendable, Codable {
         self.kind = kind; self.content = content; self.timestamp = timestamp }
 }
 
+public struct UIActionObservationPayload: Sendable, Codable {
+    public let action: String
+    public let target: String?
+    public let result: String
+
+    public init(action: String, target: String?, result: String) {
+        self.action = action
+        self.target = target
+        self.result = result
+    }
+}
+
+public extension ObservationPayload {
+    static func uiAction(action: String, target: String?, result: String) -> ObservationPayload {
+        let payload = UIActionObservationPayload(action: action, target: target, result: result)
+        let content: String
+        if let data = try? JSONEncoder().encode(payload),
+           let encoded = String(data: data, encoding: .utf8)
+        {
+            content = encoded
+        } else {
+            content = result
+        }
+        return ObservationPayload(kind: "ui.action", content: content)
+    }
+}
+
 public struct ArtifactPayload: Sendable, Codable {
     public let kind: String; public let identifier: String; public let data: Data?
     public init(kind: String, identifier: String, data: Data? = nil) {

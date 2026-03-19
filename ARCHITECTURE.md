@@ -173,7 +173,7 @@ Responsibilities:
 
 - policy validation for executable intents
 - postcondition validation of execution results
-- structured command routing via `CommandRouter`/`ToolDispatcher`
+- structured command routing via `CommandRouter` and the domain routers
 - event emission for `CommitCoordinator`
 - comprehensive failure classification for recovery
 

@@ -12,6 +12,10 @@ public struct UIRouter: @unchecked Sendable {
         _ command: Command,
         policyDecision: PolicyDecision
     ) async throws -> ExecutionOutcome {
+        guard command.type == .ui else {
+            throw RouterError.invalidRoute(expected: .ui, actual: command.type)
+        }
+
         #if DEBUG
         if let automationHost = automationHost {
             NSLog("UIRouter executing with automation host: \(automationHost)")
@@ -28,7 +32,13 @@ public struct UIRouter: @unchecked Sendable {
         }
 
         let result = await MainActor.run { execute(action) }
-        let observations = [ObservationPayload(kind: "ui.\(action.name)", content: result.summary)]
+        let observations = [
+            ObservationPayload.uiAction(
+                action: action.name,
+                target: action.query ?? action.domID ?? action.app ?? action.windowTitle,
+                result: result.summary
+            ),
+        ]
 
         if result.success {
             return CommandRouter.successOutcome(
