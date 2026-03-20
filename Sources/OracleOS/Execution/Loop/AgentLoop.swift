@@ -2,9 +2,9 @@ import Foundation
 
 @MainActor
 public final class AgentLoop {
-    private let intake: any IntentSource
-    private let orchestrator: any IntentAPI
-    private var running = true
+    let intake: any IntentSource
+    let orchestrator: any IntentAPI
+    var running = true
 
     public init(
         intake: any IntentSource,

@@ -53,7 +53,6 @@ public struct Dashboard {
     public init() {}
 
     public func run() {
-        let width = 60
         let now = Date()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]

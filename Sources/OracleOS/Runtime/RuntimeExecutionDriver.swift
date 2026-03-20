@@ -6,6 +6,14 @@ import Foundation
 /// through the IntentAPI-based RuntimeOrchestrator.
 @MainActor
 public final class RuntimeExecutionDriver: AgentExecutionDriver {
+    private final class SubmissionState: @unchecked Sendable {
+        var result: ToolResult
+
+        init(result: ToolResult) {
+            self.result = result
+        }
+    }
+
     private let surface: RuntimeSurface
     private let intentAPI: any IntentAPI
     private static let submissionTimeoutSeconds: TimeInterval = 60
@@ -68,18 +76,16 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
         )
 
         // Submit intent via API — the sole approved execution gateway
-        var result: ToolResult = ToolResult(success: false, error: "IntentAPI submission pending")
-        let resultLock = NSLock()
+        let submissionState = SubmissionState(
+            result: ToolResult(success: false, error: "IntentAPI submission pending")
+        )
         let semaphore = DispatchSemaphore(value: 0)
-        Task.detached(priority: .userInitiated) {
+        Task.detached(priority: .userInitiated) { [submissionState, semaphore] in
             do {
                 let response = try await api.submitIntent(typedIntent)
-                resultLock.lock()
-                result = Self.makeToolResult(from: response)
-                resultLock.unlock()
+                submissionState.result = Self.makeToolResult(from: response)
             } catch {
-                resultLock.lock()
-                result = ToolResult(
+                submissionState.result = ToolResult(
                     success: false,
                     data: [
                         "summary": "Intent submission failed",
@@ -94,7 +100,6 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
                     ],
                     error: error.localizedDescription
                 )
-                resultLock.unlock()
             }
             semaphore.signal()
         }
@@ -133,10 +138,10 @@ public final class RuntimeExecutionDriver: AgentExecutionDriver {
             )
         }
 
-        return result
+        return submissionState.result
     }
 
-    private static func makeToolResult(from response: IntentResponse) -> ToolResult {
+    nonisolated private static func makeToolResult(from response: IntentResponse) -> ToolResult {
         let success = response.outcome == .success || response.outcome == .skipped
         let isPlanningFailure = response.summary.lowercased().hasPrefix("planning failed")
 

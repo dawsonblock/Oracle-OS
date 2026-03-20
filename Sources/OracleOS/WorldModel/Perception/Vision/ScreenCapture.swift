@@ -14,6 +14,14 @@ import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
+@_silgen_name("CGWindowListCreateImage")
+private func legacyCGWindowListCreateImage(
+    _ screenBounds: CGRect,
+    _ windowListOption: CGWindowListOption,
+    _ windowID: CGWindowID,
+    _ imageOption: CGWindowImageOption
+) -> CGImage?
+
 /// Captures screenshots of specific windows.
 public enum ScreenCapture {
 
@@ -154,7 +162,7 @@ public enum ScreenCapture {
             ? [.bestResolution, .boundsIgnoreFraming]
             : [.nominalResolution, .boundsIgnoreFraming]
 
-        guard let cgImage = CGWindowListCreateImage(
+        guard let cgImage = legacyCGWindowListCreateImage(
             .null,                          // .null = use the window's own bounds
             .optionIncludingWindow,         // capture only this specific window
             windowID,

@@ -37,7 +37,7 @@ public struct ExecutionOutcome: Sendable {
         }
     }
 
-    public static func failure(from error: Error, command: Command) -> ExecutionOutcome {
+    public static func failure(from error: any Error, command: Command) -> ExecutionOutcome {
         let reason = error.localizedDescription
         let payload = (try? JSONSerialization.data(withJSONObject: ["reason": reason])) ?? Data()
         let events = [

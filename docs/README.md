@@ -1,32 +1,22 @@
 # Documentation Index
 
-Use this directory as the canonical entry point for status, governance, rollout, and architecture context.
+Use this directory as the canonical entry point for the docs that exist in this checkout.
 
 ## Start Here
 
-- [STATUS.md](STATUS.md) — current product/runtime status
-- [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md) — architecture maturity snapshot
-- [GOVERNANCE.md](GOVERNANCE.md) — normative governance contract
-- [progress.md](progress.md) — concise progress summary
+- [runtime_invariants.md](runtime_invariants.md) — non-negotiable runtime rules
+- [migration_cleanup.md](migration_cleanup.md) — retired surfaces and cleanup notes
+- [oracle-controller.md](oracle-controller.md) — controller architecture and behavior
+
+## Runtime Baselines
+
+- [runtime_baseline_36.md](runtime_baseline_36.md) — baseline capture for the runtime unification effort
+- [runtime_baseline_38.md](runtime_baseline_38.md) — follow-up baseline from the runtime upgrade branch
 
 ## Architecture
 
-- [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) — architecture-level governance notes
 - [architecture/runtime_spine.md](architecture/runtime_spine.md) — runtime spine overview
-- [oracle-controller.md](oracle-controller.md) — controller-specific architecture and behavior
 
-## Runtime Baselines and Rollout
+## Notes
 
-- [BASELINE_METRICS.md](BASELINE_METRICS.md) — baseline metrics reference
-- [STRATEGY_BASELINE.md](STRATEGY_BASELINE.md) — strategic baseline framing
-- [runtime_baseline_v32.md](runtime_baseline_v32.md) — current runtime baseline snapshot
-- [runtime-hardening-rollout.md](runtime-hardening-rollout.md) — rollout and hardening plan
-
-## Governance and Migration
-
-- [governance/](governance/) — supporting governance materials
-- [migration/](migration/) — migration notes and historical baseline docs
-
-## Visuals
-
-- [diagrams/](diagrams/) — architecture and support diagrams
+- Older status and governance pages referenced by earlier revisions are not part of this checkout.

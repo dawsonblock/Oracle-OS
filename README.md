@@ -225,7 +225,6 @@ Code tasks fan out into bounded candidate experiments (default: 3) using git wor
 ```text
 AppResources/                   controller assets, entitlements, and release notes
 docs/                           status, governance, rollout, and architecture docs
-plans/                          active implementation plans and checklists
 ProjectMemory/                  canonical project memory records
 recipes/                        replayable JSON workflow recipes
 scripts/                        build, packaging, and release helpers

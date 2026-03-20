@@ -48,8 +48,8 @@ public actor RuntimeOrchestrator: IntentAPI {
         return try await planner.plan(intent: intent, state: state)
     }
 
-    private func execute(_ command: Command, state: WorldStateModel) async throws -> ExecutionOutcome {
-        return try await verifiedExecutor.execute(command, state: state)
+    private func execute(_ command: Command) async throws -> ExecutionOutcome {
+        return try await verifiedExecutor.execute(command)
     }
 
     private func commit(_ outcome: ExecutionOutcome) async throws {
@@ -98,8 +98,7 @@ extension RuntimeOrchestrator {
 
         let executionOutcome: ExecutionOutcome
         do {
-            let state = WorldStateModel(snapshot: await commitCoordinator.snapshot())
-            executionOutcome = try await execute(command, state: state)
+            executionOutcome = try await execute(command)
         } catch {
             executionOutcome = ExecutionOutcome.failure(from: error, command: command)
         }

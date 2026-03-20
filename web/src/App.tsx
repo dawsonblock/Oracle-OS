@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Activity, Zap, Shield, RotateCcw, 
-  Database, Cpu, Terminal, RefreshCw, Layers
+  Database, Terminal, Layers
 } from 'lucide-react';
 import './App.css';
 
